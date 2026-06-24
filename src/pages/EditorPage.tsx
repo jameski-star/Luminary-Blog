@@ -7,32 +7,96 @@ import { generateSlug, calcReadTime } from '../store/appStore';
 import { detectRogueContent } from '../utils/contentDetection';
 import { friendlyError } from '../utils/errors';
 import type { BlogPost, AuditResult } from '../types';
-import { marked } from 'marked';
 import {
   Save, Send, Eye, EyeOff, Plus, X, Shield,
   AlertTriangle, CheckCircle, Info, ArrowLeft,
-  Bold, Italic, Link2, Heading1, Heading2, Heading3, Image, Upload
+  Bold, Italic, Link2, Heading1, Heading2, Heading3, Image, Upload,
+  Quote, List, ListOrdered
 } from 'lucide-react';
 
-function FormatButton({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+function FormatButton({ icon, label, onClick, active }: { icon: React.ReactNode; label: string; onClick: () => void; active?: boolean }) {
   return (
     <button
       onClick={onClick}
       title={label}
-      className="p-1.5 rounded-lg text-secondary hover:text-primary hover:bg-raised transition-colors"
+      className={`p-1.5 rounded-lg transition-colors ${
+        active ? 'bg-primary/20 text-primary' : 'text-secondary hover:text-primary hover:bg-raised'
+      }`}
     >
       {icon}
     </button>
   );
 }
 
+function htmlToMarkdown(html: string): string {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+
+  function walk(node: Node): string {
+    const result: string[] = [];
+    for (let i = 0; i < node.childNodes.length; i++) {
+      const child = node.childNodes[i];
+      if (child.nodeType === Node.TEXT_NODE) {
+        const text = child.textContent || '';
+        if (text.trim()) result.push(text.replace(/\u00A0/g, ' '));
+        continue;
+      }
+      if (child.nodeType !== Node.ELEMENT_NODE) continue;
+      const el = child as HTMLElement;
+      const tag = el.tagName.toLowerCase();
+
+      switch (tag) {
+        case 'h1': result.push(`\n\n# ${el.textContent}\n\n`); break;
+        case 'h2': result.push(`\n\n## ${el.textContent}\n\n`); break;
+        case 'h3': result.push(`\n\n### ${el.textContent}\n\n`); break;
+        case 'blockquote': {
+          const inner = walk(el).trim();
+          result.push('\n\n' + inner.split('\n').map(l => l.trim() ? `> ${l}` : '>').join('\n') + '\n\n');
+          break;
+        }
+        case 'ul':
+        case 'ol': {
+          const items = el.querySelectorAll(':scope > li');
+          items.forEach(li => result.push(`\n- ${walk(li).trim()}`));
+          result.push('\n');
+          break;
+        }
+        case 'strong': case 'b': result.push(`**${walk(el)}**`); break;
+        case 'em': case 'i': result.push(`*${walk(el)}*`); break;
+        case 'u': result.push(`<u>${walk(el)}</u>`); break;
+        case 'a': {
+          const href = (el as HTMLAnchorElement).href || '';
+          result.push(`[${walk(el)}](${href})`);
+          break;
+        }
+        case 'img': {
+          const src = (el as HTMLImageElement).src || '';
+          const alt = (el as HTMLImageElement).alt || '';
+          result.push(`![${alt}](${src})`);
+          break;
+        }
+        case 'br': result.push('\n'); break;
+        case 'p': {
+          const inner = walk(el).trim();
+          if (inner) result.push(`${inner}\n\n`);
+          break;
+        }
+        case 'div': case 'span':
+        default: result.push(walk(el)); break;
+      }
+    }
+    return result.join('');
+  }
+
+  return walk(div).replace(/\n{4,}/g, '\n\n').trim();
+}
+
 export default function EditorPage() {
-  const { user, geminiKey, addPost, setCurrentPage, setSelectedPostId, posts } = useApp();
+  const { user, geminiKey, addPost, setCurrentPage, setSelectedPostId } = useApp();
   const { prompt, PromptDialog } = usePrompt();
   const { confirm, ConfirmDialog } = useConfirm();
 
   const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
   const [excerpt, setExcerpt] = useState('');
   const [keywordInput, setKeywordInput] = useState('');
   const [keywords, setKeywords] = useState<string[]>([]);
@@ -41,104 +105,47 @@ export default function EditorPage() {
   const [coverImage, setCoverImage] = useState('');
   const [preview, setPreview] = useState(false);
 
-  // Validation
   const [validating, setValidating] = useState(false);
   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
   const [validationError, setValidationError] = useState('');
   const [rogueWarning, setRogueWarning] = useState<string | null>(null);
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const getContentText = useCallback(() => editorRef.current?.innerText || '', []);
+  const getContentHtml = useCallback(() => editorRef.current?.innerHTML || '', []);
+
+  const getContentMarkdown = useCallback(() => {
+    return htmlToMarkdown(getContentHtml());
+  }, [getContentHtml]);
 
   const insertImage = async () => {
     const url = await prompt('Insert Image', 'Enter image URL:', 'https://', 'https://example.com/image.jpg');
     if (!url) return;
-    setContent(prev => prev + `\n![${url.split('/').pop() || 'image'}](${url})\n`);
+    document.execCommand('insertHTML', false, `<br><img src="${url}" alt="${url.split('/').pop() || 'image'}" /><br>`);
   };
 
-  const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setValidationError('Image too large. Maximum 5MB.');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      if (ev.target?.result) setCoverImage(ev.target.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
+  const execFormat = useCallback((cmd: string, value?: string) => {
+    document.execCommand(cmd, false, value);
+    editorRef.current?.focus();
+  }, []);
 
-  const insertFormatting = useCallback(async (type: 'bold' | 'italic' | 'h1' | 'h2' | 'h3' | 'link') => {
-    const ta = textareaRef.current;
-    if (!ta) return;
+  const handleInput = useCallback(() => {
+    const text = getContentText();
+    const rogue = detectRogueContent(text);
+    setRogueWarning(rogue.isRogue ? rogue.reason || 'Suspicious content detected.' : null);
+  }, [getContentText]);
 
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const sel = content.substring(start, end);
-    const before = content.substring(0, start);
-    const after = content.substring(end);
-
-    let result: string;
-    let cursorPos: number;
-
-    switch (type) {
-      case 'bold':
-        result = before + '**' + (sel || 'bold') + '**' + after;
-        cursorPos = start + 2;
-        break;
-      case 'italic':
-        result = before + '_' + (sel || 'italic') + '_' + after;
-        cursorPos = start + 1;
-        break;
-      case 'h1':
-      case 'h2':
-      case 'h3': {
-        const prefix = type === 'h1' ? '# ' : type === 'h2' ? '## ' : '### ';
-        const lineStart = content.lastIndexOf('\n', start - 1) + 1;
-        const line = content.substring(lineStart, end);
-        const stripped = line.replace(/^#{1,6} /, '');
-        result = content.substring(0, lineStart) + prefix + stripped + content.substring(end);
-        cursorPos = lineStart + prefix.length;
-        break;
-      }
-      case 'link': {
-        const url = await prompt('Insert Link', 'Enter URL:', 'https://', 'https://example.com');
-        if (!url) return;
-        const text = sel || url.replace(/^https?:\/\//, '');
-        result = before + '[' + text + '](' + url + ')' + after;
-        cursorPos = start + 1;
-        break;
-      }
-      default:
-        return;
-    }
-
-    setContent(result);
-    requestAnimationFrame(() => {
-      ta.focus();
-      ta.setSelectionRange(cursorPos, cursorPos);
-    });
-  }, [content]);
-
-  // Auto-excerpt
   useEffect(() => {
-    if (!excerpt && content) {
-      const clean = content.replace(/[#*`]/g, '').trim().slice(0, 160);
-      setExcerpt(clean);
+    if (!excerpt && getContentText()) {
+      setExcerpt(getContentText().replace(/[#*`]/g, '').trim().slice(0, 160));
     }
-  }, [content]);
-
-  // Rogue content check
-  useEffect(() => {
-    const check = detectRogueContent(content);
-    setRogueWarning(check.isRogue ? check.reason || 'Suspicious content detected.' : null);
-  }, [content]);
+  }, [getContentText]);
 
   if (!user) {
     return (
-        <div className="min-h-screen bg-canvas flex items-center justify-center pt-16">
+      <div className="min-h-screen bg-canvas flex items-center justify-center pt-16">
         <SEO title="Editor" description="Write and publish articles." noindex />
         <div className="text-center">
           <h2 className="text-2xl font-bold text-primary mb-3">Sign in to write</h2>
@@ -148,8 +155,9 @@ export default function EditorPage() {
     );
   }
 
-  const wordCount = content.trim().split(/\s+/).filter(Boolean).length;
-  const readTime = calcReadTime(content);
+  const text = getContentText();
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+  const readTime = calcReadTime(text);
 
   const addKeyword = () => {
     const kw = keywordInput.trim();
@@ -163,14 +171,13 @@ export default function EditorPage() {
 
   const runValidation = async () => {
     if (!geminiKey) { setValidationError('Add a Gemini API key in AutoPost to validate.'); return; }
-    if (content.split(/\s+/).length < 100) { setValidationError('Write at least 100 words to validate.'); return; }
-
+    const md = getContentMarkdown();
+    if (md.split(/\s+/).length < 100) { setValidationError('Write at least 100 words to validate.'); return; }
     setValidating(true);
     setAuditResult(null);
     setValidationError('');
-
     try {
-      const result = await validateManualPost(content, geminiKey);
+      const result = await validateManualPost(md, geminiKey);
       setAuditResult(result);
     } catch (err: unknown) {
       setValidationError(friendlyError(err));
@@ -179,12 +186,13 @@ export default function EditorPage() {
     }
   };
 
-  const canPublish = title.trim() && content.trim().split(/\s+/).length >= 50;
+  const canPublish = title.trim() && wordCount >= 50;
 
   const publishPost = async (status: 'published' | 'draft') => {
     if (!canPublish) return;
 
-    // Rouge content check — auto-quarantine
+    const content = getContentMarkdown();
+
     const rogue = detectRogueContent(content);
     if (rogue.isRogue && status === 'published') {
       const ok = await confirm('Suspicious Content Detected', `${rogue.reason} This post will be saved as a draft and submitted for admin review.`, 'Save as Draft');
@@ -192,7 +200,6 @@ export default function EditorPage() {
       status = 'review';
     }
 
-    // Gate: if audit failed and trying to publish, warn
     if (status === 'published' && auditResult && auditResult.score < 65) {
       const ok = await confirm('Low Authenticity Score', `Authenticity score is ${auditResult.score}/100 (below 65). Publish anyway?`, 'Publish Anyway');
       if (!ok) return;
@@ -288,36 +295,37 @@ export default function EditorPage() {
               className="w-full bg-transparent text-primary font-heading text-4xl font-bold outline-none mb-6 placeholder-raised border-b border-border pb-4 focus:border-primary/40 transition-colors"
             />
 
-            {!preview && (
-              <div className="flex items-center gap-1 px-3 py-2 mb-3 rounded-xl border border-border bg-surface">
-                <FormatButton icon={<Bold size={15} />} label="Bold" onClick={() => insertFormatting('bold')} />
-                <FormatButton icon={<Italic size={15} />} label="Italic" onClick={() => insertFormatting('italic')} />
-                <span className="w-px h-5 bg-border mx-1" />
-                <FormatButton icon={<Heading1 size={15} />} label="Heading 1" onClick={() => insertFormatting('h1')} />
-                <FormatButton icon={<Heading2 size={15} />} label="Heading 2" onClick={() => insertFormatting('h2')} />
-                <FormatButton icon={<Heading3 size={15} />} label="Heading 3" onClick={() => insertFormatting('h3')} />
-                <span className="w-px h-5 bg-border mx-1" />
-                <FormatButton icon={<Link2 size={15} />} label="Link" onClick={() => insertFormatting('link')} />
-                <FormatButton icon={<Image size={15} />} label="Image" onClick={insertImage} />
-              </div>
-            )}
+            {/* Formatting Toolbar */}
+            <div className="flex items-center gap-1 px-3 py-2 mb-3 rounded-xl border border-border bg-surface">
+              <FormatButton icon={<Bold size={15} />} label="Bold" onClick={() => execFormat('bold')} />
+              <FormatButton icon={<Italic size={15} />} label="Italic" onClick={() => execFormat('italic')} />
+              <span className="w-px h-5 bg-border mx-1" />
+              <FormatButton icon={<Heading1 size={15} />} label="Heading 1" onClick={() => execFormat('formatBlock', 'h1')} />
+              <FormatButton icon={<Heading2 size={15} />} label="Heading 2" onClick={() => execFormat('formatBlock', 'h2')} />
+              <FormatButton icon={<Heading3 size={15} />} label="Heading 3" onClick={() => execFormat('formatBlock', 'h3')} />
+              <span className="w-px h-5 bg-border mx-1" />
+              <FormatButton icon={<Quote size={15} />} label="Blockquote" onClick={() => execFormat('formatBlock', 'blockquote')} />
+              <FormatButton icon={<List size={15} />} label="Bullet List" onClick={() => execFormat('insertUnorderedList')} />
+              <FormatButton icon={<ListOrdered size={15} />} label="Numbered List" onClick={() => execFormat('insertOrderedList')} />
+              <span className="w-px h-5 bg-border mx-1" />
+              <FormatButton icon={<Link2 size={15} />} label="Link" onClick={async () => {
+                const url = await prompt('Insert Link', 'Enter URL:', 'https://', 'https://example.com');
+                if (url) execFormat('createLink', url);
+              }} />
+              <FormatButton icon={<Image size={15} />} label="Image" onClick={insertImage} />
+            </div>
 
-            {!preview ? (
-              <textarea
-                ref={textareaRef}
-                value={content}
-                onChange={e => setContent(e.target.value)}
-                placeholder={`Write your article in Markdown…\n\n## Introduction\n\nStart with a hook that immediately delivers value. No filler.\n\n## Section Heading\n\nDive deep. Cite specific examples. Vary sentence length.\n\nShort sentence. Then a longer one that builds context and demonstrates your expertise through specific detail.`}
-                className="w-full bg-transparent text-primary text-base outline-none resize-none placeholder-secondary/30 leading-relaxed font-mono"
-                rows={35}
-                style={{ minHeight: '60vh' }}
-              />
-            ) : (
-              <div
-                className="prose-premium"
-                dangerouslySetInnerHTML={{ __html: marked.parse(content || '*Start writing to see preview…*', { async: false }) as string }}
-              />
-            )}
+            {/* Editor / Preview */}
+            <div
+              ref={editorRef}
+              contentEditable={!preview}
+              onInput={handleInput}
+              suppressContentEditableWarning
+              className={`w-full bg-transparent text-primary text-base outline-none leading-relaxed min-h-[60vh] ${
+                preview ? '' : 'border border-border rounded-2xl p-5'
+              } ${preview ? 'prose-premium' : ''}`}
+              style={preview ? {} : { minHeight: '60vh' }}
+            />
           </div>
 
           {/* Sidebar */}
@@ -374,7 +382,14 @@ export default function EditorPage() {
                     <Upload size={20} />
                     <span className="text-sm">Upload Cover Image</span>
                   </button>
-                  <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
+                  <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 5 * 1024 * 1024) { setValidationError('Image too large. Maximum 5MB.'); return; }
+                    const reader = new FileReader();
+                    reader.onload = (ev) => { if (ev.target?.result) setCoverImage(ev.target.result as string); };
+                    reader.readAsDataURL(file);
+                  }} />
                 </div>
               )}
               <div className="flex gap-2">
@@ -488,20 +503,18 @@ export default function EditorPage() {
               </button>
             </div>
 
-            {/* Markdown Guide */}
+            {/* Markdown Reference */}
             <div className="rounded-2xl border border-border bg-surface p-5">
-              <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3">Markdown Reference</h3>
+              <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3">Formatting Reference</h3>
               <div className="space-y-1.5 text-xs font-mono text-secondary">
                 {[
-                  ['## Heading', 'H2'],
-                  ['**bold text**', 'Bold'],
-                  ['*italic text*', 'Italic'],
-                  ['> blockquote', 'Quote'],
-                  ['- list item', 'List'],
-                  ['`inline code`', 'Code'],
+                  ['Ctrl+B', 'Bold'],
+                  ['Ctrl+I', 'Italic'],
+                  ['Ctrl+K', 'Link'],
+                  ['Select text then click a tool', 'Apply formatting'],
                 ].map(([syntax, label]) => (
                   <div key={label} className="flex items-center justify-between">
-                      <code className="bg-canvas px-2 py-0.5 rounded text-primary">{syntax}</code>
+                    <code className="bg-canvas px-2 py-0.5 rounded text-primary">{syntax}</code>
                     <span className="text-secondary">{label}</span>
                   </div>
                 ))}
