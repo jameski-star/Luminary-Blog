@@ -1,26 +1,32 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import type { AuditResult, PipelineResult, PipelineStage } from '../types';
+import { friendlyError, isQuotaError, isCongestionError } from '../utils/errors';
 
 const MODEL_NAME = 'gemini-2.5-flash';
 const MAX_RETRIES = 5;
 const INITIAL_RETRY_DELAY = 2000;
 
-function isCongestionError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
-  return msg.includes('429') || msg.includes('too many requests') || msg.includes('resource exhausted') || msg.includes('rate_limit') || msg.includes('congestion') || msg.includes('overloaded') || msg.includes('unavailable');
-}
-
-async function withRetry<T>(fn: () => Promise<T>, onRetry?: (attempt: number, delay: number) => void): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, onRetry?: (attempt: number, delay: number, message: string) => void): Promise<T> {
   let lastError: unknown;
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+  let attempt = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
     try {
       return await fn();
     } catch (err) {
       lastError = err;
-      if (!isCongestionError(err) || attempt === MAX_RETRIES - 1) throw err;
-      const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt) + Math.random() * 1000;
-      onRetry?.(attempt + 1, Math.round(delay));
+      if (!isCongestionError(err)) throw err;
+      const isQuota = isQuotaError(err);
+      const delay = isQuota
+        ? 60000 + Math.random() * 10000
+        : INITIAL_RETRY_DELAY * Math.pow(2, attempt) + Math.random() * 1000;
+      const message = isQuota
+        ? `Quota exceeded — retrying in 60s (attempt ${attempt + 1})…`
+        : `Model congested — retrying in ${(delay / 1000).toFixed(1)}s (attempt ${attempt + 1}/${MAX_RETRIES})…`;
+      onRetry?.(attempt + 1, Math.round(delay), message);
       await new Promise(resolve => setTimeout(resolve, delay));
+      attempt++;
+      if (!isQuota && attempt >= MAX_RETRIES) break;
     }
   }
   throw lastError;
@@ -182,7 +188,7 @@ export async function executeAutopostPipeline(
     update(0, 'running');
     const rawDraft = await withRetry(
       () => draftArticleContent(ai, topic, keywords),
-      (attempt, delay) => update(0, 'running', `Model congested — retrying in ${(delay / 1000).toFixed(1)}s (attempt ${attempt}/${MAX_RETRIES})…`)
+      (_attempt, _delay, msg) => update(0, 'running', msg)
     );
     update(0, 'done', `${rawDraft.split(/\s+/).length.toLocaleString()} words drafted`);
 
@@ -190,7 +196,7 @@ export async function executeAutopostPipeline(
     update(1, 'running');
     const auditResults = await withRetry(
       () => runAuthenticityCheck(ai, rawDraft),
-      (attempt, delay) => update(1, 'running', `Model congested — retrying in ${(delay / 1000).toFixed(1)}s (attempt ${attempt}/${MAX_RETRIES})…`)
+      (_attempt, _delay, msg) => update(1, 'running', msg)
     );
     update(
       1,
@@ -215,7 +221,7 @@ export async function executeAutopostPipeline(
     update(2, 'running');
     const polishedContent = await withRetry(
       () => optimizeAndPolish(ai, rawDraft, auditResults),
-      (attempt, delay) => update(2, 'running', `Model congested — retrying in ${(delay / 1000).toFixed(1)}s (attempt ${attempt}/${MAX_RETRIES})…`)
+      (_attempt, _delay, msg) => update(2, 'running', msg)
     );
     update(2, 'done', 'Prose humanized and polished');
 
@@ -229,11 +235,11 @@ export async function executeAutopostPipeline(
     };
 
   } catch (error: unknown) {
-    const errMsg = error instanceof Error ? error.message : String(error);
+    const errMsg = friendlyError(error);
     const failedIdx = stages.findIndex(s => s.status === 'running');
     if (failedIdx >= 0) update(failedIdx, 'error', errMsg);
 
-    throw new Error(`Pipeline failed: ${errMsg}`);
+    throw new Error(errMsg);
   }
 }
 

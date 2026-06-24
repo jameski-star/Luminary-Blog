@@ -334,7 +334,9 @@ export default function AutoPostPage() {
           <div className="rounded-2xl border border-border bg-surface p-6 mb-6">
             <h2 className="text-sm font-semibold text-primary mb-5 flex items-center gap-2">
               {running ? (
-                <><div className="w-3 h-3 rounded-full bg-primary animate-pulse" />Generating{running && stages.some(s => s.message?.includes('retrying')) ? ' (retrying due to congestion…)' : '…'}</>
+                <><div className="w-3 h-3 rounded-full bg-primary animate-pulse" />Generating{running && stages.some(s => s.message?.includes('retrying')) ? ' (retrying…)' : '…'}</>
+              ) : stages.some(s => s.status === 'error') ? (
+                <><AlertTriangle size={14} className="text-red-400" />Pipeline Failed</>
               ) : (
                 <><CheckCircle size={14} className="text-emerald-400" />Pipeline Complete</>
               )}
