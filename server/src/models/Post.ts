@@ -55,4 +55,16 @@ postSchema.index({ status: 1, publishedAt: -1 });
 postSchema.index({ authorId: 1, status: 1 });
 postSchema.index({ title: 'text', excerpt: 'text', content: 'text', tags: 'text', keywords: 'text' });
 
+postSchema.set('toJSON', {
+  virtuals: true,
+  transform(_doc: any, ret: any) {
+    ret.id = String(ret._id);
+    delete ret._id;
+    delete ret.__v;
+    if (ret.authorId) ret.authorId = String(ret.authorId);
+    if (ret.likedBy) ret.likedBy = (ret.likedBy as any[]).map((id: any) => String(id));
+    return ret;
+  }
+});
+
 export const Post = mongoose.model<IPost>('Post', postSchema);

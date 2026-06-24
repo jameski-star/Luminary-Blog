@@ -27,6 +27,18 @@ const userSchema = new Schema<IUser>({
   verificationTokenHash: { type: String },
 });
 
+userSchema.set('toJSON', {
+  virtuals: true,
+  transform(_doc: any, ret: any) {
+    ret.id = String(ret._id);
+    delete ret._id;
+    delete ret.__v;
+    delete ret.passwordHash;
+    if (ret.verificationTokenHash) delete ret.verificationTokenHash;
+    return ret;
+  }
+});
+
 userSchema.index({ email: 1 }, { unique: true });
 
 export function generateVerificationToken(): { raw: string; hash: string } {

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import SEO from '../components/SEO';
+import { Modal, useConfirm } from '../components/Modal';
 import { getStoredUsers } from '../store/appStore';
 import { api, isApiMode } from '../services/api';
 import {
   Shield, Users, FileText, Eye, Heart, TrendingUp,
   Trash2, Send, Clock, AlertTriangle, Ban, User as UserIcon,
-  ArrowUpDown
+  ArrowUpDown, Crown, Key
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { BlogPost, User as UserType } from '../types';
@@ -43,6 +44,8 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>('posts');
   const [sortBy, setSortBy] = useState<'views' | 'likes' | 'date'>('date');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [promoteTarget, setPromoteTarget] = useState<UserType | null>(null);
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const totalPosts = posts.length;
   const totalPublished = posts.filter(p => p.status === 'published').length;
@@ -201,6 +204,13 @@ export default function AdminPage() {
         {/* Users Tab */}
         {activeTab === 'users' && (
           <>
+            <div className="flex items-center gap-2 mb-6 p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10">
+              <Key size={16} className="text-amber-400 shrink-0" />
+              <p className="text-xs text-amber-400">
+                <strong>Admin Recovery:</strong> If you lost your admin account, sign up a new account first, then come here and promote it using the "Make Admin" button.
+              </p>
+            </div>
+
             {users.length === 0 ? (
               <div className="text-center py-20 rounded-3xl border border-border bg-surface">
                 <Users size={32} className="text-secondary mx-auto mb-3" />
@@ -210,12 +220,64 @@ export default function AdminPage() {
             ) : (
               <div className="space-y-2">
                 {users.map(u => (
-                  <AdminUserRow key={u.id} user={u} postsCount={posts.filter(p => p.authorId === u.id).length} />
+                  <AdminUserRow
+                    key={u.id}
+                    user={u}
+                    postsCount={posts.filter(p => p.authorId === u.id).length}
+                    onPromote={() => setPromoteTarget(u)}
+                    isCurrentUser={u.id === user.id}
+                  />
                 ))}
               </div>
             )}
           </>
         )}
+
+        {/* Promote Confirmation Modal */}
+        <Modal
+          open={!!promoteTarget}
+          onClose={() => setPromoteTarget(null)}
+          title="Promote to Admin"
+          actions={
+            <>
+              <button
+                onClick={() => setPromoteTarget(null)}
+                className="px-4 py-2 text-sm text-secondary hover:text-primary border border-border rounded-xl hover:bg-raised transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!promoteTarget) return;
+                  try {
+                    if (isApiMode()) {
+                      await api.admin.promoteUser(promoteTarget.id);
+                    }
+                    if (!isApiMode()) {
+                      const allUsers = getStoredUsers();
+                      const updated = allUsers.map(u => u.id === promoteTarget.id ? { ...u, role: 'admin' as const } : u);
+                      localStorage.setItem('luminary_users', JSON.stringify(updated));
+                    }
+                    setUsers(prev => prev.map(u => u.id === promoteTarget.id ? { ...u, role: 'admin' as const } : u));
+                    setPromoteTarget(null);
+                  } catch (err) {
+                    console.error('Promote failed:', err);
+                  }
+                }}
+                className="px-4 py-2 text-sm bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold rounded-xl hover:bg-amber-500/30 transition-colors"
+              >
+                <Crown size={14} className="inline mr-1.5" />
+                Make Admin
+              </button>
+            </>
+          }
+        >
+          <p className="text-sm text-secondary">
+            Promote <strong className="text-primary">{promoteTarget?.name}</strong> ({promoteTarget?.email}) to administrator?
+            They will gain full access to the admin panel.
+          </p>
+        </Modal>
+        <ConfirmDialog />
       </div>
     </div>
   );
@@ -321,7 +383,9 @@ function AdminPostRow({ post, authorName, onOpen, onPublish, onDelete, onStatusC
   );
 }
 
-function AdminUserRow({ user, postsCount }: { user: UserType; postsCount: number }) {
+function AdminUserRow({ user, postsCount, onPromote, isCurrentUser }: {
+  user: UserType; postsCount: number; onPromote: () => void; isCurrentUser: boolean;
+}) {
   return (
     <div className="rounded-2xl border border-border bg-surface p-4 hover:border-primary/20 transition-all">
       <div className="flex items-center gap-4">
@@ -334,6 +398,9 @@ function AdminUserRow({ user, postsCount }: { user: UserType; postsCount: number
             {user.role === 'admin' && (
               <span className="text-xs bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full font-medium">Admin</span>
             )}
+            {isCurrentUser && (
+              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">You</span>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs text-secondary mt-0.5">
             <span>{user.email}</span>
@@ -341,6 +408,15 @@ function AdminUserRow({ user, postsCount }: { user: UserType; postsCount: number
             <span>Joined {formatDistanceToNow(new Date(user.joinedAt), { addSuffix: true })}</span>
           </div>
         </div>
+        {user.role !== 'admin' && (
+          <button
+            onClick={onPromote}
+            className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 transition-colors px-3 py-1.5 rounded-lg border border-amber-500/30 hover:border-amber-400/50"
+          >
+            <Crown size={12} />
+            Make Admin
+          </button>
+        )}
       </div>
     </div>
   );

@@ -101,6 +101,11 @@ export const api = {
     users() {
       return request<{ users: import('../types').User[] }>('/admin/users');
     },
+    promoteUser(id: string) {
+      return request<{ user: import('../types').User }>(`/admin/users/${id}/promote`, {
+        method: 'PATCH',
+      });
+    },
   },
 
   gemini: {

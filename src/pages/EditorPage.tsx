@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import SEO from '../components/SEO';
+import { Modal, usePrompt, useConfirm } from '../components/Modal';
 import { validateManualPost } from '../services/geminiPipeline';
 import { generateSlug, calcReadTime } from '../store/appStore';
 import type { BlogPost, AuditResult } from '../types';
@@ -8,7 +9,7 @@ import { marked } from 'marked';
 import {
   Save, Send, Eye, EyeOff, Plus, X, Shield,
   AlertTriangle, CheckCircle, Info, ArrowLeft,
-  Bold, Italic, Link2, Heading1, Heading2, Heading3
+  Bold, Italic, Link2, Heading1, Heading2, Heading3, Image, Upload
 } from 'lucide-react';
 
 function FormatButton({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
@@ -23,8 +24,28 @@ function FormatButton({ icon, label, onClick }: { icon: React.ReactNode; label: 
   );
 }
 
+function detectRogueContent(text: string): { isRogue: boolean; reason?: string } {
+  const trimmed = text.trim();
+  if (!trimmed) return { isRogue: false };
+  const words = trimmed.split(/\s+/);
+  if (words.length < 10) return { isRogue: true, reason: 'Content too short (less than 10 words).' };
+  const charRatio = trimmed.replace(/\s/g, '').length / trimmed.length;
+  if (charRatio > 0.95) return { isRogue: true, reason: 'Suspicious content: very low whitespace ratio (possible gibberish).' };
+  const uniqueChars = new Set(trimmed.toLowerCase().replace(/\s/g, '')).size;
+  const totalChars = trimmed.replace(/\s/g, '').length;
+  if (totalChars > 20 && uniqueChars < 5) return { isRogue: true, reason: 'Suspicious content: too few unique characters (possible keyboard spam).' };
+  const lines = trimmed.split('\n').filter(Boolean);
+  const repeatedLines = lines.filter((l, i) => lines.indexOf(l) !== i);
+  if (repeatedLines.length > 2) return { isRogue: true, reason: 'Suspicious content: repeated lines detected (possible copy-paste spam).' };
+  const repeatedWords = words.filter((w, i) => words.indexOf(w) !== i);
+  if (repeatedWords.length > words.length * 0.6) return { isRogue: true, reason: 'Suspicious content: excessive word repetition.' };
+  return { isRogue: false };
+}
+
 export default function EditorPage() {
-  const { user, geminiKey, addPost, setCurrentPage, setSelectedPostId } = useApp();
+  const { user, geminiKey, addPost, setCurrentPage, setSelectedPostId, posts } = useApp();
+  const { prompt, PromptDialog } = usePrompt();
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -33,16 +54,39 @@ export default function EditorPage() {
   const [keywords, setKeywords] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
+  const [coverImage, setCoverImage] = useState('');
   const [preview, setPreview] = useState(false);
 
   // Validation
   const [validating, setValidating] = useState(false);
   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
   const [validationError, setValidationError] = useState('');
+  const [rogueWarning, setRogueWarning] = useState<string | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
-  const insertFormatting = useCallback((type: 'bold' | 'italic' | 'h1' | 'h2' | 'h3' | 'link') => {
+  const insertImage = async () => {
+    const url = await prompt('Insert Image', 'Enter image URL:', 'https://', 'https://example.com/image.jpg');
+    if (!url) return;
+    setContent(prev => prev + `\n![${url.split('/').pop() || 'image'}](${url})\n`);
+  };
+
+  const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setValidationError('Image too large. Maximum 5MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (ev.target?.result) setCoverImage(ev.target.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const insertFormatting = useCallback(async (type: 'bold' | 'italic' | 'h1' | 'h2' | 'h3' | 'link') => {
     const ta = textareaRef.current;
     if (!ta) return;
 
@@ -76,7 +120,7 @@ export default function EditorPage() {
         break;
       }
       case 'link': {
-        const url = window.prompt('Enter URL:', 'https://');
+        const url = await prompt('Insert Link', 'Enter URL:', 'https://', 'https://example.com');
         if (!url) return;
         const text = sel || url.replace(/^https?:\/\//, '');
         result = before + '[' + text + '](' + url + ')' + after;
@@ -100,6 +144,12 @@ export default function EditorPage() {
       const clean = content.replace(/[#*`]/g, '').trim().slice(0, 160);
       setExcerpt(clean);
     }
+  }, [content]);
+
+  // Rogue content check
+  useEffect(() => {
+    const check = detectRogueContent(content);
+    setRogueWarning(check.isRogue ? check.reason || 'Suspicious content detected.' : null);
   }, [content]);
 
   if (!user) {
@@ -147,12 +197,21 @@ export default function EditorPage() {
 
   const canPublish = title.trim() && content.trim().split(/\s+/).length >= 50;
 
-  const publishPost = (status: 'published' | 'draft') => {
+  const publishPost = async (status: 'published' | 'draft') => {
     if (!canPublish) return;
+
+    // Rouge content check — auto-quarantine
+    const rogue = detectRogueContent(content);
+    if (rogue.isRogue && status === 'published') {
+      const ok = await confirm('Suspicious Content Detected', `${rogue.reason} This post will be saved as a draft and submitted for admin review.`, 'Save as Draft');
+      if (!ok) return;
+      status = 'review';
+    }
 
     // Gate: if audit failed and trying to publish, warn
     if (status === 'published' && auditResult && auditResult.score < 65) {
-      if (!window.confirm(`Authenticity score is ${auditResult.score}/100 (below 65). Publish anyway?`)) return;
+      const ok = await confirm('Low Authenticity Score', `Authenticity score is ${auditResult.score}/100 (below 65). Publish anyway?`, 'Publish Anyway');
+      if (!ok) return;
     }
 
     const slug = generateSlug(title);
@@ -165,6 +224,7 @@ export default function EditorPage() {
       slug,
       excerpt: finalExcerpt,
       content,
+      coverImage: coverImage || undefined,
       tags: tags.length > 0 ? tags : ['Uncategorized'],
       keywords,
       authorId: user.id,
@@ -254,6 +314,7 @@ export default function EditorPage() {
                 <FormatButton icon={<Heading3 size={15} />} label="Heading 3" onClick={() => insertFormatting('h3')} />
                 <span className="w-px h-5 bg-border mx-1" />
                 <FormatButton icon={<Link2 size={15} />} label="Link" onClick={() => insertFormatting('link')} />
+                <FormatButton icon={<Image size={15} />} label="Image" onClick={insertImage} />
               </div>
             )}
 
@@ -304,6 +365,45 @@ export default function EditorPage() {
               </div>
             </div>
 
+            {/* Cover Image */}
+            <div className="rounded-2xl border border-border bg-surface p-5">
+              <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Image size={12} className="text-secondary" />
+                Cover Image
+              </h3>
+              {coverImage ? (
+                <div className="relative mb-3">
+                  <img src={coverImage} alt="Cover" className="w-full h-32 object-cover rounded-xl" />
+                  <button
+                    onClick={() => setCoverImage('')}
+                    className="absolute top-2 right-2 bg-black/60 text-white p-1 rounded-lg hover:bg-black/80 transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <div className="mb-3">
+                  <button
+                    onClick={() => coverInputRef.current?.click()}
+                    className="w-full flex items-center justify-center gap-2 py-8 border-2 border-dashed border-border rounded-xl text-secondary hover:text-primary hover:border-primary/40 transition-colors"
+                  >
+                    <Upload size={20} />
+                    <span className="text-sm">Upload Cover Image</span>
+                  </button>
+                  <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={coverImage}
+                  onChange={e => setCoverImage(e.target.value)}
+                  placeholder="Or paste image URL…"
+                  className="flex-1 bg-canvas border border-border rounded-lg px-3 py-2 text-primary text-xs outline-none focus:border-primary/60"
+                />
+              </div>
+            </div>
+
             {/* Keywords */}
             <div className="rounded-2xl border border-border bg-surface p-5">
               <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3">Keywords</h3>
@@ -329,6 +429,20 @@ export default function EditorPage() {
                 ))}
               </div>
             </div>
+
+            {/* Rogue Content Warning */}
+            {rogueWarning && (
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5">
+                <div className="flex items-start gap-2.5 text-amber-400 text-xs">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-semibold mb-1">Suspicious Content Detected</p>
+                    <p>{rogueWarning}</p>
+                    <p className="mt-1">Publishing will route to admin review.</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Validation */}
             <div className="rounded-2xl border border-border bg-surface p-5">
@@ -412,6 +526,9 @@ export default function EditorPage() {
           </div>
         </div>
       </div>
+
+      <PromptDialog />
+      <ConfirmDialog />
     </div>
   );
 }

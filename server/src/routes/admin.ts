@@ -31,8 +31,7 @@ router.get('/posts', async (req: Request, res: Response) => {
         .sort(sortMap[sort] || { publishedAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
-        .select('-content -likedBy')
-        .lean(),
+        .select('-content -likedBy'),
       Post.countDocuments(filter),
     ]);
 
@@ -62,7 +61,7 @@ router.patch('/posts/:id/status', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Post not found.' });
     }
 
-    res.json({ post: post.toObject() });
+    res.json({ post });
   } catch (err) {
     console.error('Admin set status error:', err);
     res.status(500).json({ error: 'Internal server error.' });
@@ -83,6 +82,26 @@ router.delete('/posts/:id', async (req: Request, res: Response) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('Admin delete post error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// PATCH /api/admin/users/:id/promote — promote a user to admin
+router.patch('/users/:id/promote', async (req: Request, res: Response) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { role: 'admin' },
+      { new: true }
+    ).select('-passwordHash');
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    res.json({ user: { id: String(user._id), email: user.email, name: user.name, role: user.role } });
+  } catch (err) {
+    console.error('Admin promote user error:', err);
     res.status(500).json({ error: 'Internal server error.' });
   }
 });

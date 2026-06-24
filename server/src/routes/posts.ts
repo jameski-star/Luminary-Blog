@@ -35,8 +35,7 @@ router.get('/', async (req: Request, res: Response) => {
         .sort({ publishedAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
-        .select('-content -likedBy')
-        .lean(),
+        .select('-content -likedBy'),
       Post.countDocuments(filter),
     ]);
 
@@ -66,8 +65,7 @@ router.get('/search', async (req: Request, res: Response) => {
         .sort({ score: { $meta: 'textScore' } })
         .skip((page - 1) * limit)
         .limit(limit)
-        .select('-content -likedBy')
-        .lean(),
+        .select('-content -likedBy'),
       Post.countDocuments({ $text: { $search: q }, status: 'published' }),
     ]);
 
@@ -87,8 +85,7 @@ router.get('/my', auth, async (req: Request, res: Response) => {
 
     const posts = await Post.find(filter)
       .sort({ modifiedAt: -1 })
-      .select('-content -likedBy')
-      .lean();
+      .select('-content -likedBy');
 
     res.json({ posts });
   } catch (err) {
@@ -100,7 +97,7 @@ router.get('/my', auth, async (req: Request, res: Response) => {
 // GET /api/posts/:slug — public, but increment views
 router.get('/:slug', async (req: Request, res: Response) => {
   try {
-    const post = await Post.findOne({ slug: req.params.slug }).lean();
+    const post = await Post.findOne({ slug: req.params.slug });
     if (!post) {
       return res.status(404).json({ error: 'Post not found.' });
     }
@@ -162,7 +159,7 @@ router.post('/', auth, async (req: Request, res: Response) => {
     // Update user's post count
     await User.updateOne({ _id: user._id }, { $inc: { postsCount: 1 } });
 
-    res.status(201).json({ post: post.toObject() });
+    res.status(201).json({ post });
   } catch (err) {
     console.error('Create post error:', err);
     res.status(500).json({ error: 'Internal server error.' });
@@ -202,7 +199,7 @@ router.put('/:id', auth, async (req: Request, res: Response) => {
 
     await post.save();
 
-    res.json({ post: post.toObject() });
+    res.json({ post });
   } catch (err) {
     console.error('Update post error:', err);
     res.status(500).json({ error: 'Internal server error.' });

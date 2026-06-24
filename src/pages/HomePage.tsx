@@ -100,6 +100,11 @@ export default function HomePage() {
               onClick={() => openPost(featured)}
               className="w-full text-left group rounded-3xl border border-border bg-surface overflow-hidden hover:border-primary/30 transition-all duration-300"
             >
+              {featured.coverImage && (
+                <div className="w-full h-56 md:h-72 overflow-hidden">
+                  <img src={featured.coverImage} alt="" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500" />
+                </div>
+              )}
               <div className="p-8 md:p-12">
                 <div className="flex flex-wrap gap-2 mb-6">
                   {featured.tags.slice(0, 3).map(tag => (
@@ -212,6 +217,11 @@ export default function HomePage() {
 function PostCard({ post, onClick, onLike }: { post: BlogPost; onClick: () => void; onLike: (e: React.MouseEvent) => void }) {
   return (
     <div className="group rounded-2xl border border-border bg-surface overflow-hidden hover:border-primary/30 transition-all duration-300 flex flex-col">
+      {post.coverImage && (
+        <div className="w-full h-40 overflow-hidden">
+          <img src={post.coverImage} alt="" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500" />
+        </div>
+      )}
       <button onClick={onClick} className="flex-1 text-left p-6">
         <div className="flex flex-wrap gap-1.5 mb-4">
           {post.tags.slice(0, 2).map(tag => (

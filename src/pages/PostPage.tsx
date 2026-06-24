@@ -2,19 +2,43 @@ import { useEffect, useState } from 'react';
 import { marked } from 'marked';
 import { useApp } from '../context/AppContext';
 import SEO, { BlogPostingSchema } from '../components/SEO';
+import { api, isApiMode } from '../services/api';
 import {
   ArrowLeft, Clock, Eye, Heart, Share2, Tag, Shield,
   Copy, Check, BookOpen
 } from 'lucide-react';
 import { format } from 'date-fns';
+import type { BlogPost } from '../types';
 
 export default function PostPage() {
-  const { selectedPostId, getPost, incrementViews, likePost, setCurrentPage } = useApp();
+  const { selectedPostId, getPost, incrementViews, likePost, setCurrentPage, posts } = useApp();
   const [copied, setCopied] = useState(false);
   const [liked, setLiked] = useState(false);
   const [htmlContent, setHtmlContent] = useState('');
+  const [apiPost, setApiPost] = useState<BlogPost | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const post = selectedPostId ? getPost(selectedPostId) : null;
+  const localPost = selectedPostId ? getPost(selectedPostId) : null;
+  const post = localPost || apiPost;
+
+  useEffect(() => {
+    if (!selectedPostId) return;
+    const found = getPost(selectedPostId);
+    if (found) {
+      setApiPost(null);
+      return;
+    }
+    if (isApiMode()) {
+      setLoading(true);
+      api.posts.list({ status: 'published', limit: '100' })
+        .then(res => {
+          const p = res.posts.find((x: BlogPost) => x.id === selectedPostId);
+          if (p) setApiPost(p as BlogPost);
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    }
+  }, [selectedPostId, posts]);
 
   useEffect(() => {
     if (post) {
@@ -24,11 +48,23 @@ export default function PostPage() {
     }
   }, [post?.id]);
 
+  if (!post && loading) {
+    return (
+      <div className="min-h-screen bg-canvas flex items-center justify-center pt-16">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-secondary">Loading post…</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!post) {
     return (
       <div className="min-h-screen bg-canvas flex items-center justify-center pt-16">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-primary mb-2">Post not found</h2>
+          <p className="text-secondary mb-4">This article may have been removed or doesn't exist.</p>
           <button onClick={() => setCurrentPage('blog')} className="text-secondary hover:text-primary transition-colors">
             ← Back to Blog
           </button>
@@ -83,6 +119,17 @@ export default function PostPage() {
           <ArrowLeft size={16} />
           Back to Archive
         </button>
+
+        {/* Cover Image */}
+        {post.coverImage && (
+          <div className="mb-10 -mx-4 md:-mx-8 rounded-2xl overflow-hidden">
+            <img
+              src={post.coverImage}
+              alt={post.title}
+              className="w-full h-64 md:h-96 object-cover"
+            />
+          </div>
+        )}
 
         {/* Tags */}
         <div className="flex flex-wrap gap-2 mb-6">

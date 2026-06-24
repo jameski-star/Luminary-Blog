@@ -1,6 +1,29 @@
 import { GoogleGenAI, Type } from '@google/genai';
 
 const MODEL_NAME = 'gemini-2.5-flash';
+const MAX_RETRIES = 5;
+const INITIAL_RETRY_DELAY = 2000;
+
+function isCongestionError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+  return msg.includes('429') || msg.includes('too many requests') || msg.includes('resource exhausted') || msg.includes('rate_limit') || msg.includes('congestion') || msg.includes('overloaded') || msg.includes('unavailable');
+}
+
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (!isCongestionError(err) || attempt === MAX_RETRIES - 1) throw err;
+      const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt) + Math.random() * 1000;
+      console.log(`Model congested — retrying in ${(delay / 1000).toFixed(1)}s (attempt ${attempt + 1}/${MAX_RETRIES})…`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw lastError;
+}
 
 function createAI(apiKey: string) {
   return new GoogleGenAI({ apiKey });
@@ -150,8 +173,8 @@ export async function executePipeline(
   const ai = createAI(apiKey);
 
   try {
-    const rawDraft = await draftArticleContent(ai, topic, keywords);
-    const auditResults = await runAuthenticityCheck(ai, rawDraft);
+    const rawDraft = await withRetry(() => draftArticleContent(ai, topic, keywords));
+    const auditResults = await withRetry(() => runAuthenticityCheck(ai, rawDraft));
 
     if (auditResults.score < 65) {
       return {
@@ -165,7 +188,7 @@ export async function executePipeline(
       };
     }
 
-    const polishedContent = await optimizeAndPolish(ai, rawDraft, auditResults);
+    const polishedContent = await withRetry(() => optimizeAndPolish(ai, rawDraft, auditResults));
 
     return {
       status: 'ready_to_publish',

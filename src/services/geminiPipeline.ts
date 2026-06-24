@@ -2,6 +2,29 @@ import { GoogleGenAI, Type } from '@google/genai';
 import type { AuditResult, PipelineResult, PipelineStage } from '../types';
 
 const MODEL_NAME = 'gemini-2.5-flash';
+const MAX_RETRIES = 5;
+const INITIAL_RETRY_DELAY = 2000;
+
+function isCongestionError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+  return msg.includes('429') || msg.includes('too many requests') || msg.includes('resource exhausted') || msg.includes('rate_limit') || msg.includes('congestion') || msg.includes('overloaded') || msg.includes('unavailable');
+}
+
+async function withRetry<T>(fn: () => Promise<T>, onRetry?: (attempt: number, delay: number) => void): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (!isCongestionError(err) || attempt === MAX_RETRIES - 1) throw err;
+      const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt) + Math.random() * 1000;
+      onRetry?.(attempt + 1, Math.round(delay));
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw lastError;
+}
 
 function createAI(apiKey: string) {
   return new GoogleGenAI({ apiKey });
@@ -157,12 +180,18 @@ export async function executeAutopostPipeline(
   try {
     // Stage 1
     update(0, 'running');
-    const rawDraft = await draftArticleContent(ai, topic, keywords);
+    const rawDraft = await withRetry(
+      () => draftArticleContent(ai, topic, keywords),
+      (attempt, delay) => update(0, 'running', `Model congested — retrying in ${(delay / 1000).toFixed(1)}s (attempt ${attempt}/${MAX_RETRIES})…`)
+    );
     update(0, 'done', `${rawDraft.split(/\s+/).length.toLocaleString()} words drafted`);
 
     // Stage 2
     update(1, 'running');
-    const auditResults = await runAuthenticityCheck(ai, rawDraft);
+    const auditResults = await withRetry(
+      () => runAuthenticityCheck(ai, rawDraft),
+      (attempt, delay) => update(1, 'running', `Model congested — retrying in ${(delay / 1000).toFixed(1)}s (attempt ${attempt}/${MAX_RETRIES})…`)
+    );
     update(
       1,
       auditResults.score >= 75 ? 'done' : 'error',
@@ -184,7 +213,10 @@ export async function executeAutopostPipeline(
 
     // Stage 3
     update(2, 'running');
-    const polishedContent = await optimizeAndPolish(ai, rawDraft, auditResults);
+    const polishedContent = await withRetry(
+      () => optimizeAndPolish(ai, rawDraft, auditResults),
+      (attempt, delay) => update(2, 'running', `Model congested — retrying in ${(delay / 1000).toFixed(1)}s (attempt ${attempt}/${MAX_RETRIES})…`)
+    );
     update(2, 'done', 'Prose humanized and polished');
 
     return {

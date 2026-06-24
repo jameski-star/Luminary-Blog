@@ -7,7 +7,6 @@ import {
   savePosts,
   getGeminiKey,
   saveGeminiKey,
-  initializeDemoPosts,
   migrateStoredData,
   buildWordIndex,
   generateSlug,
@@ -95,7 +94,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .catch(() => {});
     } else {
       migrateStoredData();
-      initializeDemoPosts();
       const storedUser = getCurrentUser();
       const storedPosts = getStoredPosts();
       if (storedUser) setUserState(storedUser);

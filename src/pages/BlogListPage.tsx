@@ -143,6 +143,13 @@ function BlogRow({ post, rank, onClick, onLike }: {
           </span>
         </div>
 
+        {/* Cover Thumbnail */}
+        {post.coverImage && (
+          <div className="w-24 shrink-0 hidden sm:block">
+            <img src={post.coverImage} alt="" className="w-full h-full object-cover" />
+          </div>
+        )}
+
         {/* Content */}
         <button onClick={onClick} className="flex-1 text-left p-6">
           <div className="flex flex-wrap gap-2 mb-3">

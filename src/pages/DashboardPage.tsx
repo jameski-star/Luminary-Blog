@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import SEO from '../components/SEO';
+import { useConfirm } from '../components/Modal';
 import {
   PenLine, Zap, Eye, Heart, Clock, TrendingUp,
   Trash2, Send, BookOpen, LayoutDashboard, AlertTriangle
@@ -10,6 +11,7 @@ import type { BlogPost } from '../types';
 
 export default function DashboardPage() {
   const { user, posts, updatePost, deletePost, setCurrentPage, setSelectedPostId } = useApp();
+  const { confirm, ConfirmDialog } = useConfirm();
   const [activeTab, setActiveTab] = useState<'published' | 'drafts' | 'review'>('published');
 
   if (!user) {
@@ -39,14 +41,16 @@ export default function DashboardPage() {
     setCurrentPage('post');
   };
 
-  const publishDraft = (id: string) => {
+  const publishDraft = async (id: string) => {
+    const ok = await confirm('Publish Post', 'Are you sure you want to publish this post? It will be visible to everyone.', 'Publish');
+    if (!ok) return;
     updatePost(id, { status: 'published', publishedAt: new Date().toISOString() });
   };
 
-  const confirmDelete = (id: string, title: string) => {
-    if (window.confirm(`Delete "${title}"? This cannot be undone.`)) {
-      deletePost(id);
-    }
+  const confirmDelete = async (id: string, title: string) => {
+    const ok = await confirm('Delete Post', `Are you sure you want to delete "${title}"? This cannot be undone.`, 'Delete', true);
+    if (!ok) return;
+    deletePost(id);
   };
 
   const currentList = activeTab === 'published' ? published : activeTab === 'drafts' ? drafts : review;
@@ -153,6 +157,7 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+      <ConfirmDialog />
     </div>
   );
 }
