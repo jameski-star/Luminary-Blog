@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import bcrypt from 'bcrypt';
 import { config } from './config';
 import { User } from './models/User';
 import { Post } from './models/Post';
@@ -10,7 +11,22 @@ export async function seed() {
     return;
   }
 
-  console.log('Demo seed skipped — no demo data will be created.');
+  // Create initial admin if ADMIN_EMAIL and ADMIN_PASSWORD are set
+  const adminEmail = process.env.ADMIN_EMAIL || '';
+  const adminPassword = process.env.ADMIN_PASSWORD || '';
+  if (adminEmail && adminPassword) {
+    const passwordHash = await bcrypt.hash(adminPassword, 12);
+    const user = await User.create({
+      email: adminEmail.toLowerCase().trim(),
+      name: process.env.ADMIN_NAME || 'Admin',
+      passwordHash,
+      role: 'admin',
+    });
+    console.log(`Created admin user: ${adminEmail}`);
+  } else {
+    console.log('No users found. First user to sign up via the UI will become admin automatically.');
+    console.log('To pre-create an admin, set ADMIN_EMAIL and ADMIN_PASSWORD environment variables.');
+  }
 }
 
 // Run directly: tsx src/seed.ts
