@@ -1,0 +1,225 @@
+import mongoose from 'mongoose';
+import { config } from './config';
+import { User } from './models/User';
+import { Post } from './models/Post';
+
+const DEMO_POSTS = [
+  {
+    title: 'Why Monolithic Architectures Are Quietly Returning to Enterprise Tech',
+    slug: 'monolithic-architectures-returning-enterprise-tech',
+    excerpt: 'A decade after microservices became the default enterprise answer, engineering teams are quietly porting workloads back to monoliths. Here is the data-driven case for why.',
+    content: `## The Pendulum Swings Back
+
+For most of the 2010s, microservices were the architectural religion of enterprise software. Decompose everything. Deploy independently. Scale horizontally. The pitch was compelling — and for companies at Google or Netflix scale, it delivered.
+
+But scale is the operative word. Most companies are not Google.
+
+## The Hidden Tax of Distributed Systems
+
+Every service boundary you draw is a contract. Contracts require versioning, backward compatibility, and — critically — a team to own them. When you have 400 microservices and 200 engineers, the math breaks.
+
+The operational overhead compounds silently. Network latency between services adds up. Distributed tracing becomes a full-time discipline. On-call rotations expand because failure modes multiply. Infrastructure bills reflect every hop, every retry, every health check running at idle.
+
+**The real question engineers stopped asking: what problem are we actually solving?**
+
+## What the Data Shows
+
+Shopify's 2023 engineering retrospective is the clearest industry signal. After migrating to a modular monolith — a single deployable with strict internal module boundaries — they reported:
+
+- 40% reduction in P99 latency across checkout flows
+- Simplified on-call rotations (one runbook, not forty)
+- 30% faster feature deployment for core commerce paths
+
+Stack Overflow runs one of the highest-traffic sites on the internet on a monolith. Amazon's infamous "two-pizza team" rule was originally about *bounded contexts*, not about separate deployment units.
+
+## The Modular Monolith: The Pragmatic Middle Ground
+
+The answer most mature teams are landing on is not a pure monolith versus pure microservices binary. It is a **modular monolith** — a single deployable artifact with enforced internal module isolation.
+
+You get the deployment simplicity of a monolith with the codebase discipline of microservices. Internal modules cannot reach across boundaries without going through explicit interfaces. The compiler enforces your architecture, not Kubernetes.
+
+When a specific module genuinely needs independent scaling — say, your video transcoding pipeline — you extract it. Not by default. By necessity.
+
+## When Microservices Still Win
+
+None of this means microservices are wrong. They remain the correct answer when:
+
+- Teams are genuinely independent with separate release cadences
+- A component has radically different scaling characteristics
+- You need language-level isolation for a specific processing job
+- Regulatory requirements demand hard data boundaries
+
+The mistake was not the pattern. The mistake was applying it universally, without counting the cost.
+
+## The Architectural Lesson
+
+Software architecture has always cycled. Mainframes gave way to client-server. Client-server gave way to service-oriented architecture. SOA became microservices. Now the pendulum swings toward consolidation again.
+
+The engineers who will build the best systems in the next decade are not the ones who are loyal to a pattern. They are the ones who can accurately measure the cost of complexity against the genuine benefits it provides.
+
+Start with a monolith. Earn your microservices.`,
+    tags: ['Software Architecture', 'Engineering', 'Cloud Computing'],
+    keywords: ['monolithic vs microservices', 'software design patterns', 'cloud infrastructure costs', 'modular monolith'],
+    status: 'published',
+    readTime: 7,
+    wordCount: 520,
+    views: 2847,
+    likes: 341,
+    auditScore: 92,
+  },
+  {
+    title: 'The Real Cost of Technical Debt: A CFO-Level Analysis',
+    slug: 'real-cost-technical-debt-cfo-analysis',
+    excerpt: 'Technical debt is not an engineering abstraction. It has a precise dollar cost, a compounding interest rate, and a maturity date. Here is how to calculate it.',
+    content: `## Technical Debt Is a Balance Sheet Problem
+
+Engineering managers have spent decades trying to get non-technical executives to care about technical debt by using technical metaphors. It has not worked. The CFO does not understand why refactoring a legacy authentication module matters.
+
+Change the vocabulary. Debt accrues interest. Technical debt accrues *velocity drag*.
+
+## Measuring the Interest Rate
+
+The interest rate on technical debt is measurable. It is expressed as the percentage of each sprint consumed by work that exists solely because of prior architectural shortcuts.
+
+Run this calculation with your team:
+
+1. Audit the last six sprints.
+2. Categorize each ticket: net-new feature, bug fix caused by legacy code, or rework of existing functionality.
+3. Calculate the ratio of rework-to-new work.
+
+Most teams discover 35-50% of engineering capacity is consumed by the interest payments on past decisions. At a fully-loaded engineering cost of $200k per engineer per year, a 10-person team burning 40% on debt service loses **$800,000 annually** to interest.
+
+## The Compounding Mechanism
+
+Simple interest would be manageable. Technical debt compounds.
+
+Every new feature built on top of fragile infrastructure inherits that fragility. A poorly designed database schema does not just slow down one query — it constrains every feature that touches that table, forever, until the schema is fixed. New engineers onboard into a codebase that resists understanding, extending their time-to-productivity from weeks to months.
+
+The compound rate accelerates as the codebase ages and the engineers who understood the original decisions leave.
+
+## When to Pay Down Debt
+
+The answer is not "always" and it is not "never." It is a capital allocation decision.
+
+**Pay down debt aggressively when:**
+- Engineering velocity has dropped more than 30% year-over-year without headcount changes
+- A new strategic initiative is blocked by infrastructure limitations
+- The next funding round will require a technical due diligence review
+
+**Defer debt when:**
+- You are pre-product-market-fit and the business model is still being validated
+- The affected system has a clear deprecation timeline under 18 months
+- The cost of migration exceeds 2 years of interest payments
+
+## The Refactoring Investment Thesis
+
+Reframe the conversation. A refactoring project is not a cost center. It is a yield-generating investment.
+
+If a $300,000 refactoring effort recovers 30% of engineering velocity for a 10-person team, the annual return is $600,000. The payback period is six months. The IRR is 200%.
+
+No CFO will refuse that investment once the math is on the table. The mistake engineers make is presenting refactoring as a technical necessity rather than a financial opportunity.`,
+    tags: ['Engineering Management', 'Business', 'Finance'],
+    keywords: ['technical debt cost', 'engineering velocity', 'software ROI', 'refactoring investment'],
+    status: 'published',
+    readTime: 6,
+    wordCount: 480,
+    views: 5120,
+    likes: 687,
+    auditScore: 95,
+  },
+  {
+    title: 'Rethinking Remote Work: What Three Years of Data Actually Tells Us',
+    slug: 'rethinking-remote-work-three-years-data',
+    excerpt: 'The remote work debate has been dominated by anecdote. The longitudinal productivity studies are finally in — and they complicate both sides of the argument.',
+    content: `## The Anecdote Wars Are Over
+
+Since 2020, remote work has been argued using personal testimony and cherry-picked studies. CEOs cite in-office collaboration magic. Remote advocates cite zero-commute productivity gains. Both camps are right about something. Both camps are wrong about the generalizations they draw.
+
+The longitudinal data — studies tracking the same workers over three-plus years — tells a more nuanced story.
+
+## What the Long-Run Data Shows
+
+Stanford economist Nicholas Bloom's ongoing remote work research (tracking over 10,000 knowledge workers) surfaces a finding that scrambles both narratives: **output quality and output quantity diverge.**
+
+Remote workers produce *more* in terms of raw task completion. But the quality distribution widens. The top performers in remote environments outperform their in-office counterparts significantly. The bottom quartile underperforms at a higher rate.
+
+Remote work is not a uniform productivity multiplier. It is a performance amplifier — it makes good performers better and struggling performers worse.
+
+## The Collaboration Cost Is Real, But Specific
+
+The anti-remote camp's strongest argument is collaboration degradation. But the data localizes this cost precisely: **it affects complex, novel problem-solving disproportionately.**
+
+Routine execution work — writing code to a specification, processing a defined workflow, drafting from a brief — shows no collaboration penalty remotely. Cross-functional innovation work — the kind that requires serendipitous information collisions, rapid whiteboard iteration, reading non-verbal cues — shows measurable degradation after 18 months of full remote.
+
+The implication is not "return to office." It is "return to office for the right work."
+
+## The Hybrid Calculus
+
+The companies with the highest reported productivity outcomes in 2024 are running a specific model: **2 days in-office, anchored to team days.**
+
+The key word is anchored. Hybrid fails when each person chooses their own days and the office becomes an expensive, half-empty desk farm. It works when entire teams are present simultaneously, generating the collision density that makes in-person time valuable.
+
+Microsoft's internal Viva data across 600 organizations shows that teams with synchronized in-office days report 23% higher satisfaction and 18% higher self-reported collaboration effectiveness than teams with individual flexibility.
+
+## What Leaders Keep Getting Wrong
+
+The return-to-office mandates that have generated the most backlash share a common feature: they are blanket policies applied uniformly to roles with wildly different collaboration needs.
+
+A software engineer deep in a three-month feature build and an account manager who closes deals through relationship density do not have the same office requirements. Treating them identically is not fairness — it is laziness.
+
+The leaders who will retain top talent while maintaining output are the ones who can articulate *why* a specific role benefits from specific in-person touchpoints — and who can answer that question without resorting to "culture" as a non-answer.`,
+    tags: ['Future of Work', 'Management', 'Productivity'],
+    keywords: ['remote work productivity data', 'hybrid work model', 'return to office', 'knowledge worker performance'],
+    status: 'published',
+    readTime: 8,
+    wordCount: 560,
+    views: 9342,
+    likes: 1204,
+    auditScore: 91,
+  },
+];
+
+export async function seed() {
+  const userCount = await User.countDocuments();
+  if (userCount > 0) {
+    console.log('Users already exist, skipping seed.');
+    return;
+  }
+
+  // Create demo author
+  const author = await User.create({
+    email: 'editorial@luminary.app',
+    name: 'Luminary Editorial',
+    passwordHash: '$2b$12$placeholder', // No login possible
+    role: 'admin',
+    bio: 'The official Luminary editorial team.',
+  });
+  console.log('Created demo author:', author.email);
+
+  const postCount = await Post.countDocuments();
+  if (postCount > 0) {
+    console.log('Posts already exist, skipping post seed.');
+    return;
+  }
+
+  const now = Date.now();
+  const posts = DEMO_POSTS.map((p, i) => ({
+    ...p,
+    authorId: author._id,
+    authorName: author.name,
+    publishedAt: new Date(now - 86400000 * (i === 0 ? 3 : i === 1 ? 7 : 14)),
+    modifiedAt: new Date(now - 86400000 * (i === 0 ? 3 : i === 1 ? 7 : 14)),
+  }));
+
+  await Post.insertMany(posts);
+  console.log(`Seeded ${posts.length} demo posts.`);
+}
+
+// Run directly: tsx src/seed.ts
+const isMain = process.argv[1]?.endsWith('/seed.ts') || process.argv[1]?.endsWith('\\seed.ts');
+if (isMain) {
+  mongoose.connect(config.mongoUri)
+    .then(() => seed())
+    .then(() => process.exit(0))
+    .catch(err => { console.error(err); process.exit(1); });
+}

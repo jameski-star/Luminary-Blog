@@ -1,0 +1,288 @@
+@import "tailwindcss";
+
+/* ── Theme CSS Variables ── */
+@theme {
+  --color-canvas: var(--bg-canvas, #000000);
+  --color-surface: var(--bg-surface, #111111);
+  --color-raised: var(--bg-raised, #27272A);
+  --color-primary: var(--fg-primary, #FAFAFA);
+  --color-secondary: var(--fg-secondary, #A1A1AA);
+  --color-muted: var(--fg-muted, #3F3F46);
+  --color-border: var(--clr-border, #27272A);
+}
+
+:root {
+  --bg-canvas: #000000;
+  --bg-surface: #111111;
+  --bg-raised: #27272A;
+  --fg-primary: #FAFAFA;
+  --fg-secondary: #A1A1AA;
+  --fg-muted: #3F3F46;
+  --clr-border: #27272A;
+  --prose-bullet: #FAFAFA;
+  --prose-blockquote-bg: #111111;
+  --prose-blockquote-border: #FAFAFA;
+  --prose-code-bg: #111111;
+  --prose-code-border: #27272A;
+  --prose-hr: #27272A;
+  --prose-th-bd: #27272A;
+  --prose-td-bd: #27272A;
+  --prose-h2-bd: #27272A;
+  --prose-link-bd: #52525B;
+  --prose-link-hover-bd: #FAFAFA;
+}
+
+.light {
+  --bg-canvas: #FFFFFF;
+  --bg-surface: #F4F4F5;
+  --bg-raised: #E4E4E7;
+  --fg-primary: #18181B;
+  --fg-secondary: #71717A;
+  --fg-muted: #D4D4D8;
+  --clr-border: #E4E4E7;
+  --prose-bullet: #18181B;
+  --prose-blockquote-bg: #F4F4F5;
+  --prose-blockquote-border: #18181B;
+  --prose-code-bg: #F4F4F5;
+  --prose-code-border: #E4E4E7;
+  --prose-hr: #E4E4E7;
+  --prose-th-bd: #D4D4D8;
+  --prose-td-bd: #E4E4E7;
+  --prose-h2-bd: #E4E4E7;
+  --prose-link-bd: #D4D4D8;
+  --prose-link-hover-bd: #18181B;
+}
+
+/* ── Base ── */
+@layer base {
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--fg-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-family: 'Public Sans', system-ui, sans-serif;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  ::selection {
+    background-color: var(--fg-primary);
+    color: var(--bg-canvas);
+  }
+}
+
+/* ── Heading font utility ── */
+.font-heading {
+  font-family: 'Libre Bodoni', Georgia, 'Times New Roman', serif;
+}
+
+/* ── Premium Monochrome Prose ── */
+.prose-premium {
+  color: var(--fg-secondary);
+  max-width: 65ch;
+  line-height: 1.8;
+  font-size: 1.05rem;
+}
+
+.prose-premium h1,
+.prose-premium h2,
+.prose-premium h3,
+.prose-premium h4,
+.prose-premium h5,
+.prose-premium h6 {
+  color: var(--fg-primary);
+  font-family: 'Libre Bodoni', Georgia, serif;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 2.5em;
+  margin-bottom: 0.75em;
+  letter-spacing: -0.01em;
+}
+
+.prose-premium h1 { font-size: 2.4em; }
+.prose-premium h2 { font-size: 1.75em; border-bottom: 1px solid var(--prose-h2-bd); padding-bottom: 0.4em; }
+.prose-premium h3 { font-size: 1.3em; color: var(--fg-primary); }
+.prose-premium h4 { font-size: 1.1em; color: var(--fg-secondary); }
+
+.prose-premium p {
+  margin-top: 0;
+  margin-bottom: 1.4em;
+}
+
+.prose-premium a {
+  color: var(--fg-primary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+  border-bottom: 1px solid var(--prose-link-bd);
+}
+
+.prose-premium a:hover {
+  color: var(--fg-primary);
+  border-bottom-color: var(--prose-link-hover-bd);
+}
+
+.prose-premium strong {
+  color: var(--fg-primary);
+  font-weight: 600;
+}
+
+.prose-premium em {
+  color: var(--fg-secondary);
+  font-style: italic;
+}
+
+.prose-premium blockquote {
+  font-style: normal;
+  background-color: var(--prose-blockquote-bg);
+  padding: 1.25rem 1.5rem;
+  border-radius: 0.5rem;
+  border-left: 4px solid var(--prose-blockquote-border);
+  margin: 2em 0;
+  color: var(--fg-primary);
+}
+
+.prose-premium blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+.prose-premium blockquote p::before,
+.prose-premium blockquote p::after {
+  content: none;
+}
+
+.prose-premium ul,
+.prose-premium ol {
+  margin: 1.4em 0;
+  padding-left: 1.5em;
+}
+
+.prose-premium li {
+  margin-bottom: 0.5em;
+  color: var(--fg-secondary);
+}
+
+.prose-premium li::marker {
+  color: var(--prose-bullet);
+}
+
+.prose-premium code {
+  background-color: var(--prose-code-bg);
+  color: var(--fg-primary);
+  padding: 0.2em 0.4em;
+  border-radius: 0.25rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.875em;
+  font-weight: 400;
+  border: 1px solid var(--prose-code-border);
+}
+
+.prose-premium code::before,
+.prose-premium code::after {
+  content: none;
+}
+
+.prose-premium pre {
+  background-color: var(--bg-canvas);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  overflow-x: auto;
+  margin: 2em 0;
+  border: 1px solid var(--clr-border);
+}
+
+.prose-premium pre code {
+  background: none;
+  color: var(--fg-secondary);
+  padding: 0;
+  font-size: 0.85em;
+  border: none;
+}
+
+.prose-premium hr {
+  border-color: var(--prose-hr);
+  margin: 3em 0;
+}
+
+.prose-premium img {
+  border-radius: 0.75rem;
+  margin: 2em 0;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  max-width: 100%;
+}
+
+.prose-premium table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 2em 0;
+}
+
+.prose-premium th {
+  border-bottom: 2px solid var(--prose-th-bd);
+  padding: 0.75rem 1rem;
+  text-align: left;
+  color: var(--fg-primary);
+  font-weight: 600;
+  font-size: 0.875em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.prose-premium td {
+  border-bottom: 1px solid var(--prose-td-bd);
+  padding: 0.75rem 1rem;
+  color: var(--fg-secondary);
+  font-size: 0.9em;
+}
+
+/* ── Pipeline stage animation ── */
+@keyframes pipeline-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(250, 250, 250, 0.15); }
+  50% { box-shadow: 0 0 0 8px rgba(250, 250, 250, 0); }
+}
+
+.pipeline-active {
+  animation: pipeline-glow 1.5s ease-in-out infinite;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-canvas);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--fg-muted);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-primary);
+}
+
+/* ── Focus ring ── */
+:focus-visible {
+  outline: 2px solid var(--fg-primary);
+  outline-offset: 2px;
+}
+
+/* ── Line clamp ── */
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.line-clamp-3 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
