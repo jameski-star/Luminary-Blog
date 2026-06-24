@@ -6,12 +6,15 @@ import { validateManualPost } from '../services/geminiPipeline';
 import { generateSlug, calcReadTime } from '../store/appStore';
 import { detectRogueContent } from '../utils/contentDetection';
 import { friendlyError } from '../utils/errors';
+import { marked } from 'marked';
+import { getTemplates, getTemplateCategories } from '../utils/templates';
+import type { PostTemplate } from '../utils/templates';
 import type { BlogPost, AuditResult } from '../types';
 import {
   Save, Send, Eye, EyeOff, Plus, X, Shield,
   AlertTriangle, CheckCircle, Info, ArrowLeft,
   Bold, Italic, Link2, Heading1, Heading2, Heading3, Image, Upload,
-  Quote, List, ListOrdered
+  Quote, List, ListOrdered, LayoutTemplate
 } from 'lucide-react';
 
 function FormatButton({ icon, label, onClick, active }: { icon: React.ReactNode; label: string; onClick: () => void; active?: boolean }) {
@@ -112,6 +115,28 @@ export default function EditorPage() {
 
   const editorRef = useRef<HTMLDivElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+
+  // Templates
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templateCategory, setTemplateCategory] = useState('all');
+  const templates = getTemplates();
+  const templateCategories = ['all', ...getTemplateCategories()];
+  const filteredTemplates = templateCategory === 'all'
+    ? templates
+    : templates.filter(t => t.category === templateCategory);
+
+  // Context menu
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+
+  const applyTemplate = (tmpl: PostTemplate) => {
+    setTitle(tmpl.title);
+    if (editorRef.current) {
+      editorRef.current.innerHTML = marked.parse(tmpl.content, { async: false }) as string;
+    }
+    if (tmpl.tags) setTags(tmpl.tags.slice(0, 6));
+    setExcerpt(tmpl.excerpt);
+    setShowTemplates(false);
+  };
 
   const getContentText = useCallback(() => editorRef.current?.innerText || '', []);
   const getContentHtml = useCallback(() => editorRef.current?.innerHTML || '', []);
@@ -296,7 +321,9 @@ export default function EditorPage() {
             />
 
             {/* Formatting Toolbar */}
-            <div className="flex items-center gap-1 px-3 py-2 mb-3 rounded-xl border border-border bg-surface">
+            <div className="flex items-center gap-1 px-3 py-2 mb-3 rounded-xl border border-border bg-surface flex-wrap">
+              <FormatButton icon={<LayoutTemplate size={15} />} label="Templates" onClick={() => setShowTemplates(true)} />
+              <span className="w-px h-5 bg-border mx-1" />
               <FormatButton icon={<Bold size={15} />} label="Bold" onClick={() => execFormat('bold')} />
               <FormatButton icon={<Italic size={15} />} label="Italic" onClick={() => execFormat('italic')} />
               <span className="w-px h-5 bg-border mx-1" />
@@ -309,8 +336,27 @@ export default function EditorPage() {
               <FormatButton icon={<ListOrdered size={15} />} label="Numbered List" onClick={() => execFormat('insertOrderedList')} />
               <span className="w-px h-5 bg-border mx-1" />
               <FormatButton icon={<Link2 size={15} />} label="Link" onClick={async () => {
+                const sel = window.getSelection();
+                const editor = editorRef.current;
+                let savedRange: Range | null = null;
+                let selectedText = '';
+                if (sel && sel.rangeCount > 0 && editor?.contains(sel.anchorNode)) {
+                  savedRange = sel.getRangeAt(0).cloneRange();
+                  if (!sel.isCollapsed) selectedText = sel.toString();
+                }
                 const url = await prompt('Insert Link', 'Enter URL:', 'https://', 'https://example.com');
-                if (url) execFormat('createLink', url);
+                if (!url || !editor) return;
+                const displayText = selectedText
+                  ? selectedText
+                  : await prompt('Link Text', 'Enter the text to display:', '', 'Click here');
+                if (!displayText) return;
+                editor.focus();
+                if (savedRange) {
+                  const newSel = window.getSelection();
+                  newSel?.removeAllRanges();
+                  newSel?.addRange(savedRange);
+                }
+                document.execCommand('insertHTML', false, `<a href="${url.replace(/"/g, '&quot;')}">${displayText}</a>`);
               }} />
               <FormatButton icon={<Image size={15} />} label="Image" onClick={insertImage} />
             </div>
@@ -320,12 +366,61 @@ export default function EditorPage() {
               ref={editorRef}
               contentEditable={!preview}
               onInput={handleInput}
+              onContextMenu={e => {
+                if (!preview) {
+                  e.preventDefault();
+                  setContextMenu({ x: e.clientX, y: e.clientY });
+                }
+              }}
+              onClick={() => setContextMenu(null)}
               suppressContentEditableWarning
               className={`w-full bg-transparent text-primary text-base outline-none leading-relaxed min-h-[60vh] ${
                 preview ? '' : 'border border-border rounded-2xl p-5'
               } ${preview ? 'prose-premium' : ''}`}
               style={preview ? {} : { minHeight: '60vh' }}
             />
+
+            {/* Context Menu */}
+            {contextMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
+                <div
+                  className="fixed z-50 rounded-xl border border-border bg-surface shadow-2xl p-1 min-w-[160px]"
+                  style={{ left: contextMenu.x, top: contextMenu.y }}
+                >
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
+                    onClick={async () => {
+                      setContextMenu(null);
+                      const sel = window.getSelection();
+                      const editor = editorRef.current;
+                      let savedRange: Range | null = null;
+                      let selectedText = '';
+                      if (sel && sel.rangeCount > 0 && editor?.contains(sel.anchorNode)) {
+                        savedRange = sel.getRangeAt(0).cloneRange();
+                        if (!sel.isCollapsed) selectedText = sel.toString();
+                      }
+                      const url = await prompt('Insert Link', 'Enter URL:', 'https://', 'https://example.com');
+                      if (!url || !editor) return;
+                      const displayText = selectedText
+                        ? selectedText
+                        : await prompt('Link Text', 'Enter the text to display:', '', 'Click here');
+                      if (!displayText) return;
+                      editor.focus();
+                      if (savedRange) {
+                        const newSel = window.getSelection();
+                        newSel?.removeAllRanges();
+                        newSel?.addRange(savedRange);
+                      }
+                      document.execCommand('insertHTML', false, `<a href="${url.replace(/"/g, '&quot;')}">${displayText}</a>`);
+                    }}
+                  >
+                    <Link2 size={14} />
+                    Hyperlink
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Sidebar */}
@@ -523,6 +618,64 @@ export default function EditorPage() {
           </div>
         </div>
       </div>
+
+      {/* Template Picker Modal */}
+      {showTemplates && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowTemplates(false)} />
+          <div className="relative w-full max-w-3xl max-h-[80vh] rounded-2xl border border-border bg-surface shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border">
+              <h2 className="text-lg font-semibold text-primary">Choose a Template</h2>
+              <button onClick={() => setShowTemplates(false)} className="text-secondary hover:text-primary transition-colors p-1 rounded-lg hover:bg-raised">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Category filter */}
+            <div className="flex gap-2 px-6 py-4 border-b border-border overflow-x-auto">
+              {templateCategories.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setTemplateCategory(cat)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                    templateCategory === cat
+                      ? 'bg-primary text-canvas'
+                      : 'bg-raised text-secondary hover:text-primary'
+                  }`}
+                >
+                  {cat === 'all' ? 'All Templates' : cat}
+                </button>
+              ))}
+            </div>
+
+            <div className="overflow-y-auto p-6 max-h-[50vh]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredTemplates.map(tmpl => (
+                  <button
+                    key={tmpl.id}
+                    onClick={() => applyTemplate(tmpl)}
+                    className="text-left rounded-2xl border border-border bg-raised p-5 hover:border-primary/40 transition-all group"
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="text-2xl">{tmpl.icon}</span>
+                      <div>
+                        <h3 className="text-sm font-semibold text-primary group-hover:text-primary/80 transition-colors">{tmpl.name}</h3>
+                        <span className="text-xs text-muted">{tmpl.category}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-secondary leading-relaxed line-clamp-2">{tmpl.description}</p>
+                    <div className="flex gap-1.5 mt-3">
+                      {tmpl.tags.slice(0, 3).map(t => (
+                        <span key={t} className="text-[10px] px-2 py-0.5 rounded-full bg-canvas text-muted">{t}</span>
+                      ))}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <PromptDialog />
       <ConfirmDialog />
