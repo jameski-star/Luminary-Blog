@@ -3,7 +3,8 @@ import { useApp } from '../context/AppContext';
 import SEO from '../components/SEO';
 import { signUp, signIn } from '../store/appStore';
 import { api, isApiMode, setApiToken } from '../services/api';
-import { Eye, EyeOff, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, AlertTriangle, CheckCircle, ArrowLeft } from 'lucide-react';
+import { friendlyError } from '../utils/errors';
 
 // ──────────────────────────────────────────────
 // LOGIN PAGE
@@ -38,7 +39,7 @@ export function LoginPage() {
       }
       setCurrentPage('dashboard');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Login failed.');
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -65,9 +66,9 @@ export function LoginPage() {
           </div>
 
           {error && (
-            <div className="flex items-center gap-2.5 bg-red-950/40 border border-red-800/50 rounded-xl px-4 py-3 mb-6 text-red-400 text-sm">
-              <AlertCircle size={15} />
-              {error}
+            <div className="flex items-start gap-3 p-4 rounded-2xl border border-border bg-surface mb-6 text-sm">
+              <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-secondary">{error}</p>
             </div>
           )}
 
@@ -161,7 +162,7 @@ export function SignupPage() {
       }
       setCurrentPage('dashboard');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Signup failed.');
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -188,9 +189,9 @@ export function SignupPage() {
           </div>
 
           {error && (
-            <div className="flex items-center gap-2.5 bg-red-950/40 border border-red-800/50 rounded-xl px-4 py-3 mb-6 text-red-400 text-sm">
-              <AlertCircle size={15} />
-              {error}
+            <div className="flex items-start gap-3 p-4 rounded-2xl border border-border bg-surface mb-6 text-sm">
+              <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-secondary">{error}</p>
             </div>
           )}
 

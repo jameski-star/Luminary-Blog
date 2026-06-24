@@ -6,6 +6,7 @@ import { api, isApiMode } from '../services/api';
 import type { PipelineStage, PipelineResult } from '../types';
 import { generateSlug, calcReadTime } from '../store/appStore';
 import { detectRogueContent } from '../utils/contentDetection';
+import { friendlyError } from '../utils/errors';
 import type { BlogPost } from '../types';
 import {
   Zap, Key, X, CheckCircle, AlertTriangle, Clock, Plus,
@@ -110,8 +111,7 @@ export default function AutoPostPage() {
 
       setResult(pipelineResult as PipelineResult & { excerpt?: string; tags?: string[] });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
+      setError(friendlyError(err));
     } finally {
       setRunning(false);
     }
@@ -311,9 +311,9 @@ export default function AutoPostPage() {
 
         {/* Error */}
         {error && (
-          <div className="flex items-start gap-2.5 bg-red-950/40 border border-red-800/50 rounded-xl px-4 py-3 mb-6 text-red-400 text-sm">
-            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-            {error}
+          <div className="flex items-start gap-3 p-4 rounded-2xl border border-border bg-surface mb-6 text-sm">
+            <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-secondary">{error}</p>
           </div>
         )}
 

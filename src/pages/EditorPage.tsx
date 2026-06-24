@@ -5,6 +5,7 @@ import { Modal, usePrompt, useConfirm } from '../components/Modal';
 import { validateManualPost } from '../services/geminiPipeline';
 import { generateSlug, calcReadTime } from '../store/appStore';
 import { detectRogueContent } from '../utils/contentDetection';
+import { friendlyError } from '../utils/errors';
 import type { BlogPost, AuditResult } from '../types';
 import { marked } from 'marked';
 import {
@@ -172,7 +173,7 @@ export default function EditorPage() {
       const result = await validateManualPost(content, geminiKey);
       setAuditResult(result);
     } catch (err: unknown) {
-      setValidationError(err instanceof Error ? err.message : 'Validation failed.');
+      setValidationError(friendlyError(err));
     } finally {
       setValidating(false);
     }
@@ -442,8 +443,8 @@ export default function EditorPage() {
               )}
 
               {validationError && (
-                <div className="flex items-start gap-2 bg-red-950/40 border border-red-800/50 rounded-xl p-3 mb-3 text-xs text-red-400">
-                  <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+                <div className="flex items-start gap-2 p-3 rounded-xl border border-border bg-surface mb-3 text-xs text-secondary">
+                  <AlertTriangle size={12} className="text-amber-400 mt-0.5 shrink-0" />
                   {validationError}
                 </div>
               )}
