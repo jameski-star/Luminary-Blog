@@ -13,7 +13,7 @@ import LegalPage from './pages/LegalPage';
 import { LoginPage, SignupPage } from './pages/AuthPages';
 
 function AppRouter() {
-  const { currentPage, posts, setSelectedPostId, setCurrentPage } = useApp();
+  const { currentPage, posts, selectedPostId, setSelectedPostId, setCurrentPage } = useApp();
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
