@@ -13,11 +13,35 @@ import LegalPage from './pages/LegalPage';
 import { LoginPage, SignupPage } from './pages/AuthPages';
 
 function AppRouter() {
-  const { currentPage } = useApp();
+  const { currentPage, posts, setSelectedPostId, setCurrentPage } = useApp();
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, [currentPage]);
+
+  // URL-based deep linking
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const postSlug = params.get('post');
+    if (postSlug) {
+      const post = posts.find(p => p.slug === postSlug);
+      if (post) {
+        setSelectedPostId(post.id);
+        setCurrentPage('post');
+      }
+    }
+  }, [posts]);
+
+  // Update URL when viewing a post
+  useEffect(() => {
+    if (currentPage === 'post') {
+      const post = posts.find(p => p.id === selectedPostId);
+      if (post) {
+        const url = `${window.location.pathname}?post=${post.slug}`;
+        window.history.replaceState(null, '', url);
+      }
+    }
+  }, [currentPage, selectedPostId]);
 
   const renderPage = () => {
     switch (currentPage) {
@@ -50,7 +74,7 @@ function AppRouter() {
 }
 
 function Footer() {
-  const { setCurrentPage } = useApp();
+  const { user, setCurrentPage } = useApp();
 
   return (
     <footer className="border-t border-border bg-canvas px-4 py-12 mt-8">
@@ -96,20 +120,45 @@ function Footer() {
           <div>
             <h4 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-4">Account</h4>
             <ul className="space-y-2.5">
-              {[
-                { label: 'Sign In', page: 'login' as const },
-                { label: 'Create Account', page: 'signup' as const },
-                { label: 'Profile', page: 'profile' as const },
-              ].map(l => (
-                <li key={l.label}>
-                  <button
-                    onClick={() => setCurrentPage(l.page)}
-                    className="text-sm text-secondary hover:text-primary transition-colors"
-                  >
-                    {l.label}
-                  </button>
-                </li>
-              ))}
+              {user ? (
+                <>
+                  <li>
+                    <button
+                      onClick={() => setCurrentPage('dashboard')}
+                      className="text-sm text-secondary hover:text-primary transition-colors"
+                    >
+                      Dashboard
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => setCurrentPage('profile')}
+                      className="text-sm text-secondary hover:text-primary transition-colors"
+                    >
+                      Profile
+                    </button>
+                  </li>
+                </>
+              ) : (
+                <>
+                  <li>
+                    <button
+                      onClick={() => setCurrentPage('login')}
+                      className="text-sm text-secondary hover:text-primary transition-colors"
+                    >
+                      Sign In
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => setCurrentPage('signup')}
+                      className="text-sm text-secondary hover:text-primary transition-colors"
+                    >
+                      Create Account
+                    </button>
+                  </li>
+                </>
+              )}
             </ul>
           </div>
         </div>

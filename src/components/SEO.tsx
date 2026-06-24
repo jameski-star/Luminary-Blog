@@ -2,7 +2,7 @@ import { Helmet } from 'react-helmet-async';
 import type { BlogPost } from '../types';
 
 const SITE_NAME = 'Luminary';
-const SITE_URL = 'https://luminary.blog';
+const SITE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://luminary.blog';
 const DEFAULT_DESC = 'A premium blogging platform where every article passes a 3-stage AI authenticity pipeline. No filler. No fluff.';
 
 interface SEOProps {

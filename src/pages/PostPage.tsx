@@ -45,7 +45,8 @@ export default function PostPage() {
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(`https://luminary.blog/blog/${post.slug}`);
+    const url = `${window.location.origin}/?post=${post.slug}`;
+    navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
