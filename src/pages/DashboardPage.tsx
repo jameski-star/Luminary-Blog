@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import SEO from '../components/SEO';
 import {
   PenLine, Zap, Eye, Heart, Clock, TrendingUp,
   Trash2, Send, BookOpen, LayoutDashboard, AlertTriangle
