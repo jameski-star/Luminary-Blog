@@ -5,6 +5,7 @@ import { executeAutopostPipeline } from '../services/geminiPipeline';
 import { api, isApiMode } from '../services/api';
 import type { PipelineStage, PipelineResult } from '../types';
 import { generateSlug, calcReadTime } from '../store/appStore';
+import { detectRogueContent } from '../utils/contentDetection';
 import type { BlogPost } from '../types';
 import {
   Zap, Key, X, CheckCircle, AlertTriangle, Clock, Plus,
@@ -35,6 +36,9 @@ export default function AutoPostPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
+
+  // Rogue detection on AI-generated content
+  const rogueWarning = result && !running ? detectRogueContent(result.content) : null;
 
   if (!user) {
     return (
@@ -120,6 +124,9 @@ export default function AutoPostPage() {
     const now = new Date().toISOString();
     const r = result as PipelineResult & { excerpt?: string; tags?: string[] };
 
+    const rogue = detectRogueContent(r.content);
+    const effectiveStatus = rogue.isRogue ? 'review' : 'published';
+
     const post: BlogPost = {
       id: `post_${Date.now()}_${Math.random().toString(36).slice(2)}`,
       title: result.title,
@@ -132,7 +139,7 @@ export default function AutoPostPage() {
       authorName: user.name,
       publishedAt: now,
       modifiedAt: now,
-      status: 'published',
+      status: effectiveStatus,
       readTime: calcReadTime(result.content),
       views: 0,
       likes: 0,
@@ -142,7 +149,7 @@ export default function AutoPostPage() {
 
     addPost(post);
     setSelectedPostId(post.id);
-    setCurrentPage('post');
+    setCurrentPage(rogue.isRogue ? 'dashboard' : 'post');
   };
 
   const saveDraft = () => {
@@ -150,6 +157,9 @@ export default function AutoPostPage() {
     const slug = generateSlug(result.title);
     const now = new Date().toISOString();
     const r = result as PipelineResult & { excerpt?: string; tags?: string[] };
+
+    const rogue = detectRogueContent(r.content);
+    const effectiveStatus = result.status === 'quarantined' || rogue.isRogue ? 'review' : 'draft';
 
     const post: BlogPost = {
       id: `post_${Date.now()}_${Math.random().toString(36).slice(2)}`,
@@ -163,7 +173,7 @@ export default function AutoPostPage() {
       authorName: user.name,
       publishedAt: now,
       modifiedAt: now,
-      status: result.status === 'quarantined' ? 'review' : 'draft',
+      status: effectiveStatus,
       readTime: calcReadTime(result.content),
       views: 0,
       likes: 0,
@@ -373,17 +383,17 @@ export default function AutoPostPage() {
           <div className="space-y-4">
             {/* Status Banner */}
             <div className={`rounded-2xl border p-5 ${
-              result.status === 'ready_to_publish'
+              result.status === 'ready_to_publish' && !rogueWarning?.isRogue
                 ? 'border-emerald-500/30 bg-emerald-500/10'
                 : 'border-muted bg-surface'
             }`}>
               <div className="flex items-center gap-3 mb-2">
-                {result.status === 'ready_to_publish'
+                {result.status === 'ready_to_publish' && !rogueWarning?.isRogue
                   ? <CheckCircle size={20} className="text-emerald-400" />
-                  : <AlertTriangle size={20} className="text-secondary" />
+                  : <AlertTriangle size={20} className="text-amber-400" />
                 }
-                <h3 className={`font-semibold text-lg ${result.status === 'ready_to_publish' ? 'text-emerald-400' : 'text-secondary'}`}>
-                  {result.status === 'ready_to_publish' ? 'Ready to Publish' : 'Routed to Review Queue'}
+                <h3 className={`font-semibold text-lg ${result.status === 'ready_to_publish' && !rogueWarning?.isRogue ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {result.status === 'ready_to_publish' && !rogueWarning?.isRogue ? 'Ready to Publish' : 'Routed to Review Queue'}
                 </h3>
                 {result.audit && (
                   <span className={`ml-auto text-sm font-bold px-3 py-1 rounded-full ${
@@ -399,6 +409,18 @@ export default function AutoPostPage() {
                 <p className="text-sm text-secondary">{result.reason}</p>
               )}
             </div>
+
+            {/* Rogue Content Warning */}
+            {rogueWarning?.isRogue && (
+              <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 flex items-start gap-3">
+                <AlertTriangle size={18} className="text-red-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-red-400 mb-0.5">Rogue content detected</p>
+                  <p className="text-xs text-red-400/80">{rogueWarning.reason}</p>
+                  <p className="text-xs text-red-400/60 mt-1">This post will be routed to the admin review queue instead of being published.</p>
+                </div>
+              </div>
+            )}
 
             {/* Audit Results */}
             {result.audit && (

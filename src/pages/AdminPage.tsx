@@ -7,12 +7,12 @@ import { api, isApiMode } from '../services/api';
 import {
   Shield, Users, FileText, Eye, Heart, TrendingUp,
   Trash2, Send, Clock, AlertTriangle, Ban, User as UserIcon,
-  ArrowUpDown, Crown, Key
+  ArrowUpDown, Crown, Key, CheckCircle, XCircle, AlertOctagon
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { BlogPost, User as UserType } from '../types';
 
-type AdminTab = 'posts' | 'users';
+type AdminTab = 'review' | 'posts' | 'users';
 
 export default function AdminPage() {
   const { user: currentUser, posts, updatePost, deletePost, setCurrentPage, setSelectedPostId } = useApp();
@@ -63,10 +63,9 @@ export default function AdminPage() {
       return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
     });
 
-  const confirmDelete = (id: string, title: string) => {
-    if (window.confirm(`Delete "${title}"? This cannot be undone.`)) {
-      deletePost(id);
-    }
+  const confirmDelete = async (id: string, title: string) => {
+    const ok = await confirm('Delete Post', `Permanently delete "${title}"? This cannot be undone.`, 'Delete', true);
+    if (ok) deletePost(id);
   };
 
   const publishPost = (id: string) => {
@@ -110,6 +109,20 @@ export default function AdminPage() {
         {/* Tabs */}
         <div className="flex gap-1 mb-6 bg-surface p-1 rounded-2xl border border-border w-fit">
           <button
+            onClick={() => setActiveTab('review')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              activeTab === 'review'
+                ? 'bg-primary text-canvas'
+                : 'text-secondary hover:text-primary'
+            }`}
+          >
+            <AlertTriangle size={15} />
+            Review Queue
+            <span className={`text-xs rounded-full px-2 py-0.5 ${
+              activeTab === 'review' ? 'bg-canvas/20 text-canvas' : 'bg-raised text-secondary'
+            }`}>{totalInReview}</span>
+          </button>
+          <button
             onClick={() => setActiveTab('posts')}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
               activeTab === 'posts'
@@ -138,6 +151,47 @@ export default function AdminPage() {
             }`}>{totalUsers}</span>
           </button>
         </div>
+
+        {/* Review Queue Tab */}
+        {activeTab === 'review' && (
+          <>
+            <div className="flex items-center gap-2 mb-6 p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10">
+              <AlertOctagon size={16} className="text-amber-400 shrink-0" />
+              <p className="text-xs text-amber-400">
+                Posts flagged by the rogue content detector or manually set to "review" status.
+                Approve to publish, reject to return to draft, or delete spam.
+              </p>
+            </div>
+
+            {totalInReview === 0 ? (
+              <div className="text-center py-20 rounded-3xl border border-border bg-surface">
+                <CheckCircle size={40} className="text-emerald-400 mx-auto mb-3" />
+                <h3 className="text-lg font-semibold text-primary mb-2">All clear</h3>
+                <p className="text-secondary text-sm">No posts currently pending review.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {posts
+                  .filter(p => p.status === 'review' || p.status === 'quarantined')
+                  .sort((a, b) => {
+                    if (a.status === 'quarantined' && b.status !== 'quarantined') return -1;
+                    if (a.status !== 'quarantined' && b.status === 'quarantined') return 1;
+                    return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+                  })
+                  .map(post => (
+                    <ReviewPostCard
+                      key={post.id}
+                      post={post}
+                      authorName={users.find(u => u.id === post.authorId)?.name || post.authorName}
+                      onApprove={() => publishPost(post.id)}
+                      onReject={() => setPostStatus(post.id, 'draft')}
+                      onDelete={() => confirmDelete(post.id, post.title)}
+                    />
+                  ))}
+              </div>
+            )}
+          </>
+        )}
 
         {/* Posts Tab */}
         {activeTab === 'posts' && (
@@ -376,6 +430,83 @@ function AdminPostRow({ post, authorName, onOpen, onPublish, onDelete, onStatusC
             className="text-secondary hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-950/30"
           >
             <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReviewPostCard({ post, authorName, onApprove, onReject, onDelete }: {
+  post: BlogPost;
+  authorName: string;
+  onApprove: () => void;
+  onReject: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-surface overflow-hidden hover:border-amber-400/40 transition-all group">
+      <div className="p-4">
+        <div className="flex items-start gap-4">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+            post.status === 'quarantined'
+              ? 'bg-red-500/20 text-red-400'
+              : 'bg-amber-500/20 text-amber-400'
+          }`}>
+            {post.status === 'quarantined' ? <Ban size={18} /> : <AlertTriangle size={18} />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-sm font-semibold text-primary truncate">{post.title}</h3>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${
+                post.status === 'quarantined'
+                  ? 'bg-red-500/10 text-red-400'
+                  : 'bg-amber-500/10 text-amber-400'
+              }`}>
+                {post.status === 'quarantined' ? 'Auto-Quarantined' : 'Flagged'}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-secondary mb-2">
+              <span className="flex items-center gap-1"><UserIcon size={10} /> {authorName}</span>
+              <span className="flex items-center gap-1"><Clock size={10} /> {post.readTime}m read</span>
+              <span>{formatDistanceToNow(new Date(post.publishedAt), { addSuffix: true })}</span>
+              {post.auditScore !== undefined && (
+                <span className={`flex items-center gap-1 ${
+                  post.auditScore < 50 ? 'text-red-400' : 'text-amber-400'
+                }`}>
+                  <TrendingUp size={10} />
+                  Audit: {post.auditScore}/100
+                </span>
+              )}
+            </div>
+            {post.excerpt && (
+              <p className="text-xs text-secondary/70 line-clamp-2 mb-3 leading-relaxed">
+                {post.excerpt}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
+          <button
+            onClick={onApprove}
+            className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-3 py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50 font-medium"
+          >
+            <CheckCircle size={12} />
+            Approve & Publish
+          </button>
+          <button
+            onClick={onReject}
+            className="flex items-center gap-1.5 text-xs text-secondary hover:text-primary transition-colors px-3 py-1.5 rounded-lg border border-border hover:border-primary/30"
+          >
+            <XCircle size={12} />
+            Reject (Draft)
+          </button>
+          <button
+            onClick={onDelete}
+            className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors px-3 py-1.5 rounded-lg border border-red-500/30 hover:border-red-400/50 ml-auto"
+          >
+            <Trash2 size={12} />
+            Delete
           </button>
         </div>
       </div>
