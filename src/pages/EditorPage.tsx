@@ -128,6 +128,34 @@ export default function EditorPage() {
   // Context menu
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
+  // Writing font
+  const [writingFont, setWritingFont] = useState('"Inter", system-ui, sans-serif');
+  const PREMIUM_FONTS = [
+    { name: 'Inter', family: '"Inter", system-ui, sans-serif', css: 'Inter:wght@400;500;600;700', type: 'Sans' },
+    { name: 'DM Sans', family: '"DM Sans", system-ui, sans-serif', css: 'DM+Sans:wght@400;500;600;700', type: 'Sans' },
+    { name: 'Playfair Display', family: '"Playfair Display", Georgia, serif', css: 'Playfair+Display:wght@400;500;600;700', type: 'Serif' },
+    { name: 'Merriweather', family: '"Merriweather", Georgia, serif', css: 'Merriweather:wght@300;400;700;900', type: 'Serif' },
+    { name: 'Lora', family: '"Lora", Georgia, serif', css: 'Lora:wght@400;500;600;700', type: 'Serif' },
+    { name: 'Source Serif 4', family: '"Source Serif 4", Georgia, serif', css: 'Source+Serif+4:wght@400;500;600;700;900', type: 'Serif' },
+    { name: 'IBM Plex Serif', family: '"IBM Plex Serif", Georgia, serif', css: 'IBM+Plex+Serif:wght@400;500;600;700', type: 'Serif' },
+    { name: 'Crimson Pro', family: '"Crimson Pro", Georgia, serif', css: 'Crimson+Pro:wght@400;500;600;700', type: 'Serif' },
+    { name: 'DM Serif Display', family: '"DM Serif Display", Georgia, serif', css: 'DM+Serif+Display:wght@400', type: 'Serif' },
+    { name: 'Times New Roman', family: '"Times New Roman", Times, serif', css: '', type: 'Serif' },
+    { name: 'JetBrains Mono', family: '"JetBrains Mono", monospace', css: 'JetBrains+Mono:wght@400;500;600;700', type: 'Mono' },
+  ];
+
+  useEffect(() => {
+    const id = 'writing-font-link';
+    if (document.getElementById(id)) return;
+    const selected = PREMIUM_FONTS.find(f => f.family === writingFont);
+    if (!selected || !selected.css || selected.name === 'Inter') return;
+    const link = document.createElement('link');
+    link.id = id;
+    link.rel = 'stylesheet';
+    link.href = `https://fonts.googleapis.com/css2?family=${selected.css}&display=swap`;
+    document.head.appendChild(link);
+  }, [writingFont]);
+
   const applyTemplate = (tmpl: PostTemplate) => {
     setTitle(tmpl.title);
     if (editorRef.current) {
@@ -324,6 +352,19 @@ export default function EditorPage() {
             <div className="flex items-center gap-1 px-3 py-2 mb-3 rounded-xl border border-border bg-surface flex-wrap">
               <FormatButton icon={<LayoutTemplate size={15} />} label="Templates" onClick={() => setShowTemplates(true)} />
               <span className="w-px h-5 bg-border mx-1" />
+              <select
+                value={writingFont}
+                onChange={e => setWritingFont(e.target.value)}
+                className="text-xs bg-canvas border border-border rounded-lg px-2 py-1.5 text-primary outline-none focus:border-primary/40 cursor-pointer max-w-[120px]"
+                style={{ fontFamily: writingFont }}
+              >
+                {PREMIUM_FONTS.map(f => (
+                  <option key={f.name} value={f.family} style={{ fontFamily: f.family }}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+              <span className="w-px h-5 bg-border mx-1" />
               <FormatButton icon={<Bold size={15} />} label="Bold" onClick={() => execFormat('bold')} />
               <FormatButton icon={<Italic size={15} />} label="Italic" onClick={() => execFormat('italic')} />
               <span className="w-px h-5 bg-border mx-1" />
@@ -377,7 +418,7 @@ export default function EditorPage() {
               className={`w-full bg-transparent text-primary text-base outline-none leading-relaxed min-h-[60vh] ${
                 preview ? '' : 'border border-border rounded-2xl p-5'
               } ${preview ? 'prose-premium' : ''}`}
-              style={preview ? {} : { minHeight: '60vh' }}
+              style={preview ? {} : { minHeight: '60vh', fontFamily: writingFont }}
             />
 
             {/* Context Menu */}
