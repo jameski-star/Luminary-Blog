@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && cd server && npm i && npm run build",
-    "start": "node server/dist/index.js",
-    "preview": "vite preview"
+    "build": "vite build",
+    "start": "cd server && npx tsx src/index.ts",
+    "preview": "vite preview",
+    "postinstall": "cd server && npm install"
   },
   "dependencies": {
     "@google/genai": "^2.9.0",
