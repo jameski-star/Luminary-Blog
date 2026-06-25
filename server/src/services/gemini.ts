@@ -4,19 +4,30 @@ const MODEL_NAME = 'gemini-2.5-flash';
 const MAX_RETRIES = 5;
 const INITIAL_RETRY_DELAY = 2000;
 
+let keyIndex = 0;
+
 function isCongestionError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
   return msg.includes('429') || msg.includes('too many requests') || msg.includes('resource exhausted') || msg.includes('rate_limit') || msg.includes('congestion') || msg.includes('overloaded') || msg.includes('unavailable');
 }
 
-async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+async function withRetry<T>(fn: (key: string) => Promise<T>, apiKeys: string[]): Promise<T> {
   let lastError: unknown;
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const key = apiKeys[keyIndex % apiKeys.length];
     try {
-      return await fn();
+      return await fn(key);
     } catch (err) {
       lastError = err;
-      if (!isCongestionError(err) || attempt === MAX_RETRIES - 1) throw err;
+      if (!isCongestionError(err)) throw err;
+      // If multiple keys available, try the next one instead of waiting
+      if (apiKeys.length > 1 && attempt < apiKeys.length) {
+        keyIndex = (keyIndex + 1) % apiKeys.length;
+        const keyNum = keyIndex + 1;
+        console.log(`Key ${keyNum} congested — switching to next key (attempt ${attempt + 1})`);
+        continue;
+      }
+      if (attempt === MAX_RETRIES - 1) throw err;
       const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt) + Math.random() * 1000;
       console.log(`Model congested — retrying in ${(delay / 1000).toFixed(1)}s (attempt ${attempt + 1}/${MAX_RETRIES})…`);
       await new Promise(resolve => setTimeout(resolve, delay));
@@ -157,10 +168,19 @@ REVISION MANDATE:
   return response.text ?? draft;
 }
 
+function availableKeys(primaryKey: string, key2: string, key3: string): string[] {
+  const keys = [primaryKey];
+  if (key2) keys.push(key2);
+  if (key3) keys.push(key3);
+  return keys;
+}
+
 export async function executePipeline(
   topic: string,
   keywords: string[],
-  apiKey: string
+  primaryKey: string,
+  key2 = '',
+  key3 = ''
 ): Promise<{
   status: 'ready_to_publish' | 'quarantined' | 'error';
   title: string;
@@ -171,11 +191,17 @@ export async function executePipeline(
   tags?: string[];
   isApproved?: boolean;
 }> {
-  const ai = createAI(apiKey);
+  const apiKeys = availableKeys(primaryKey, key2, key3);
 
   try {
-    const rawDraft = await withRetry(() => draftArticleContent(ai, topic, keywords));
-    const auditResults = await withRetry(() => runAuthenticityCheck(ai, rawDraft));
+    const rawDraft = await withRetry(
+      (k) => draftArticleContent(createAI(k), topic, keywords),
+      apiKeys
+    );
+    const auditResults = await withRetry(
+      (k) => runAuthenticityCheck(createAI(k), rawDraft),
+      apiKeys
+    );
 
     if (auditResults.score < 65) {
       return {
@@ -189,7 +215,10 @@ export async function executePipeline(
       };
     }
 
-    const polishedContent = await withRetry(() => optimizeAndPolish(ai, rawDraft, auditResults));
+    const polishedContent = await withRetry(
+      (k) => optimizeAndPolish(createAI(k), rawDraft, auditResults),
+      apiKeys
+    );
 
     return {
       status: 'ready_to_publish',
@@ -213,8 +242,13 @@ export async function executePipeline(
 
 export async function validateContent(
   content: string,
-  apiKey: string
+  primaryKey: string,
+  key2 = '',
+  key3 = ''
 ): Promise<{ passedCheck: boolean; score: number; vulnerabilities: string[]; suggestions: string[] }> {
-  const ai = createAI(apiKey);
-  return runAuthenticityCheck(ai, content);
+  const apiKeys = availableKeys(primaryKey, key2, key3);
+  return withRetry(
+    (k) => runAuthenticityCheck(createAI(k), content),
+    apiKeys
+  );
 }

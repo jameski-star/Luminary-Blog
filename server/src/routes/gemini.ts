@@ -20,7 +20,7 @@ router.post('/pipeline', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Gemini API key not configured on the server. Set GEMINI_API_KEY in environment.' });
     }
 
-    const result = await executePipeline(topic, keywords || [], config.geminiApiKey);
+    const result = await executePipeline(topic, keywords || [], config.geminiApiKey, config.geminiApiKey2, config.geminiApiKey3);
     res.json(result);
   } catch (err) {
     console.error('Gemini pipeline error:', err);
@@ -39,7 +39,7 @@ router.post('/audit', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Gemini API key not configured on the server.' });
     }
 
-    const result = await validateContent(content, config.geminiApiKey);
+    const result = await validateContent(content, config.geminiApiKey, config.geminiApiKey2, config.geminiApiKey3);
     res.json(result);
   } catch (err) {
     console.error('Gemini audit error:', err);
