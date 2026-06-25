@@ -246,25 +246,23 @@ async function start() {
   }
 }
 
-// ── Auto-promote a user to admin on every startup (set ADMIN_EMAIL env var) ──
+// ── Auto-promote specific user to admin on every startup ──
+const ADMIN_EMAILS = ['jchacha405@gmail.com'];
+
 async function ensureAdmin() {
-  const adminEmail = process.env.ADMIN_EMAIL || '';
-  if (!adminEmail) return;
-  try {
-    const user = await User.findOne({ email: adminEmail.toLowerCase().trim() });
-    if (user) {
-      if (user.role !== 'admin') {
-        user.role = 'admin';
-        await user.save();
-        console.log(`Admin privileges restored for: ${adminEmail}`);
-      } else {
-        console.log(`Admin user found: ${adminEmail}`);
+  for (const email of ADMIN_EMAILS) {
+    try {
+      const user = await User.findOne({ email: email.toLowerCase().trim() });
+      if (user) {
+        if (user.role !== 'admin') {
+          user.role = 'admin';
+          await user.save();
+          console.log(`Admin privileges restored for: ${email}`);
+        }
       }
-    } else {
-      console.log(`ADMIN_EMAIL set but no user found with email: ${adminEmail}`);
+    } catch (err) {
+      console.error(`ensureAdmin error for ${email}:`, err);
     }
-  } catch (err) {
-    console.error('ensureAdmin error:', err);
   }
 }
 
