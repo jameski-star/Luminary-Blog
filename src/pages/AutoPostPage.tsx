@@ -85,7 +85,7 @@ export default function AutoPostPage() {
       { name: 'Polishing for Human Cadence', status: 'pending' },
     ]);
 
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 10;
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -115,26 +115,47 @@ export default function AutoPostPage() {
           );
         }
 
-        setResult(pipelineResult as PipelineResult & { excerpt?: string; tags?: string[]; keywords?: string[] });
+        const typed = pipelineResult as PipelineResult & { excerpt?: string; tags?: string[]; keywords?: string[] };
+
+        // If pipeline returned an error status, treat it as a transient failure and retry
+        if (typed.status === 'error') {
+          lastError = new Error(typed.reason || 'Pipeline failed');
+          if (attempt < MAX_RETRIES) {
+            const delay = 5000 * attempt;
+            setStages([
+              { name: 'Generating SEO keywords', status: 'done' },
+              { name: `Retrying (${attempt}/${MAX_RETRIES - 1})…`, status: 'running' },
+              { name: '', status: 'pending' },
+              { name: '', status: 'pending' },
+            ]);
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
+          break;
+        }
+
+        setResult(typed);
         setRunning(false);
         return;
       } catch (err: unknown) {
         lastError = err;
         if (attempt < MAX_RETRIES) {
+          const delay = 5000 * attempt;
           setStages([
             { name: 'Generating SEO keywords', status: 'done' },
-            { name: `Auto-retrying (${attempt}/${MAX_RETRIES})…`, status: 'running' },
+            { name: `Retrying (${attempt}/${MAX_RETRIES - 1})…`, status: 'running' },
             { name: '', status: 'pending' },
             { name: '', status: 'pending' },
           ]);
-          await new Promise(r => setTimeout(r, 2000 * attempt));
+          await new Promise(r => setTimeout(r, delay));
         } else {
           break;
         }
       }
     }
 
-    setError(friendlyError(lastError));
+    const errMsg = lastError instanceof Error ? lastError.message : String(lastError || 'Unknown error');
+    setError(errMsg);
     setRunning(false);
   };
 
@@ -415,6 +436,19 @@ export default function AutoPostPage() {
             {/* Status Banner */}
             {(() => {
     const r = result as PipelineResult & { excerpt?: string; tags?: string[]; keywords?: string[] };
+
+              if (result.status === 'error') {
+                return (
+                  <div className="rounded-xl md:rounded-2xl border border-red-500/30 bg-red-500/10 p-3 md:p-5">
+                    <div className="flex items-center gap-2 md:gap-3 mb-1 md:mb-2">
+                      <AlertTriangle size={16} className="text-red-400 shrink-0" />
+                      <h3 className="text-xs md:text-lg font-semibold text-red-400">Pipeline Error</h3>
+                    </div>
+                    <p className="text-[10px] md:text-sm text-red-400/80">{result.reason || 'An unknown error occurred.'}</p>
+                  </div>
+                );
+              }
+
     const rogue = detectRogueContent(r.content);
               const lowScore = (result.audit?.score ?? 100) < 65;
               const goPublic = !rogue.isRogue && !lowScore;
@@ -448,6 +482,8 @@ export default function AutoPostPage() {
             </div>);
             })()}
 
+            {result.status !== 'error' && (
+            <div className="space-y-3 md:space-y-4">
             {/* Rogue Content Warning */}
             {rogueWarning?.isRogue && (
               <div className="rounded-xl md:rounded-2xl border border-red-500/30 bg-red-500/10 p-3 md:p-4 flex items-start gap-2 md:gap-3">
@@ -584,9 +620,10 @@ export default function AutoPostPage() {
                 Reset
               </button>
             </div>
-          </div>
-        )}
-      </div>
+          </div>)}
+        </div>
+      )}
+    </div>
     </div>
   );
 }

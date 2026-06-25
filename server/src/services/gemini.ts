@@ -6,30 +6,73 @@ const INITIAL_RETRY_DELAY = 2000;
 
 let keyIndex = 0;
 
-function isCongestionError(err: unknown): boolean {
+function isQuotaError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
-  return msg.includes('429') || msg.includes('too many requests') || msg.includes('resource exhausted') || msg.includes('rate_limit') || msg.includes('congestion') || msg.includes('overloaded') || msg.includes('unavailable');
+  return msg.includes('quota') || msg.includes('please wait') || msg.includes('retry after');
+}
+
+function isTransientError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+  return msg.includes('429') || msg.includes('too many requests') || msg.includes('resource exhausted')
+    || msg.includes('rate_limit') || msg.includes('congestion') || msg.includes('overloaded')
+    || msg.includes('unavailable') || msg.includes('quota') || msg.includes('limit')
+    || msg.includes('try again') || msg.includes('please wait') || msg.includes('retry after')
+    || msg.includes('deadline') || msg.includes('timeout') || msg.includes('500')
+    || msg.includes('502') || msg.includes('503') || msg.includes('service unavailable')
+    || msg.includes('internal server') || msg.includes('connection');
 }
 
 async function withRetry<T>(fn: (key: string) => Promise<T>, apiKeys: string[]): Promise<T> {
+  const maxAttempts = Math.max(20, apiKeys.length * 4);
   let lastError: unknown;
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    const key = apiKeys[keyIndex % apiKeys.length];
+  let sameKeyStrikes = 0;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const keyIdx = keyIndex % apiKeys.length;
+    const key = apiKeys[keyIdx];
     try {
       return await fn(key);
     } catch (err) {
       lastError = err;
-      if (!isCongestionError(err)) throw err;
-      // If multiple keys available, try the next one instead of waiting
-      if (apiKeys.length > 1 && attempt < apiKeys.length) {
-        keyIndex = (keyIndex + 1) % apiKeys.length;
-        const keyNum = keyIndex + 1;
-        console.log(`Key ${keyNum} congested — switching to next key (attempt ${attempt + 1})`);
-        continue;
+      const isQuota = isQuotaError(err);
+      const isTransient = isTransientError(err);
+
+      if (!isTransient) {
+        const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+        if (msg.includes('api key') || msg.includes('not found') || msg.includes('safety')) {
+          throw err;
+        }
+        if (msg.includes('permission') || msg.includes('access')) {
+          throw err;
+        }
       }
-      if (attempt === MAX_RETRIES - 1) throw err;
-      const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt) + Math.random() * 1000;
-      console.log(`Model congested — retrying in ${(delay / 1000).toFixed(1)}s (attempt ${attempt + 1}/${MAX_RETRIES})…`);
+
+      // Rotate to next key
+      keyIndex = (keyIndex + 1) % apiKeys.length;
+
+      // If we cycled through all keys, increase delay
+      if (keyIdx === keyIndex) {
+        sameKeyStrikes++;
+      } else {
+        sameKeyStrikes = 0;
+      }
+
+      let delay: number;
+      if (isQuota) {
+        delay = 60000 + Math.random() * 10000;
+        console.log(`Quota exceeded on key ${keyIdx + 1} — ${sameKeyStrikes > 0 ? `waiting ${(delay / 1000).toFixed(0)}s` : 'trying next key'} (attempt ${attempt + 1})`);
+      } else if (isTransient) {
+        delay = sameKeyStrikes > 0 ? 10000 + Math.random() * 5000 : 500;
+        console.log(`Model busy on key ${keyIdx + 1} — ${sameKeyStrikes > 0 ? `waiting ${(delay / 1000).toFixed(0)}s` : 'trying next key'} (attempt ${attempt + 1})`);
+      } else {
+        delay = 5000 + Math.random() * 3000;
+        console.log(`Retrying key ${keyIdx + 1} in ${(delay / 1000).toFixed(0)}s (attempt ${attempt + 1})`);
+      }
+
+      if (sameKeyStrikes > 2 && isQuota) {
+        delay = 120000 + Math.random() * 30000;
+      }
+
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
@@ -225,6 +268,7 @@ export async function executePipeline(
   reason?: string;
   excerpt?: string;
   tags?: string[];
+  keywords?: string[];
   isApproved?: boolean;
 }> {
   const apiKeys = availableKeys(primaryKey, key2, key3);

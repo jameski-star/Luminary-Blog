@@ -153,7 +153,7 @@ export default function DashboardPage() {
                 key={post.id}
                 post={post}
                 onOpen={() => openPost(post)}
-                onPublish={() => publishDraft(post.id)}
+                onPublish={() => submitForReview(post.id)}
                 onDelete={() => confirmDelete(post.id, post.title)}
               />
             ))}

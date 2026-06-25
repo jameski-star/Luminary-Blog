@@ -96,9 +96,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               setApiToken(null);
             }
           });
-        api.posts.my()
-          .then(res => setPosts(res.posts as BlogPost[]))
-          .catch(() => {});
+        Promise.all([
+          api.posts.my().catch(() => ({ posts: [] })),
+          api.posts.list({ status: 'published', limit: '100' }).catch(() => ({ posts: [] })),
+        ]).then(([myRes, pubRes]) => {
+          const merged = new Map<string, BlogPost>();
+          for (const p of [...myRes.posts, ...pubRes.posts]) {
+            merged.set(p.id, p as BlogPost);
+          }
+          setPosts(Array.from(merged.values()));
+        });
       } else {
         api.posts.list({ status: 'published', limit: '100' })
           .then(res => setPosts(res.posts as BlogPost[]))

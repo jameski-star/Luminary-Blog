@@ -3,30 +3,61 @@ import type { AuditResult, PipelineResult, PipelineStage } from '../types';
 import { friendlyError, isQuotaError, isCongestionError } from '../utils/errors';
 
 const MODEL_NAME = 'gemini-2.5-flash';
-const MAX_RETRIES = 5;
-const INITIAL_RETRY_DELAY = 2000;
+
+function isTransientError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+  return msg.includes('429') || msg.includes('too many requests') || msg.includes('resource exhausted')
+    || msg.includes('rate_limit') || msg.includes('congestion') || msg.includes('overloaded')
+    || msg.includes('unavailable') || msg.includes('quota') || msg.includes('limit')
+    || msg.includes('try again') || msg.includes('please wait') || msg.includes('retry after')
+    || msg.includes('deadline') || msg.includes('timeout') || msg.includes('500')
+    || msg.includes('502') || msg.includes('503') || msg.includes('service unavailable')
+    || msg.includes('internal server') || msg.includes('connection');
+}
+
+function isQuotaError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+  return msg.includes('quota') || msg.includes('please wait') || msg.includes('retry after');
+}
 
 async function withRetry<T>(fn: () => Promise<T>, onRetry?: (attempt: number, delay: number, message: string) => void): Promise<T> {
+  const maxAttempts = 20;
   let lastError: unknown;
-  let attempt = 0;
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
+  let sameKeyStrikes = 0;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       return await fn();
     } catch (err) {
       lastError = err;
-      if (!isCongestionError(err)) throw err;
       const isQuota = isQuotaError(err);
-      const delay = isQuota
-        ? 60000 + Math.random() * 10000
-        : INITIAL_RETRY_DELAY * Math.pow(2, attempt) + Math.random() * 1000;
-      const message = isQuota
-        ? `Quota exceeded — retrying in 60s (attempt ${attempt + 1})…`
-        : `Model congested — retrying in ${(delay / 1000).toFixed(1)}s (attempt ${attempt + 1}/${MAX_RETRIES})…`;
+      const isTransient = isTransientError(err);
+
+      if (!isTransient) {
+        const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+        if (msg.includes('api key') || msg.includes('not found') || msg.includes('safety')
+            || msg.includes('permission') || msg.includes('access')) {
+          throw err;
+        }
+      }
+
+      let delay: number;
+      let message: string;
+
+      if (isQuota) {
+        sameKeyStrikes++;
+        delay = sameKeyStrikes > 2 ? 120000 + Math.random() * 30000 : 60000 + Math.random() * 10000;
+        message = `Quota hit — waiting ${(delay / 1000).toFixed(0)}s (attempt ${attempt + 1})…`;
+      } else if (isTransient) {
+        delay = 10000 + Math.random() * 5000;
+        message = `Model busy — retrying in ${(delay / 1000).toFixed(0)}s (attempt ${attempt + 1})…`;
+      } else {
+        delay = 5000 + Math.random() * 3000;
+        message = `Retrying in ${(delay / 1000).toFixed(0)}s (attempt ${attempt + 1})…`;
+      }
+
       onRetry?.(attempt + 1, Math.round(delay), message);
       await new Promise(resolve => setTimeout(resolve, delay));
-      attempt++;
-      if (!isQuota && attempt >= MAX_RETRIES) break;
     }
   }
   throw lastError;
