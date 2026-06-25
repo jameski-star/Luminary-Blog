@@ -175,6 +175,42 @@ function availableKeys(primaryKey: string, key2: string, key3: string): string[]
   return keys;
 }
 
+async function generateSEOKeywords(ai: GoogleGenAI, topic: string): Promise<string[]> {
+  const response = await ai.models.generateContent({
+    model: MODEL_NAME,
+    contents: `Generate 6-8 high-value SEO keywords for a blog article about this topic:
+
+Topic: "${topic}"
+
+Requirements:
+- Each keyword should be a phrase that real people search for (2-4 words each)
+- Include a mix of head terms and long-tail keywords
+- Focus on commercial and informational intent
+- Return ONLY a JSON array of strings, no other text or formatting`,
+    config: {
+      systemInstruction: 'You are an SEO strategist. Return only valid JSON.',
+      temperature: 0.3,
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          keywords: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+        },
+      },
+    },
+  });
+  const text = response.text ?? '{"keywords":[]}';
+  try {
+    const parsed = JSON.parse(text);
+    return (parsed.keywords || []).slice(0, 8);
+  } catch {
+    return [];
+  }
+}
+
 export async function executePipeline(
   topic: string,
   keywords: string[],
@@ -194,8 +230,15 @@ export async function executePipeline(
   const apiKeys = availableKeys(primaryKey, key2, key3);
 
   try {
+    let effectiveKeywords = keywords;
+    if (effectiveKeywords.length === 0) {
+      effectiveKeywords = await withRetry(
+        (k) => generateSEOKeywords(createAI(k), topic),
+        apiKeys
+      );
+    }
     const rawDraft = await withRetry(
-      (k) => draftArticleContent(createAI(k), topic, keywords),
+      (k) => draftArticleContent(createAI(k), topic, effectiveKeywords),
       apiKeys
     );
     const auditResults = await withRetry(
@@ -211,7 +254,8 @@ export async function executePipeline(
         audit: auditResults,
         reason: `Authenticity score ${auditResults.score}/100 is below the 65-point minimum threshold. Routed to manual review.`,
         excerpt: rawDraft.slice(0, 160).replace(/[#*]/g, '').trim(),
-        tags: keywords.slice(0, 4),
+        tags: effectiveKeywords.slice(0, 4),
+        keywords: effectiveKeywords,
       };
     }
 
@@ -226,7 +270,8 @@ export async function executePipeline(
       content: polishedContent,
       audit: auditResults,
       excerpt: polishedContent.slice(0, 160).replace(/[#*]/g, '').trim(),
-      tags: keywords.slice(0, 4),
+      tags: effectiveKeywords.slice(0, 4),
+      keywords: effectiveKeywords,
       isApproved: true,
     };
   } catch (error: unknown) {

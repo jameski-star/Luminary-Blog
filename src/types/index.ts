@@ -52,6 +52,7 @@ export interface PipelineResult {
   reason?: string;
   draft?: string;
   isApproved?: boolean;
+  keywords?: string[];
 }
 
 export interface PipelineStage {

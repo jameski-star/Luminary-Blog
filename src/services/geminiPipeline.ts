@@ -164,15 +164,52 @@ REVISION MANDATE:
   return response.text ?? draft;
 }
 
+async function generateSEOKeywords(ai: GoogleGenAI, topic: string): Promise<string[]> {
+  const response = await ai.models.generateContent({
+    model: MODEL_NAME,
+    contents: `Generate 6-8 high-value SEO keywords for a blog article about this topic:
+
+Topic: "${topic}"
+
+Requirements:
+- Each keyword should be a phrase that real people search for (2-4 words each)
+- Include a mix of head terms and long-tail keywords
+- Focus on commercial and informational intent
+- Return ONLY a JSON array of strings, no other text or formatting`,
+    config: {
+      systemInstruction: 'You are an SEO strategist. Return only valid JSON.',
+      temperature: 0.3,
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          keywords: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+        },
+      },
+    },
+  });
+  const text = response.text ?? '{"keywords":[]}';
+  try {
+    const parsed = JSON.parse(text);
+    return (parsed.keywords || []).slice(0, 8);
+  } catch {
+    return [];
+  }
+}
+
 export async function executeAutopostPipeline(
   topic: string,
   keywords: string[],
   apiKey: string,
   onStageUpdate: (stages: PipelineStage[]) => void
-): Promise<PipelineResult & { excerpt?: string; tags?: string[] }> {
+): Promise<PipelineResult & { excerpt?: string; tags?: string[]; keywords?: string[] }> {
   const ai = createAI(apiKey);
 
   const stages: PipelineStage[] = [
+    { name: 'Generating SEO keywords', status: 'pending' },
     { name: 'Drafting Deep-Dive Content', status: 'pending' },
     { name: 'Authenticity & Fact-Check Audit', status: 'pending' },
     { name: 'Polishing for Human Cadence', status: 'pending' },
@@ -184,22 +221,33 @@ export async function executeAutopostPipeline(
   };
 
   try {
-    // Stage 1
-    update(0, 'running');
-    const rawDraft = await withRetry(
-      () => draftArticleContent(ai, topic, keywords),
-      (_attempt, _delay, msg) => update(0, 'running', msg)
-    );
-    update(0, 'done', `${rawDraft.split(/\s+/).length.toLocaleString()} words drafted`);
+    // Stage 0 — auto-generate keywords
+    let effectiveKeywords = keywords;
+    if (effectiveKeywords.length === 0) {
+      update(0, 'running');
+      effectiveKeywords = await withRetry(
+        () => generateSEOKeywords(ai, topic),
+        (_attempt, _delay, msg) => update(0, 'running', msg)
+      );
+    }
+    update(0, 'done', `${effectiveKeywords.length} keywords generated`);
 
-    // Stage 2
+    // Stage 1
     update(1, 'running');
-    const auditResults = await withRetry(
-      () => runAuthenticityCheck(ai, rawDraft),
+    const rawDraft = await withRetry(
+      () => draftArticleContent(ai, topic, effectiveKeywords),
       (_attempt, _delay, msg) => update(1, 'running', msg)
     );
+    update(1, 'done', `${rawDraft.split(/\s+/).length.toLocaleString()} words drafted`);
+
+    // Stage 2
+    update(2, 'running');
+    const auditResults = await withRetry(
+      () => runAuthenticityCheck(ai, rawDraft),
+      (_attempt, _delay, msg) => update(2, 'running', msg)
+    );
     update(
-      1,
+      2,
       auditResults.score >= 75 ? 'done' : 'error',
       `Score: ${auditResults.score}/100 — ${auditResults.vulnerabilities.length} issues flagged`
     );
@@ -213,17 +261,18 @@ export async function executeAutopostPipeline(
         reason: `Authenticity score ${auditResults.score}/100 is below the 65-point minimum threshold. Routed to manual review.`,
         draft: rawDraft,
         excerpt: rawDraft.slice(0, 160).replace(/[#*]/g, '').trim(),
-        tags: keywords.slice(0, 4),
+        tags: effectiveKeywords.slice(0, 4),
+        keywords: effectiveKeywords,
       };
     }
 
     // Stage 3
-    update(2, 'running');
+    update(3, 'running');
     const polishedContent = await withRetry(
       () => optimizeAndPolish(ai, rawDraft, auditResults),
-      (_attempt, _delay, msg) => update(2, 'running', msg)
+      (_attempt, _delay, msg) => update(3, 'running', msg)
     );
-    update(2, 'done', 'Prose humanized and polished');
+    update(3, 'done', 'Prose humanized and polished');
 
     return {
       status: 'ready_to_publish',
@@ -231,7 +280,8 @@ export async function executeAutopostPipeline(
       content: polishedContent,
       audit: auditResults,
       excerpt: polishedContent.slice(0, 160).replace(/[#*]/g, '').trim(),
-      tags: keywords.slice(0, 4),
+      tags: effectiveKeywords.slice(0, 4),
+      keywords: effectiveKeywords,
       isApproved: true,
     };
 

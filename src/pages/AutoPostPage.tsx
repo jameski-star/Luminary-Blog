@@ -30,7 +30,7 @@ export default function AutoPostPage() {
   // Pipeline state
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<(PipelineResult & { excerpt?: string; tags?: string[] }) | null>(null);
+  const [result, setResult] = useState<(PipelineResult & { excerpt?: string; tags?: string[]; keywords?: string[] }) | null>(null);
   const [error, setError] = useState('');
 
   // Preview
@@ -74,12 +74,12 @@ export default function AutoPostPage() {
   const runPipeline = async () => {
     if (!isApiMode() && !geminiKey) { setError('Please save your Gemini API key first.'); return; }
     if (!topic.trim()) { setError('Please enter a topic.'); return; }
-    if (keywords.length === 0) { setError('Add at least one target keyword.'); return; }
 
     setError('');
     setResult(null);
     setRunning(true);
     setStages([
+      { name: 'Generating SEO keywords', status: 'pending' },
       { name: 'Drafting Deep-Dive Content', status: 'pending' },
       { name: 'Authenticity & Fact-Check Audit', status: 'pending' },
       { name: 'Polishing for Human Cadence', status: 'pending' },
@@ -94,12 +94,14 @@ export default function AutoPostPage() {
 
         if (isApiMode()) {
           setStages([
+            { name: 'Generating SEO keywords', status: 'done' },
             { name: attempt > 1 ? `Drafting Deep-Dive Content (retry ${attempt})` : 'Drafting Deep-Dive Content', status: 'running' },
             { name: 'Authenticity & Fact-Check Audit', status: 'pending' },
             { name: 'Polishing for Human Cadence', status: 'pending' },
           ]);
           pipelineResult = await api.gemini.pipeline({ topic: topic.trim(), keywords });
           setStages([
+            { name: 'Generating SEO keywords', status: 'done' },
             { name: 'Drafting Deep-Dive Content', status: 'done' },
             { name: 'Authenticity & Fact-Check Audit', status: 'done' },
             { name: 'Polishing for Human Cadence', status: 'done' },
@@ -113,13 +115,14 @@ export default function AutoPostPage() {
           );
         }
 
-        setResult(pipelineResult as PipelineResult & { excerpt?: string; tags?: string[] });
+        setResult(pipelineResult as PipelineResult & { excerpt?: string; tags?: string[]; keywords?: string[] });
         setRunning(false);
         return;
       } catch (err: unknown) {
         lastError = err;
         if (attempt < MAX_RETRIES) {
           setStages([
+            { name: 'Generating SEO keywords', status: 'done' },
             { name: `Auto-retrying (${attempt}/${MAX_RETRIES})…`, status: 'running' },
             { name: '', status: 'pending' },
             { name: '', status: 'pending' },
@@ -411,8 +414,8 @@ export default function AutoPostPage() {
           <div className="space-y-3 md:space-y-4">
             {/* Status Banner */}
             {(() => {
-              const r = result as PipelineResult & { excerpt?: string; tags?: string[] };
-              const rogue = detectRogueContent(r.content);
+    const r = result as PipelineResult & { excerpt?: string; tags?: string[]; keywords?: string[] };
+    const rogue = detectRogueContent(r.content);
               const lowScore = (result.audit?.score ?? 100) < 65;
               const goPublic = !rogue.isRogue && !lowScore;
               return (
@@ -453,6 +456,20 @@ export default function AutoPostPage() {
                   <p className="text-[10px] md:text-sm font-semibold text-red-400 mb-0.5">Rogue content detected</p>
                   <p className="text-[9px] md:text-xs text-red-400/80">{rogueWarning.reason}</p>
                   <p className="text-[9px] md:text-xs text-red-400/60 mt-0.5 md:mt-1">This post will be routed to the admin review queue.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Auto-Generated Keywords */}
+            {result.keywords && result.keywords.length > 0 && (
+              <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-4">
+                <p className="text-[9px] md:text-xs font-semibold text-secondary uppercase tracking-wider mb-1.5 md:mb-2">SEO Keywords</p>
+                <div className="flex flex-wrap gap-1.5 md:gap-2">
+                  {result.keywords.map(kw => (
+                    <span key={kw} className="text-[9px] md:text-xs px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full bg-primary/10 text-primary">
+                      {kw}
+                    </span>
+                  ))}
                 </div>
               </div>
             )}
