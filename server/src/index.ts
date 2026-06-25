@@ -39,42 +39,110 @@ const splashPage = `<!DOCTYPE html>
       -webkit-font-smoothing: antialiased;
     }
     .splash { text-align: center; }
-    .logo {
-      width: 56px; height: 56px;
-      border-radius: 14px;
-      background: #FAFAFA;
-      display: inline-flex;
-      align-items: center;
+
+    /* ── Word container ── */
+    .word {
+      display: flex;
       justify-content: center;
-      margin-bottom: 24px;
+      align-items: center;
+      height: 100px;
+      margin-bottom: 40px;
     }
-    .logo span {
-      color: #000;
+    .letter {
       font-family: 'Libre Bodoni', Georgia, serif;
-      font-size: 28px;
       font-weight: 700;
+      font-size: 56px;
+      letter-spacing: -0.02em;
+      opacity: 0;
     }
-    h1 {
-      font-family: 'Libre Bodoni', Georgia, serif;
-      font-size: 24px;
-      font-weight: 600;
-      margin-bottom: 8px;
-      letter-spacing: -0.01em;
+    .letter.l {
+      font-size: 120px;
+      animation: lShow 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+                 lSettle 0.7s 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
-    p {
-      color: #A1A1AA;
-      font-size: 14px;
-      margin-bottom: 32px;
+    .letter:not(.l) {
+      animation: spreadIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
-    .spinner {
-      width: 24px; height: 24px;
-      border: 2px solid #27272A;
-      border-top-color: #FAFAFA;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin: 0 auto;
+    .letter.u { animation-delay: 1.15s; }
+    .letter.m { animation-delay: 1.25s; }
+    .letter.i { animation-delay: 1.35s; }
+    .letter.n { animation-delay: 1.45s; }
+    .letter.a { animation-delay: 1.55s; }
+    .letter.r { animation-delay: 1.65s; }
+    .letter.y { animation-delay: 1.75s; }
+
+    @keyframes lShow {
+      0%   { opacity: 0; transform: scale(0.4); filter: blur(12px); }
+      60%  { filter: blur(0); }
+      100% { opacity: 1; transform: scale(1); filter: blur(0); }
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes lSettle {
+      0%   { font-size: 120px; transform: translateX(0) scale(1); }
+      100% { font-size: 56px; transform: translateX(0) scale(1); }
+    }
+    @keyframes spreadIn {
+      0%   { opacity: 0; transform: scale(0.3) translateY(40px) rotate(-12deg); filter: blur(6px); }
+      60%  { filter: blur(0); }
+      100% { opacity: 1; transform: scale(1) translateY(0) rotate(0deg); filter: blur(0); }
+    }
+
+    /* ── Tagline ── */
+    .tagline {
+      color: #52525B;
+      font-size: 13px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      font-weight: 500;
+      margin-bottom: 36px;
+      opacity: 0;
+      animation: fadeUp 0.6s 2.2s ease forwards;
+    }
+    @keyframes fadeUp {
+      0%   { opacity: 0; transform: translateY(12px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Horizontal dashes loading bar ── */
+    .dash-loader {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      opacity: 0;
+      animation: fadeUp 0.4s 2.6s ease forwards;
+    }
+    .dash-loader .dash {
+      height: 3px;
+      border-radius: 2px;
+      background: #27272A;
+      overflow: hidden;
+      position: relative;
+    }
+    .dash-loader .dash::after {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%;
+      height: 100%;
+      width: 60%;
+      border-radius: 2px;
+      background: #FAFAFA;
+      animation: dashRun 1.4s ease-in-out infinite;
+    }
+    .dash-loader .dash:nth-child(1) { width: 200px; }
+    .dash-loader .dash:nth-child(2) { width: 160px; }
+    .dash-loader .dash:nth-child(3) { width: 120px; }
+    .dash-loader .dash:nth-child(4) { width: 80px; }
+    .dash-loader .dash:nth-child(1)::after { animation-delay: 0s; }
+    .dash-loader .dash:nth-child(2)::after { animation-delay: 0.15s; }
+    .dash-loader .dash:nth-child(3)::after { animation-delay: 0.3s; }
+    .dash-loader .dash:nth-child(4)::after { animation-delay: 0.45s; }
+
+    @keyframes dashRun {
+      0%   { left: -60%; }
+      50%  { left: 100%; }
+      100% { left: 100%; }
+    }
+
     .sr-only {
       position: absolute; width: 1px; height: 1px;
       overflow: hidden; clip: rect(0,0,0,0);
@@ -84,11 +152,23 @@ const splashPage = `<!DOCTYPE html>
 </head>
 <body>
   <div class="splash">
-    <div class="logo"><span>L</span></div>
-    <h1>Luminary</h1>
-    <p>Waking up the server…</p>
-    <div class="spinner" role="status">
+    <div class="word">
+      <span class="letter l">L</span>
+      <span class="letter u">u</span>
+      <span class="letter m">m</span>
+      <span class="letter i">i</span>
+      <span class="letter n">n</span>
+      <span class="letter a">a</span>
+      <span class="letter r">r</span>
+      <span class="letter y">y</span>
+    </div>
+    <p class="tagline">Premium AI-Powered Blog</p>
+    <div class="dash-loader" role="status" aria-label="Loading">
       <span class="sr-only">Loading…</span>
+      <div class="dash"></div>
+      <div class="dash"></div>
+      <div class="dash"></div>
+      <div class="dash"></div>
     </div>
   </div>
   <script>
