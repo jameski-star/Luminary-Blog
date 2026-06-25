@@ -132,7 +132,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const words = query.split(/\s+/);
 
     const results = posts
-      .filter(p => p.status === 'published')
+      .filter(p => p.status === 'published' && p.isApproved !== false)
       .map(post => {
         let score = 0;
         words.forEach(word => {

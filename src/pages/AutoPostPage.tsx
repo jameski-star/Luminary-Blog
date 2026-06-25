@@ -127,6 +127,8 @@ export default function AutoPostPage() {
     const rogue = detectRogueContent(r.content);
     const effectiveStatus = rogue.isRogue ? 'review' : 'published';
 
+    const isApproved = effectiveStatus === 'published' && !rogue.isRogue && (result.audit?.score || 0) >= 65;
+
     const post: BlogPost = {
       id: `post_${Date.now()}_${Math.random().toString(36).slice(2)}`,
       title: result.title,
@@ -145,6 +147,7 @@ export default function AutoPostPage() {
       likes: 0,
       auditScore: result.audit?.score,
       wordCount: result.content.split(/\s+/).length,
+      isApproved,
     };
 
     addPost(post);

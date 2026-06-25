@@ -169,6 +169,7 @@ export async function executePipeline(
   reason?: string;
   excerpt?: string;
   tags?: string[];
+  isApproved?: boolean;
 }> {
   const ai = createAI(apiKey);
 
@@ -197,6 +198,7 @@ export async function executePipeline(
       audit: auditResults,
       excerpt: polishedContent.slice(0, 160).replace(/[#*]/g, '').trim(),
       tags: keywords.slice(0, 4),
+      isApproved: true,
     };
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);

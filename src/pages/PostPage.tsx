@@ -5,7 +5,7 @@ import SEO, { BlogPostingSchema } from '../components/SEO';
 import { api, isApiMode } from '../services/api';
 import {
   ArrowLeft, Clock, Eye, Heart, Share2, Tag, Shield,
-  Copy, Check, BookOpen
+  Check, BookOpen
 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { BlogPost } from '../types';
@@ -80,8 +80,19 @@ export default function PostPage() {
     }
   };
 
-  const handleCopy = () => {
+  const handleShare = async () => {
     const url = `${window.location.origin}/?post=${post.slug}`;
+    const shareData = { title: post.title, text: post.excerpt, url };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch {
+        // User cancelled or failed — fall through to clipboard
+      }
+    }
+
     navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -199,11 +210,11 @@ export default function PostPage() {
               {post.likes + (liked ? 1 : 0)}
             </button>
             <button
-              onClick={handleCopy}
+              onClick={handleShare}
               className="flex items-center gap-1.5 text-sm text-secondary hover:text-primary transition-colors"
             >
-              {copied ? <Check size={15} /> : <Copy size={15} />}
-              {copied ? 'Copied!' : 'Copy link'}
+              {copied ? <Check size={15} /> : <Share2 size={15} />}
+              {copied ? 'Copied!' : 'Share'}
             </button>
           </div>
         </div>
@@ -238,11 +249,11 @@ export default function PostPage() {
             Back to Archive
           </button>
           <button
-            onClick={handleCopy}
+            onClick={handleShare}
             className="flex items-center gap-2 text-sm bg-surface border border-border hover:border-primary/50 text-primary px-4 py-2 rounded-full transition-colors"
           >
             <Share2 size={14} />
-            Share Article
+            {copied ? 'Copied!' : 'Share Article'}
           </button>
         </div>
       </div>

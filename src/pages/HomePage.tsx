@@ -7,7 +7,7 @@ import type { BlogPost } from '../types';
 export default function HomePage() {
   const { posts, setCurrentPage, setSelectedPostId, likePost, geminiKey, setCurrentPage: navTo } = useApp();
 
-  const published = posts.filter(p => p.status === 'published');
+  const published = posts.filter(p => p.status === 'published' && p.isApproved !== false);
   const featured = published[0];
   const recent = published.slice(1, 7);
   const topPosts = [...published].sort((a, b) => b.views - a.views).slice(0, 3);

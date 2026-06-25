@@ -32,6 +32,7 @@ export interface BlogPost {
   auditScore?: number;
   wordCount: number;
   wordIndex?: Record<string, number[]>; // word -> array of paragraph indices
+  isApproved?: boolean;
 }
 
 export interface AuditResult {
@@ -49,6 +50,7 @@ export interface PipelineResult {
   audit?: AuditResult;
   reason?: string;
   draft?: string;
+  isApproved?: boolean;
 }
 
 export interface PipelineStage {

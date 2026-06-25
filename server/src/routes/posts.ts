@@ -27,7 +27,7 @@ router.get('/', async (req: Request, res: Response) => {
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
     const author = req.query.author as string;
 
-    const filter: Record<string, unknown> = { status: 'published' };
+    const filter: Record<string, unknown> = { status: 'published', isApproved: true };
     if (author) filter.authorId = author;
 
     const [posts, total] = await Promise.all([
@@ -59,14 +59,14 @@ router.get('/search', async (req: Request, res: Response) => {
 
     const [posts, total] = await Promise.all([
       Post.find(
-        { $text: { $search: q }, status: 'published' },
+        { $text: { $search: q }, status: 'published', isApproved: true },
         { score: { $meta: 'textScore' } }
       )
         .sort({ score: { $meta: 'textScore' } })
         .skip((page - 1) * limit)
         .limit(limit)
         .select('-content -likedBy'),
-      Post.countDocuments({ $text: { $search: q }, status: 'published' }),
+      Post.countDocuments({ $text: { $search: q }, status: 'published', isApproved: true }),
     ]);
 
     res.json({ posts, total, page, totalPages: Math.ceil(total / limit) });
@@ -102,8 +102,8 @@ router.get('/:slug', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Post not found.' });
     }
 
-    // Only published posts are publicly readable
-    if (post.status !== 'published') {
+    // Only approved published posts are publicly readable
+    if (post.status !== 'published' || !post.isApproved) {
       return res.status(404).json({ error: 'Post not found.' });
     }
 

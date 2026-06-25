@@ -10,7 +10,7 @@ export default function BlogListPage() {
   const [activeTag, setActiveTag] = useState('All');
   const [sortBy, setSortBy] = useState<'recent' | 'popular' | 'quality'>('recent');
 
-  const published = posts.filter(p => p.status === 'published');
+  const published = posts.filter(p => p.status === 'published' && p.isApproved !== false);
 
   const displayPosts = searchQuery ? searchResults : published;
 

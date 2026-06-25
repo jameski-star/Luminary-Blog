@@ -241,19 +241,20 @@ export default function EditorPage() {
 
   const canPublish = title.trim() && wordCount >= 50;
 
-  const publishPost = async (status: 'published' | 'draft') => {
+  const publishPost = async (intendedStatus: 'published' | 'draft') => {
     if (!canPublish) return;
 
     const content = getContentMarkdown();
 
     const rogue = detectRogueContent(content);
-    if (rogue.isRogue && status === 'published') {
+    let finalStatus: BlogPost['status'] = intendedStatus;
+    if (rogue.isRogue && intendedStatus === 'published') {
       const ok = await confirm('Suspicious Content Detected', `${rogue.reason} This post will be saved as a draft and submitted for admin review.`, 'Save as Draft');
       if (!ok) return;
-      status = 'review';
+      finalStatus = 'review';
     }
 
-    if (status === 'published' && auditResult && auditResult.score < 65) {
+    if (finalStatus === 'published' && auditResult && auditResult.score < 65) {
       const ok = await confirm('Low Authenticity Score', `Authenticity score is ${auditResult.score}/100 (below 65). Publish anyway?`, 'Publish Anyway');
       if (!ok) return;
     }
@@ -261,6 +262,8 @@ export default function EditorPage() {
     const slug = generateSlug(title);
     const now = new Date().toISOString();
     const finalExcerpt = excerpt || content.replace(/[#*]/g, '').trim().slice(0, 160);
+
+    const isApproved = finalStatus === 'published' && (auditResult?.score || 0) >= 65 && !rogue.isRogue;
 
     const post: BlogPost = {
       id: `post_${Date.now()}_${Math.random().toString(36).slice(2)}`,
@@ -275,16 +278,17 @@ export default function EditorPage() {
       authorName: user.name,
       publishedAt: now,
       modifiedAt: now,
-      status,
+      status: finalStatus,
       readTime,
       views: 0,
       likes: 0,
       auditScore: auditResult?.score,
       wordCount,
+      isApproved,
     };
 
     addPost(post);
-    if (status === 'published') {
+    if (finalStatus === 'published') {
       setSelectedPostId(post.id);
       setCurrentPage('post');
     } else {

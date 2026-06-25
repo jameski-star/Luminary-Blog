@@ -51,9 +51,14 @@ router.patch('/posts/:id/status', async (req: Request, res: Response) => {
       return res.status(400).json({ error: `Status must be one of: ${validStatuses.join(', ')}` });
     }
 
+    const update: Record<string, unknown> = { status, modifiedAt: new Date() };
+    if (status === 'published') {
+      update.isApproved = true;
+    }
+
     const post = await Post.findByIdAndUpdate(
       req.params.id,
-      { status, modifiedAt: new Date() },
+      update,
       { new: true }
     ).select('-content -likedBy');
 
@@ -64,6 +69,26 @@ router.patch('/posts/:id/status', async (req: Request, res: Response) => {
     res.json({ post });
   } catch (err) {
     console.error('Admin set status error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// PATCH /api/admin/posts/:id/approve — approve a published post for public visibility
+router.patch('/posts/:id/approve', async (req: Request, res: Response) => {
+  try {
+    const post = await Post.findByIdAndUpdate(
+      req.params.id,
+      { isApproved: true, modifiedAt: new Date() },
+      { new: true }
+    ).select('-content -likedBy');
+
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found.' });
+    }
+
+    res.json({ post });
+  } catch (err) {
+    console.error('Admin approve post error:', err);
     res.status(500).json({ error: 'Internal server error.' });
   }
 });

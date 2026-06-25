@@ -21,6 +21,7 @@ export interface IPost extends Document {
   likedBy: mongoose.Types.ObjectId[];
   auditScore?: number;
   wordCount: number;
+  isApproved?: boolean;
 }
 
 const postSchema = new Schema<IPost>({
@@ -48,10 +49,11 @@ const postSchema = new Schema<IPost>({
   likedBy: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   auditScore: { type: Number },
   wordCount: { type: Number, default: 0 },
+  isApproved: { type: Boolean, default: false },
 });
 
 postSchema.index({ slug: 1 }, { unique: true });
-postSchema.index({ status: 1, publishedAt: -1 });
+postSchema.index({ status: 1, isApproved: 1, publishedAt: -1 });
 postSchema.index({ authorId: 1, status: 1 });
 postSchema.index({ title: 'text', excerpt: 'text', content: 'text', tags: 'text', keywords: 'text' });
 

@@ -12,7 +12,8 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import type { BlogPost, User as UserType } from '../types';
 
-type AdminTab = 'review' | 'posts' | 'users';
+type AdminTab = 'review' | 'pending' | 'posts' | 'users';
+
 
 export default function AdminPage() {
   const { user: currentUser, posts, updatePost, deletePost, setCurrentPage, setSelectedPostId } = useApp();
@@ -41,7 +42,7 @@ export default function AdminPage() {
     );
   }
 
-  const [activeTab, setActiveTab] = useState<AdminTab>('posts');
+  const [activeTab, setActiveTab] = useState<AdminTab>('pending');
   const [sortBy, setSortBy] = useState<'views' | 'likes' | 'date'>('date');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [promoteTarget, setPromoteTarget] = useState<UserType | null>(null);
@@ -51,6 +52,7 @@ export default function AdminPage() {
   const totalPublished = posts.filter(p => p.status === 'published').length;
   const totalDrafts = posts.filter(p => p.status === 'draft').length;
   const totalInReview = posts.filter(p => p.status === 'review' || p.status === 'quarantined').length;
+  const totalPending = posts.filter(p => p.status === 'published' && p.isApproved !== true).length;
   const totalViews = posts.reduce((s, p) => s + p.views, 0);
   const totalLikes = posts.reduce((s, p) => s + p.likes, 0);
   const totalUsers = users.length;
@@ -68,12 +70,25 @@ export default function AdminPage() {
     if (ok) deletePost(id);
   };
 
+  const approvePost = async (id: string) => {
+    if (isApiMode()) {
+      try {
+        await api.admin.approve(id);
+        updatePost(id, { isApproved: true });
+      } catch (err) {
+        console.error('Approve failed:', err);
+      }
+    } else {
+      updatePost(id, { isApproved: true });
+    }
+  };
+
   const publishPost = (id: string) => {
-    updatePost(id, { status: 'published', publishedAt: new Date().toISOString() });
+    updatePost(id, { status: 'published', publishedAt: new Date().toISOString(), isApproved: true });
   };
 
   const setPostStatus = (id: string, status: BlogPost['status']) => {
-    updatePost(id, { status });
+    updatePost(id, { status, ...(status === 'published' ? { isApproved: true } : {}) });
   };
 
   return (
@@ -108,6 +123,20 @@ export default function AdminPage() {
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6 bg-surface p-1 rounded-2xl border border-border w-fit">
+          <button
+            onClick={() => setActiveTab('pending')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              activeTab === 'pending'
+                ? 'bg-primary text-canvas'
+                : 'text-secondary hover:text-primary'
+            }`}
+          >
+            <CheckCircle size={15} />
+            Pending Approval
+            <span className={`text-xs rounded-full px-2 py-0.5 ${
+              activeTab === 'pending' ? 'bg-canvas/20 text-canvas' : 'bg-raised text-secondary'
+            }`}>{totalPending}</span>
+          </button>
           <button
             onClick={() => setActiveTab('review')}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
@@ -187,6 +216,89 @@ export default function AdminPage() {
                       onReject={() => setPostStatus(post.id, 'draft')}
                       onDelete={() => confirmDelete(post.id, post.title)}
                     />
+                  ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Pending Approval Tab */}
+        {activeTab === 'pending' && (
+          <>
+            <div className="flex items-center gap-2 mb-6 p-4 rounded-2xl border border-primary/30 bg-primary/10">
+              <CheckCircle size={16} className="text-primary shrink-0" />
+              <p className="text-xs text-primary">
+                Posts published manually or without passing the AI audit need admin approval before they appear publicly.
+                Approve to make visible, or reject to return to draft.
+              </p>
+            </div>
+
+            {totalPending === 0 ? (
+              <div className="text-center py-20 rounded-3xl border border-border bg-surface">
+                <CheckCircle size={40} className="text-emerald-400 mx-auto mb-3" />
+                <h3 className="text-lg font-semibold text-primary mb-2">All approved</h3>
+                <p className="text-secondary text-sm">No posts currently pending approval.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {posts
+                  .filter(p => p.status === 'published' && p.isApproved !== true)
+                  .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+                  .map(post => (
+                    <div key={post.id} className="rounded-2xl border border-border bg-surface overflow-hidden hover:border-primary/40 transition-all group">
+                      <div className="p-4">
+                        <div className="flex items-start gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-primary/20 text-primary flex items-center justify-center shrink-0">
+                            <CheckCircle size={18} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="text-sm font-semibold text-primary truncate">{post.title}</h3>
+                              <span className="px-2 py-0.5 rounded-full text-xs font-medium shrink-0 bg-amber-500/10 text-amber-400">
+                                Pending Approval
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-secondary mb-2">
+                              <span className="flex items-center gap-1"><Users size={10} /> {users.find(u => u.id === post.authorId)?.name || post.authorName}</span>
+                              <span className="flex items-center gap-1"><Clock size={10} /> {post.readTime}m read</span>
+                              <span>{formatDistanceToNow(new Date(post.publishedAt), { addSuffix: true })}</span>
+                              {post.auditScore !== undefined && (
+                                <span className={`flex items-center gap-1 ${post.auditScore < 65 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                  <TrendingUp size={10} />
+                                  Audit: {post.auditScore}/100
+                                </span>
+                              )}
+                            </div>
+                            {post.excerpt && (
+                              <p className="text-xs text-secondary/70 line-clamp-2 mb-3 leading-relaxed">{post.excerpt}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
+                          <button
+                            onClick={() => approvePost(post.id)}
+                            className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-3 py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50 font-medium"
+                          >
+                            <CheckCircle size={12} />
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => setPostStatus(post.id, 'draft')}
+                            className="flex items-center gap-1.5 text-xs text-secondary hover:text-primary transition-colors px-3 py-1.5 rounded-lg border border-border hover:border-primary/30"
+                          >
+                            <XCircle size={12} />
+                            Reject (Draft)
+                          </button>
+                          <button
+                            onClick={() => confirmDelete(post.id, post.title)}
+                            className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors px-3 py-1.5 rounded-lg border border-red-500/30 hover:border-red-400/50 ml-auto"
+                          >
+                            <Trash2 size={12} />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   ))}
               </div>
             )}

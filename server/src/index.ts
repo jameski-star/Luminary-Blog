@@ -5,6 +5,7 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 import { config } from './config';
 import { seed } from './seed';
+import { Post } from './models/Post';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -52,6 +53,21 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ error: 'Internal server error.' });
 });
 
+// Migrate existing published posts to isApproved=true
+async function migrateApprovedPosts() {
+  try {
+    const result = await Post.updateMany(
+      { status: 'published', isApproved: { $ne: true } },
+      { $set: { isApproved: true } }
+    );
+    if (result.modifiedCount > 0) {
+      console.log(`Migrated ${result.modifiedCount} published posts to isApproved=true`);
+    }
+  } catch (err) {
+    console.error('Migration error:', err);
+  }
+}
+
 // Start
 async function start() {
   try {
@@ -59,6 +75,7 @@ async function start() {
     console.log('Connected to MongoDB');
 
     await seed();
+    await migrateApprovedPosts();
 
     app.listen(config.port, () => {
       console.log(`Server running on http://localhost:${config.port}`);

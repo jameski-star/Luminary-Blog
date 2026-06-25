@@ -95,6 +95,11 @@ export const api = {
         method: 'PATCH', body: JSON.stringify({ status }),
       });
     },
+    approve(id: string) {
+      return request<{ post: import('../types').BlogPost }>(`/admin/posts/${id}/approve`, {
+        method: 'PATCH',
+      });
+    },
     deletePost(id: string) {
       return request<{ ok: boolean }>(`/admin/posts/${id}`, { method: 'DELETE' });
     },

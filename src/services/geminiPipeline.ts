@@ -232,6 +232,7 @@ export async function executeAutopostPipeline(
       audit: auditResults,
       excerpt: polishedContent.slice(0, 160).replace(/[#*]/g, '').trim(),
       tags: keywords.slice(0, 4),
+      isApproved: true,
     };
 
   } catch (error: unknown) {
