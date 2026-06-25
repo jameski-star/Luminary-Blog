@@ -19,7 +19,7 @@ export default function PostPage() {
   const [loading, setLoading] = useState(false);
 
   const localPost = selectedPostId ? getPost(selectedPostId) : null;
-  const post = localPost || apiPost;
+  const post = apiPost || localPost;
 
   useEffect(() => {
     if (!selectedPostId) return;
@@ -58,7 +58,7 @@ export default function PostPage() {
       const parsed = marked.parse(post.content || '', { async: false }) as string;
       setHtmlContent(parsed);
     }
-  }, [post?.id]);
+  }, [post?.id, post?.content]);
 
   if (!post && loading) {
     return (
