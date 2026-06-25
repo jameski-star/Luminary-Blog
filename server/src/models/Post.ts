@@ -14,7 +14,7 @@ export interface IPost extends Document {
   authorAvatar?: string;
   publishedAt: Date;
   modifiedAt: Date;
-  status: 'draft' | 'quarantined' | 'published' | 'review';
+  status: 'draft' | 'quarantined' | 'published' | 'review' | 'disapproved';
   readTime: number;
   views: number;
   likes: number;
@@ -40,7 +40,7 @@ const postSchema = new Schema<IPost>({
   modifiedAt: { type: Date, default: () => new Date() },
   status: {
     type: String,
-    enum: ['draft', 'quarantined', 'published', 'review'],
+    enum: ['draft', 'quarantined', 'published', 'review', 'disapproved'],
     default: 'draft',
   },
   readTime: { type: Number, default: 1 },

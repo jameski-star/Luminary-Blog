@@ -23,8 +23,9 @@ router.post('/pipeline', async (req: Request, res: Response) => {
     const result = await executePipeline(topic, keywords || [], config.geminiApiKey, config.geminiApiKey2, config.geminiApiKey3);
     res.json(result);
   } catch (err) {
-    console.error('Gemini pipeline error:', err);
-    res.status(500).json({ error: 'Pipeline failed.' });
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('Gemini pipeline error:', message);
+    res.status(500).json({ error: message });
   }
 });
 

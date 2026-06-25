@@ -26,7 +26,7 @@ export interface BlogPost {
   authorAvatar?: string;
   publishedAt: string;
   modifiedAt: string;
-  status: 'draft' | 'quarantined' | 'published' | 'review';
+  status: 'draft' | 'quarantined' | 'published' | 'review' | 'disapproved';
   readTime: number; // minutes
   views: number;
   likes: number;

@@ -46,7 +46,7 @@ router.get('/posts', async (req: Request, res: Response) => {
 router.patch('/posts/:id/status', async (req: Request, res: Response) => {
   try {
     const { status } = req.body;
-    const validStatuses = ['draft', 'quarantined', 'published', 'review'];
+    const validStatuses = ['draft', 'quarantined', 'published', 'review', 'disapproved'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: `Status must be one of: ${validStatuses.join(', ')}` });
     }

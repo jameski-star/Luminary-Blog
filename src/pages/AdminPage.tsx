@@ -221,7 +221,7 @@ export default function AdminPage() {
             <div className="flex items-center gap-1.5 md:gap-2 mb-4 md:mb-6 p-2.5 md:p-4 rounded-xl md:rounded-2xl border border-amber-500/30 bg-amber-500/10">
               <AlertOctagon size={13} className="text-amber-400 shrink-0" />
               <p className="text-[9px] md:text-xs text-amber-400">
-                Posts flagged by the rogue content detector. Approve to publish, reject to return to draft.
+                Posts flagged for review. Approve to publish, reject to disapprove.
               </p>
             </div>
 
@@ -246,7 +246,7 @@ export default function AdminPage() {
                       post={post}
                       authorName={users.find(u => u.id === post.authorId)?.name || post.authorName}
                       onApprove={() => publishPost(post.id)}
-                      onReject={() => setPostStatus(post.id, 'draft')}
+                      onReject={() => setPostStatus(post.id, 'disapproved')}
                       onDelete={() => confirmDelete(post.id, post.title)}
                     />
                   ))}
@@ -315,11 +315,11 @@ export default function AdminPage() {
                             Approve
                           </button>
                           <button
-                            onClick={() => setPostStatus(post.id, 'draft')}
+                            onClick={() => setPostStatus(post.id, 'disapproved')}
                             className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-secondary hover:text-primary transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-border hover:border-primary/30"
                           >
                             <XCircle size={10} />
-                            <span className="hidden md:inline">Reject (Draft)</span>
+                            <span className="hidden md:inline">Reject</span>
                             <span className="md:hidden">Reject</span>
                           </button>
                           <button
@@ -647,7 +647,7 @@ function ReviewPostCard({ post, authorName, onApprove, onReject, onDelete }: {
             className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-secondary hover:text-primary transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-border hover:border-primary/30"
           >
             <XCircle size={10} />
-            <span className="hidden md:inline">Reject (Draft)</span>
+            <span className="hidden md:inline">Reject</span>
             <span className="md:hidden">Reject</span>
           </button>
           <button

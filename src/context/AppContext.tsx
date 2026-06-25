@@ -85,21 +85,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (isApiMode()) {
       const token = getApiToken();
       if (token) {
-      api.auth.me()
-        .then(res => setUserState(res.user))
-        .catch(err => {
-          const msg = err instanceof Error ? err.message.toLowerCase() : '';
-          if (msg.includes('banned')) {
-            setApiToken(null);
-            setUserState(null);
-          } else {
-            setApiToken(null);
-          }
-        });
+        api.auth.me()
+          .then(res => setUserState(res.user))
+          .catch(err => {
+            const msg = err instanceof Error ? err.message.toLowerCase() : '';
+            if (msg.includes('banned')) {
+              setApiToken(null);
+              setUserState(null);
+            } else {
+              setApiToken(null);
+            }
+          });
+        api.posts.my()
+          .then(res => setPosts(res.posts as BlogPost[]))
+          .catch(() => {});
+      } else {
+        api.posts.list({ status: 'published', limit: '100' })
+          .then(res => setPosts(res.posts as BlogPost[]))
+          .catch(() => {});
       }
-      api.posts.list({ status: 'published', limit: '100' })
-        .then(res => setPosts(res.posts as BlogPost[]))
-        .catch(() => {});
     } else {
       migrateStoredData();
       const storedUser = getCurrentUser();
@@ -178,24 +182,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addPost = useCallback((post: BlogPost) => {
+    const enriched = {
+      ...post,
+      wordIndex: buildWordIndex(post.content),
+      slug: post.slug || generateSlug(post.title),
+      readTime: post.readTime || calcReadTime(post.content),
+      wordCount: post.content.split(/\s+/).length,
+    };
     if (isApiMode()) {
       api.posts.create(post).then(res => {
-        setPosts(prev => [res.post as BlogPost, ...prev]);
+        setPosts(prev => {
+          const next = prev.map(p => p.id === enriched.id ? (res.post as BlogPost) : p);
+          savePosts(next);
+          return next;
+        });
       }).catch(console.error);
-    } else {
-      setPosts(prev => {
-        const enriched = {
-          ...post,
-          wordIndex: buildWordIndex(post.content),
-          slug: post.slug || generateSlug(post.title),
-          readTime: post.readTime || calcReadTime(post.content),
-          wordCount: post.content.split(/\s+/).length,
-        };
-        const next = [enriched, ...prev];
-        savePosts(next);
-        return next;
-      });
     }
+    setPosts(prev => {
+      const next = [enriched, ...prev];
+      savePosts(next);
+      return next;
+    });
   }, []);
 
   const updatePost = useCallback((id: string, updates: Partial<BlogPost>) => {

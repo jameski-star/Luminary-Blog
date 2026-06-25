@@ -6,7 +6,7 @@ import { api, isApiMode } from '../services/api';
 import type { PipelineStage, PipelineResult } from '../types';
 import { generateSlug, calcReadTime } from '../store/appStore';
 import { detectRogueContent } from '../utils/contentDetection';
-import { friendlyError, isCongestionError, isQuotaError } from '../utils/errors';
+import { friendlyError } from '../utils/errors';
 import type { BlogPost } from '../types';
 import {
   Zap, Key, X, CheckCircle, AlertTriangle, Clock, Plus,
@@ -118,7 +118,7 @@ export default function AutoPostPage() {
         return;
       } catch (err: unknown) {
         lastError = err;
-        if (attempt < MAX_RETRIES && (isCongestionError(err) || isQuotaError(err))) {
+        if (attempt < MAX_RETRIES) {
           setStages([
             { name: `Auto-retrying (${attempt}/${MAX_RETRIES})…`, status: 'running' },
             { name: '', status: 'pending' },
@@ -143,9 +143,8 @@ export default function AutoPostPage() {
     const r = result as PipelineResult & { excerpt?: string; tags?: string[] };
 
     const rogue = detectRogueContent(r.content);
-    const effectiveStatus = rogue.isRogue ? 'review' : 'published';
-
-    const isApproved = effectiveStatus === 'published' && !rogue.isRogue && (result.audit?.score || 0) >= 65;
+    const lowScore = (result.audit?.score ?? 100) < 65;
+    const goPublic = !rogue.isRogue && !lowScore;
 
     const post: BlogPost = {
       id: `post_${Date.now()}_${Math.random().toString(36).slice(2)}`,
@@ -159,18 +158,22 @@ export default function AutoPostPage() {
       authorName: user.name,
       publishedAt: now,
       modifiedAt: now,
-      status: effectiveStatus,
+      status: goPublic ? 'published' : 'review',
       readTime: calcReadTime(result.content),
       views: 0,
       likes: 0,
       auditScore: result.audit?.score,
       wordCount: result.content.split(/\s+/).length,
-      isApproved,
+      isApproved: goPublic,
     };
 
     addPost(post);
-    setSelectedPostId(post.id);
-    setCurrentPage(rogue.isRogue ? 'dashboard' : 'post');
+    if (goPublic) {
+      setSelectedPostId(post.id);
+      setCurrentPage('post');
+    } else {
+      setCurrentPage('dashboard');
+    }
   };
 
   const saveDraft = () => {
@@ -407,18 +410,24 @@ export default function AutoPostPage() {
         {result && !running && (
           <div className="space-y-3 md:space-y-4">
             {/* Status Banner */}
+            {(() => {
+              const r = result as PipelineResult & { excerpt?: string; tags?: string[] };
+              const rogue = detectRogueContent(r.content);
+              const lowScore = (result.audit?.score ?? 100) < 65;
+              const goPublic = !rogue.isRogue && !lowScore;
+              return (
             <div className={`rounded-xl md:rounded-2xl border p-3 md:p-5 ${
-              result.status === 'ready_to_publish' && !rogueWarning?.isRogue
+              goPublic
                 ? 'border-emerald-500/30 bg-emerald-500/10'
-                : 'border-muted bg-surface'
+                : 'border-amber-500/30 bg-amber-500/10'
             }`}>
               <div className="flex items-center gap-2 md:gap-3 mb-1 md:mb-2">
-                {result.status === 'ready_to_publish' && !rogueWarning?.isRogue
+                {goPublic
                   ? <CheckCircle size={16} className="text-emerald-400 shrink-0" />
                   : <AlertTriangle size={16} className="text-amber-400 shrink-0" />
                 }
-                <h3 className={`text-xs md:text-lg font-semibold ${result.status === 'ready_to_publish' && !rogueWarning?.isRogue ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {result.status === 'ready_to_publish' && !rogueWarning?.isRogue ? 'Ready to Publish' : 'Routed to Review Queue'}
+                <h3 className={`text-xs md:text-lg font-semibold ${goPublic ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {goPublic ? 'Ready to Publish' : 'Routed to Review Queue'}
                 </h3>
                 {result.audit && (
                   <span className={`ml-auto text-[10px] md:text-sm font-bold px-1.5 md:px-3 py-0.5 md:py-1 rounded-full whitespace-nowrap ${
@@ -433,7 +442,8 @@ export default function AutoPostPage() {
               {result.reason && (
                 <p className="text-[10px] md:text-sm text-secondary">{result.reason}</p>
               )}
-            </div>
+            </div>);
+            })()}
 
             {/* Rogue Content Warning */}
             {rogueWarning?.isRogue && (
@@ -539,7 +549,7 @@ export default function AutoPostPage() {
                   className="flex-1 flex items-center justify-center gap-1.5 md:gap-2 bg-primary hover:bg-white text-canvas font-bold py-3 md:py-4 rounded-xl md:rounded-2xl transition-all duration-200 text-xs md:text-base"
                 >
                   <Send size={15} />
-                  Publish Now
+                  {(() => { const r = result as PipelineResult & { excerpt?: string; tags?: string[] }; const rogue = detectRogueContent(r.content); const lowScore = (result.audit?.score ?? 100) < 65; return !rogue.isRogue && !lowScore ? 'Publish Now' : 'Submit for Review'; })()}
                 </button>
               )}
               <button

@@ -250,23 +250,21 @@ export default function EditorPage() {
     const content = getContentMarkdown();
 
     const rogue = detectRogueContent(content);
-    let finalStatus: BlogPost['status'] = intendedStatus;
-    if (rogue.isRogue) {
-      const ok = await confirm('Suspicious Content Detected', `${rogue.reason} This post will be submitted for admin review instead.`, 'Submit for Review');
-      if (!ok) return;
+    const lowScore = (auditResult?.score ?? 100) < 65;
+    let finalStatus: BlogPost['status'];
+    if (intendedStatus === 'draft') {
+      finalStatus = 'draft';
+    } else if (rogue.isRogue || lowScore) {
       finalStatus = 'review';
-    }
-
-    if (finalStatus === 'published' && auditResult && auditResult.score < 65) {
-      const ok = await confirm('Low Authenticity Score', `Authenticity score is ${auditResult.score}/100 (below 65). Publish anyway?`, 'Publish Anyway');
-      if (!ok) return;
+    } else {
+      finalStatus = 'published';
     }
 
     const slug = generateSlug(title);
     const now = new Date().toISOString();
     const finalExcerpt = excerpt || content.replace(/[#*]/g, '').trim().slice(0, 160);
 
-    const isApproved = finalStatus === 'published' && (auditResult ? auditResult.score >= 65 : true) && !rogue.isRogue;
+    const isApproved = finalStatus === 'published';
 
     const post: BlogPost = {
       id: `post_${Date.now()}_${Math.random().toString(36).slice(2)}`,
@@ -338,8 +336,8 @@ export default function EditorPage() {
               className="flex items-center gap-1 md:gap-2 text-xs md:text-sm bg-primary hover:bg-white text-canvas font-semibold px-3 md:px-4 py-1.5 rounded-lg disabled:opacity-40 transition-all"
             >
               <Send size={12} />
-              <span className="hidden md:inline">Publish</span>
-              <span className="md:hidden">Pub</span>
+              <span className="hidden md:inline">Submit for Review</span>
+              <span className="md:hidden">Submit</span>
             </button>
           </div>
         </div>

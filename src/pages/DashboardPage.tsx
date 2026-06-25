@@ -12,7 +12,7 @@ import type { BlogPost } from '../types';
 export default function DashboardPage() {
   const { user, posts, updatePost, deletePost, setCurrentPage, setSelectedPostId } = useApp();
   const { confirm, ConfirmDialog } = useConfirm();
-  const [activeTab, setActiveTab] = useState<'published' | 'drafts' | 'review'>('published');
+  const [activeTab, setActiveTab] = useState<'published' | 'drafts' | 'review' | 'disapproved'>('published');
 
   if (!user) {
     return (
@@ -29,6 +29,7 @@ export default function DashboardPage() {
   const published = myPosts.filter(p => p.status === 'published');
   const drafts = myPosts.filter(p => p.status === 'draft');
   const review = myPosts.filter(p => p.status === 'review' || p.status === 'quarantined');
+  const disapproved = myPosts.filter(p => p.status === 'disapproved');
 
   const totalViews = published.reduce((s, p) => s + p.views, 0);
   const totalLikes = published.reduce((s, p) => s + p.likes, 0);
@@ -41,10 +42,10 @@ export default function DashboardPage() {
     setCurrentPage('post');
   };
 
-  const publishDraft = async (id: string) => {
-    const ok = await confirm('Publish Post', 'Are you sure you want to publish this post? It will be visible to everyone.', 'Publish');
+  const submitForReview = async (id: string) => {
+    const ok = await confirm('Submit for Review', 'This post will be sent to the admin for review.', 'Submit');
     if (!ok) return;
-    updatePost(id, { status: 'published', publishedAt: new Date().toISOString(), isApproved: true });
+    updatePost(id, { status: 'review' });
   };
 
   const confirmDelete = async (id: string, title: string) => {
@@ -53,7 +54,7 @@ export default function DashboardPage() {
     deletePost(id);
   };
 
-  const currentList = activeTab === 'published' ? published : activeTab === 'drafts' ? drafts : review;
+  const currentList = activeTab === 'published' ? published : activeTab === 'drafts' ? drafts : activeTab === 'review' ? review : disapproved;
 
   return (
     <div className="min-h-screen bg-canvas pt-20">
@@ -100,7 +101,8 @@ export default function DashboardPage() {
           {[
             { key: 'published', label: 'Published', count: published.length },
             { key: 'drafts', label: 'Drafts', count: drafts.length },
-            { key: 'review', label: 'Review Queue', count: review.length },
+            { key: 'review', label: 'In Review', count: review.length },
+            { key: 'disapproved', label: 'Disapproved', count: disapproved.length },
           ].map(tab => (
             <button
               key={tab.key}
@@ -129,12 +131,13 @@ export default function DashboardPage() {
             <h3 className="text-lg font-semibold text-primary mb-2">
               {activeTab === 'published' ? 'No published posts yet'
                 : activeTab === 'drafts' ? 'No drafts saved'
-                : 'Review queue is empty'}
+                : activeTab === 'review' ? 'Review queue is empty'
+                : 'No disapproved posts'}
             </h3>
             <p className="text-secondary mb-6 text-sm">
-              {activeTab === 'review' ? 'Posts that fail the authenticity gate appear here.' : 'Start writing or use AutoPost AI to generate content.'}
+              {activeTab === 'review' ? 'Posts submitted for admin review appear here.' : activeTab === 'disapproved' ? 'Posts rejected by the admin appear here.' : 'Start writing or use AutoPost AI to generate content.'}
             </p>
-            {activeTab !== 'review' && (
+            {activeTab !== 'review' && activeTab !== 'disapproved' && (
               <button
                 onClick={() => setCurrentPage(activeTab === 'published' ? 'autopost' : 'editor')}
                 className="bg-primary text-canvas font-semibold px-5 py-2.5 rounded-xl text-sm hover:bg-white transition-colors"
@@ -184,8 +187,9 @@ function DashboardRow({ post, onOpen, onPublish, onDelete }: {
         {/* Status indicator */}
         <div className={`w-1.5 md:w-2 h-1.5 md:h-2 rounded-full shrink-0 ${
           post.status === 'published' ? 'bg-emerald-400'
-           : post.status === 'draft' ? 'bg-secondary'
-          : 'bg-red-400'
+          : post.status === 'draft' ? 'bg-secondary'
+          : post.status === 'disapproved' ? 'bg-red-400'
+          : 'bg-amber-400'
         }`} />
 
         {/* Content */}
@@ -197,9 +201,10 @@ function DashboardRow({ post, onOpen, onPublish, onDelete }: {
             <span className={`px-1.5 md:px-2 py-0.5 rounded-full text-[9px] md:text-xs ${
               post.status === 'published' ? 'bg-emerald-500/10 text-emerald-400'
               : post.status === 'draft' ? 'bg-secondary/10 text-secondary'
-              : 'bg-red-500/10 text-red-400'
+              : post.status === 'disapproved' ? 'bg-red-500/10 text-red-400'
+              : 'bg-amber-500/10 text-amber-400'
             }`}>
-              {post.status === 'review' ? 'In Review' : post.status.charAt(0).toUpperCase() + post.status.slice(1)}
+              {post.status === 'review' ? 'In Review' : post.status === 'disapproved' ? 'Disapproved' : post.status.charAt(0).toUpperCase() + post.status.slice(1)}
             </span>
             {(post.status === 'review') && (
               <span className="flex items-center gap-0.5 md:gap-1 text-secondary">
@@ -220,13 +225,22 @@ function DashboardRow({ post, onOpen, onPublish, onDelete }: {
 
         {/* Actions */}
         <div className="flex items-center gap-1 md:gap-2 shrink-0">
-          {(post.status === 'draft' || post.status === 'review') && (
+          {post.status === 'draft' && (
             <button
               onClick={onPublish}
-              className="flex items-center gap-1 md:gap-1.5 text-[10px] md:text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50"
+              className="flex items-center gap-1 md:gap-1.5 text-[10px] md:text-xs text-amber-400 hover:text-amber-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-amber-500/30 hover:border-amber-400/50"
             >
               <Send size={10} />
-              <span className="hidden md:inline">Publish</span>
+              <span className="hidden md:inline">Submit for Review</span>
+            </button>
+          )}
+          {post.status === 'disapproved' && (
+            <button
+              onClick={onPublish}
+              className="flex items-center gap-1 md:gap-1.5 text-[10px] md:text-xs text-amber-400 hover:text-amber-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-amber-500/30 hover:border-amber-400/50"
+            >
+              <Send size={10} />
+              <span className="hidden md:inline">Resubmit</span>
             </button>
           )}
           <button
