@@ -1,18 +1,19 @@
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
-import { config } from './config';
-import { seed } from './seed';
-import { Post } from './models/Post';
-import { User } from './models/User';
+import { config } from './config.js';
+import { seed } from './seed.js';
+import { Post } from './models/Post.js';
+import { User } from './models/User.js';
 
 // Routes
-import authRoutes from './routes/auth';
-import postRoutes from './routes/posts';
-import adminRoutes from './routes/admin';
-import geminiRoutes from './routes/gemini';
+import authRoutes from './routes/auth.js';
+import postRoutes from './routes/posts.js';
+import adminRoutes from './routes/admin.js';
+import geminiRoutes from './routes/gemini.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,7 +27,15 @@ const splashPage = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Luminary — Starting up...</title>
+  <meta name="robots" content="index,follow" />
+  <meta name="description" content="Luminary — Premium AI-Powered Blog. Every article passes a 3-stage AI authenticity pipeline." />
+  <meta property="og:title" content="Luminary — Premium AI-Powered Blog" />
+  <meta property="og:description" content="Every article passes a 3-stage AI authenticity pipeline. No filler. No fluff." />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Luminary" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <title>Luminary — Premium AI-Powered Blog</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -230,7 +239,35 @@ async function start() {
     // Mount real middleware & routes (evaluated after splash middleware)
     app.use(cors({ origin: config.corsOrigin, credentials: true }));
     app.use(express.json({ limit: '10mb' }));
-    app.use(express.static(frontendDist));
+    app.use(express.static(frontendDist, { index: false }));
+
+    // ── SEO routes ──
+    app.get('/robots.txt', (_req, res) => {
+      res.type('text/plain').send(
+        `User-agent: *\nAllow: /\nSitemap: ${config.appUrl.replace(/\/+$/, '')}/sitemap.xml\n`
+      );
+    });
+
+    app.get('/sitemap.xml', async (_req, res) => {
+      try {
+        const appUrl = config.appUrl.replace(/\/+$/, '');
+        const posts = await Post.find({ status: 'published' }).sort({ publishedAt: -1 }).lean();
+        let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+        xml += `  <url><loc>${appUrl}/</loc><priority>1.0</priority></url>\n`;
+        xml += `  <url><loc>${appUrl}/blog</loc><priority>0.8</priority></url>\n`;
+        for (const post of posts) {
+          const mod = (post as any).modifiedAt || (post as any).publishedAt;
+          xml += `  <url><loc>${appUrl}/blog/${(post as any).slug}</loc>`;
+          if (mod) xml += `<lastmod>${new Date(mod).toISOString()}</lastmod>`;
+          xml += `<priority>0.6</priority></url>\n`;
+        }
+        xml += `</urlset>`;
+        res.type('application/xml').send(xml);
+      } catch (err) {
+        console.error('Sitemap error:', err);
+        res.status(500).type('text/plain').send('Error generating sitemap');
+      }
+    });
 
     app.get('/api/health', (_req, res) => {
       res.json({ ok: true, timestamp: new Date().toISOString() });
@@ -245,8 +282,68 @@ async function start() {
       res.status(404).json({ error: 'API endpoint not found.' });
     });
 
-    app.get('*', (_req, res) => {
-      res.sendFile(path.join(frontendDist, 'index.html'));
+    // ── SPA catch-all with server-side OG tag injection ──
+    app.get('*', async (req, res) => {
+      const htmlPath = path.join(frontendDist, 'index.html');
+      let html: string;
+      try {
+        html = await fs.promises.readFile(htmlPath, 'utf-8');
+      } catch {
+        return res.status(503).send('Application not ready yet');
+      }
+
+      const appUrl = config.appUrl.replace(/\/+$/, '');
+      const blogMatch = req.path.match(/^\/blog\/(.+)/);
+
+      let ogTitle = 'Luminary — Premium AI-Powered Blog';
+      let ogDesc = 'A premium blogging platform where every article passes a 3-stage AI authenticity pipeline. No filler. No fluff.';
+      let ogImage = `${appUrl}/og-default.jpg`;
+      let ogUrl = `${appUrl}${req.path}`;
+      let ogType = 'website';
+      let extraMeta = '';
+
+      if (blogMatch) {
+        const slug = blogMatch[1];
+        try {
+          const post = await Post.findOne({ slug, status: 'published' }).lean() as any;
+          if (post) {
+            ogTitle = `${post.title} — Luminary`;
+            ogDesc = post.excerpt;
+            if (post.coverImage) ogImage = post.coverImage;
+            ogUrl = `${appUrl}/blog/${slug}`;
+            ogType = 'article';
+            if (post.tags?.length) {
+              extraMeta = post.tags.map((t: string) => `<meta property="article:tag" content="${t.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />`).join('\n    ');
+            }
+            if (post.publishedAt) {
+              extraMeta += `\n    <meta property="article:published_time" content="${post.publishedAt}" />`;
+            }
+            if (post.authorName) {
+              extraMeta += `\n    <meta name="author" content="${post.authorName.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />`;
+            }
+          }
+        } catch {}
+      } else if (req.path === '/blog') {
+        ogDesc = 'Browse all verified articles on Luminary. Every post passes a 3-stage AI authenticity pipeline.';
+      }
+
+      const ogTags = `
+    <meta property="og:title" content="${ogTitle.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />
+    <meta property="og:description" content="${ogDesc.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />
+    <meta property="og:image" content="${ogImage.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />
+    <meta property="og:url" content="${ogUrl}" />
+    <meta property="og:type" content="${ogType}" />
+    <meta property="og:site_name" content="Luminary" />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${ogTitle.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />
+    <meta name="twitter:description" content="${ogDesc.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />
+    <meta name="twitter:image" content="${ogImage.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />
+    <link rel="canonical" href="${ogUrl}" />${extraMeta ? '\n    ' + extraMeta : ''}
+  `;
+
+      html = html.replace('</head>', ogTags + '</head>');
+      res.type('html').send(html);
     });
 
     app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

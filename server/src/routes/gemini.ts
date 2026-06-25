@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { auth } from '../middleware/auth';
-import { config } from '../config';
-import { executePipeline, validateContent } from '../services/gemini';
+import { auth } from '../middleware/auth.js';
+import { config } from '../config.js';
+import { executePipeline, validateContent } from '../services/gemini.js';
 
 const router = Router();
 

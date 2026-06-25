@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { Post } from '../models/Post';
-import { User } from '../models/User';
-import { auth, optionalAuth } from '../middleware/auth';
+import { Post } from '../models/Post.js';
+import { User } from '../models/User.js';
+import { auth, optionalAuth } from '../middleware/auth.js';
 
 const router = Router();
 

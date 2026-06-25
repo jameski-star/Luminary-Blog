@@ -1,8 +1,8 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcrypt';
-import { config } from './config';
-import { User } from './models/User';
-import { Post } from './models/Post';
+import { config } from './config.js';
+import { User } from './models/User.js';
+import { Post } from './models/Post.js';
 
 export async function seed() {
   const userCount = await User.countDocuments();

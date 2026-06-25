@@ -2,10 +2,10 @@ import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { User, generateVerificationToken } from '../models/User';
-import { config } from '../config';
-import { auth } from '../middleware/auth';
-import { sendVerificationEmail } from '../services/email';
+import { User, generateVerificationToken } from '../models/User.js';
+import { config } from '../config.js';
+import { auth } from '../middleware/auth.js';
+import { sendVerificationEmail } from '../services/email.js';
 
 const router = Router();
 

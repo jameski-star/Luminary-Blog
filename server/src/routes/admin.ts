@@ -1,8 +1,8 @@
 import { Router, Request, Response } from 'express';
-import { auth } from '../middleware/auth';
-import { adminOnly } from '../middleware/adminOnly';
-import { Post } from '../models/Post';
-import { User } from '../models/User';
+import { auth } from '../middleware/auth.js';
+import { adminOnly } from '../middleware/adminOnly.js';
+import { Post } from '../models/Post.js';
+import { User } from '../models/User.js';
 
 const router = Router();
 

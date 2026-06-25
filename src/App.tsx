@@ -19,29 +19,59 @@ function AppRouter() {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, [currentPage]);
 
-  // URL-based deep linking
+  // Path-based routing: sync pathname → currentPage on mount & popstate
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const postSlug = params.get('post');
-    if (postSlug) {
-      const post = posts.find(p => p.slug === postSlug);
-      if (post) {
-        setSelectedPostId(post.id);
-        setCurrentPage('post');
+    function syncPageFromPath() {
+      const path = window.location.pathname;
+      const slug = window.location.pathname.match(/^\/blog\/(.+)/)?.[1];
+      const params = new URLSearchParams(window.location.search);
+      const postSlug = slug || params.get('post');
+
+      if (postSlug) {
+        const post = posts.find(p => p.slug === postSlug);
+        if (post) {
+          setSelectedPostId(post.id);
+          setCurrentPage('post');
+          return;
+        }
+      }
+
+      switch (path) {
+        case '/blog': setCurrentPage('blog'); break;
+        case '/privacy': setCurrentPage('privacy'); break;
+        case '/terms': setCurrentPage('terms'); break;
+        case '/cookies': setCurrentPage('cookies'); break;
+        default: setCurrentPage('home');
       }
     }
+
+    syncPageFromPath();
+    window.addEventListener('popstate', syncPageFromPath);
+    return () => window.removeEventListener('popstate', syncPageFromPath);
   }, [posts]);
 
-  // Update URL when viewing a post
+  // Sync currentPage → pathname
   useEffect(() => {
-    if (currentPage === 'post') {
-      const post = posts.find(p => p.id === selectedPostId);
-      if (post) {
-        const url = `${window.location.pathname}?post=${post.slug}`;
-        window.history.replaceState(null, '', url);
-      }
+    const post = currentPage === 'post' ? posts.find(p => p.id === selectedPostId) : null;
+    const pathMap: Record<string, string> = {
+      home: '/',
+      blog: '/blog',
+      editor: '/editor',
+      autopost: '/autopost',
+      dashboard: '/dashboard',
+      admin: '/admin',
+      profile: '/profile',
+      login: '/login',
+      signup: '/signup',
+      privacy: '/privacy',
+      terms: '/terms',
+      cookies: '/cookies',
+    };
+    const target = post ? `/blog/${post.slug}` : (pathMap[currentPage] || '/');
+    if (window.location.pathname + window.location.search !== target && window.location.pathname !== target) {
+      window.history.pushState(null, '', target);
     }
-  }, [currentPage, selectedPostId]);
+  }, [currentPage, selectedPostId, posts]);
 
   const renderPage = () => {
     switch (currentPage) {

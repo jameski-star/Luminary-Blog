@@ -93,7 +93,7 @@ export default function PostPage() {
   };
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/?post=${post.slug}`;
+    const url = `${window.location.origin}/blog/${post.slug}`;
     const shareData = { title: post.title, text: post.excerpt, url };
 
     if (navigator.share) {
