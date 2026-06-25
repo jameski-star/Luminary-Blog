@@ -243,15 +243,19 @@ async function start() {
     app.use(express.static(frontendDist, { index: false }));
 
     // ── SEO routes ──
-    app.get('/robots.txt', (_req, res) => {
+    function baseUrl(req: express.Request) {
+      return `${req.protocol}://${req.get('host')}`;
+    }
+
+    app.get('/robots.txt', (req, res) => {
       res.type('text/plain').send(
-        `User-agent: *\nAllow: /\nSitemap: ${config.appUrl.replace(/\/+$/, '')}/sitemap.xml\n`
+        `User-agent: *\nAllow: /\nSitemap: ${baseUrl(req)}/sitemap.xml\n`
       );
     });
 
-    app.get('/sitemap.xml', async (_req, res) => {
+    app.get('/sitemap.xml', async (req, res) => {
       try {
-        const appUrl = config.appUrl.replace(/\/+$/, '');
+        const appUrl = baseUrl(req);
         const posts = await Post.find({ status: 'published' }).sort({ publishedAt: -1 }).lean();
         let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
         xml += `  <url><loc>${appUrl}/</loc><priority>1.0</priority></url>\n`;
@@ -293,7 +297,7 @@ async function start() {
         return res.status(503).send('Application not ready yet');
       }
 
-      const appUrl = config.appUrl.replace(/\/+$/, '');
+      const appUrl = baseUrl(req);
       const blogMatch = req.path.match(/^\/blog\/(.+)/);
 
       let ogTitle = 'Luminary — Premium AI-Powered Blog';
