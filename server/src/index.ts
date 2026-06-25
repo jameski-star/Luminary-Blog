@@ -213,7 +213,7 @@ async function start() {
 
     // Mount real middleware & routes (evaluated after splash middleware)
     app.use(cors({ origin: config.corsOrigin, credentials: true }));
-    app.use(express.json({ limit: '2mb' }));
+    app.use(express.json({ limit: '10mb' }));
     app.use(express.static(frontendDist));
 
     app.get('/api/health', (_req, res) => {

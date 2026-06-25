@@ -166,4 +166,43 @@ router.get('/me', auth, async (req: Request, res: Response) => {
   }
 });
 
+// PATCH /api/auth/profile — update name, bio, avatar
+router.patch('/profile', auth, async (req: Request, res: Response) => {
+  try {
+    const user = await User.findById(req.user!.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    const { name, bio, avatar } = req.body;
+
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ error: 'Name cannot be empty.' });
+      }
+      user.name = name.trim();
+    }
+
+    if (bio !== undefined) {
+      user.bio = bio.trim();
+    }
+
+    if (avatar !== undefined) {
+      if (avatar === '') {
+        user.avatar = undefined;
+      } else if (typeof avatar === 'string' && avatar.startsWith('data:image/')) {
+        user.avatar = avatar;
+      } else {
+        return res.status(400).json({ error: 'Avatar must be a valid data URL (data:image/...).' });
+      }
+    }
+
+    await user.save();
+    res.json({ user: sanitizeUser(user.toObject()) });
+  } catch (err) {
+    console.error('Update profile error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
 export default router;

@@ -50,6 +50,11 @@ export const api = {
     me() {
       return request<{ user: import('../types').User }>('/auth/me');
     },
+    updateProfile(body: { name?: string; bio?: string; avatar?: string }) {
+      return request<{ user: import('../types').User }>('/auth/profile', {
+        method: 'PATCH', body: JSON.stringify(body),
+      });
+    },
   },
 
   posts: {

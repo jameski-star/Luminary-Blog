@@ -1,16 +1,21 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import SEO from '../components/SEO';
+import { api, isApiMode } from '../services/api';
 import { getStoredUsers, saveUsers, setCurrentUser } from '../store/appStore';
-import { User, Save, CheckCircle, Shield, Crown } from 'lucide-react';
+import { User, Save, CheckCircle, Shield, Crown, Camera } from 'lucide-react';
 import { useConfirm } from '../components/Modal';
 
 export default function ProfilePage() {
   const { user, setUser, setCurrentPage } = useApp();
   const { confirm, ConfirmDialog } = useConfirm();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(user?.name || '');
   const [bio, setBio] = useState(user?.bio || '');
+  const [avatarPreview, setAvatarPreview] = useState(user?.avatar || '');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   if (!user) {
     return (
@@ -20,15 +25,59 @@ export default function ProfilePage() {
     );
   }
 
-  const handleSave = () => {
-    const updated = { ...user, name: name.trim() || user.name, bio: bio.trim() };
-    const users = getStoredUsers();
-    const newUsers = users.map(u => u.id === user.id ? updated : u);
-    saveUsers(newUsers);
-    setCurrentUser(updated);
-    setUser(updated);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image must be under 2MB.');
+      return;
+    }
+    setAvatarFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setAvatarPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    let avatarUrl = avatarPreview;
+
+    if (avatarFile && isApiMode()) {
+      const reader = new FileReader();
+      avatarUrl = await new Promise<string>(resolve => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(avatarFile);
+      });
+    }
+
+    try {
+      if (isApiMode()) {
+        const res = await api.auth.updateProfile({
+          name: name.trim() || user.name,
+          bio: bio.trim(),
+          avatar: avatarUrl !== user.avatar ? avatarUrl : undefined,
+        });
+        setUser(res.user);
+      } else {
+        const updated = {
+          ...user,
+          name: name.trim() || user.name,
+          bio: bio.trim(),
+          avatar: avatarFile ? avatarUrl : avatarPreview || user.avatar,
+        };
+        const users = getStoredUsers();
+        saveUsers(users.map(u => u.id === user.id ? updated : u));
+        setCurrentUser(updated);
+        setUser(updated);
+      }
+      setAvatarFile(null);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      alert('Failed to save profile.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -43,8 +92,27 @@ export default function ProfilePage() {
         <div className="rounded-3xl border border-border bg-surface p-8">
           {/* Avatar */}
           <div className="flex items-center gap-5 mb-8 pb-8 border-b border-border">
-            <div className="w-20 h-20 rounded-2xl bg-primary flex items-center justify-center text-3xl font-bold text-canvas">
-              {user.name.charAt(0).toUpperCase()}
+            <div className="relative group">
+              <div className="w-20 h-20 rounded-2xl bg-primary flex items-center justify-center text-3xl font-bold text-canvas overflow-hidden">
+                {avatarPreview ? (
+                  <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  user.name.charAt(0).toUpperCase()
+                )}
+              </div>
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="absolute inset-0 rounded-2xl bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              >
+                <Camera size={18} className="text-white" />
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarSelect}
+              />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -111,13 +179,22 @@ export default function ProfilePage() {
 
             <button
               onClick={handleSave}
+              disabled={saving}
               className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200 ${
                 saved
                   ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400'
+                  : saving
+                  ? 'bg-primary/50 text-canvas cursor-not-allowed'
                   : 'bg-primary text-canvas hover:bg-white'
               }`}
             >
-              {saved ? <><CheckCircle size={16} />Saved!</> : <><Save size={16} />Save Changes</>}
+              {saving ? (
+                <><div className="w-4 h-4 border-2 border-canvas border-t-transparent rounded-full animate-spin" /> Saving…</>
+              ) : saved ? (
+                <><CheckCircle size={16} />Saved!</>
+              ) : (
+                <><Save size={16} />Save Changes</>
+              )}
             </button>
           </div>
         </div>

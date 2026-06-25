@@ -183,8 +183,12 @@ export default function PostPage() {
         {/* Meta bar */}
         <div className="flex flex-wrap items-center gap-5 text-sm text-secondary pb-8 mb-8 border-b border-border">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-canvas">
-              {post.authorName.charAt(0)}
+            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-canvas overflow-hidden">
+              {post.authorAvatar || (post as any).avatar ? (
+                <img src={post.authorAvatar || (post as any).avatar} alt="" className="w-full h-full object-cover" />
+              ) : (
+                post.authorName.charAt(0)
+              )}
             </div>
             <div>
               <p className="text-primary font-medium text-sm leading-tight">{post.authorName}</p>

@@ -119,7 +119,7 @@ export default function HomePage() {
                   )}
                 </div>
 
-                <h2 className="font-heading text-3xl md:text-5xl font-bold text-primary mb-4 leading-tight group-hover:text-white/80 transition-colors">
+                <h2 className="font-heading text-3xl md:text-5xl font-bold text-primary mb-4 leading-tight group-hover:text-primary/80 transition-colors">
                   {featured.title}
                 </h2>
 
@@ -128,7 +128,16 @@ export default function HomePage() {
                 </p>
 
                 <div className="flex flex-wrap items-center gap-6 text-sm text-secondary">
-                  <span className="font-medium text-primary">{featured.authorName}</span>
+                  <span className="flex items-center gap-1.5 font-medium text-primary">
+                    {featured.authorAvatar ? (
+                      <img src={featured.authorAvatar} alt="" className="w-5 h-5 rounded-full object-cover" />
+                    ) : (
+                      <span className="w-5 h-5 rounded-full bg-primary flex items-center justify-center text-[9px] font-bold text-canvas">
+                        {featured.authorName.charAt(0)}
+                      </span>
+                    )}
+                    {featured.authorName}
+                  </span>
                   <span className="flex items-center gap-1.5">
                     <Clock size={13} />
                     {featured.readTime} min read
@@ -195,7 +204,7 @@ export default function HomePage() {
                       {String(i + 1).padStart(2, '0')}
                     </span>
                     <div>
-                      <h3 className="text-sm font-semibold text-primary group-hover:text-white/80 transition-colors leading-snug mb-1">
+                      <h3 className="text-sm font-semibold text-primary group-hover:text-primary/80 transition-colors leading-snug mb-1">
                         {post.title}
                       </h3>
                       <p className="text-xs text-secondary flex items-center gap-2">
@@ -231,7 +240,7 @@ function PostCard({ post, onClick, onLike }: { post: BlogPost; onClick: () => vo
           ))}
         </div>
 
-        <h3 className="font-heading text-lg font-bold text-primary mb-2 leading-snug group-hover:text-white/80 transition-colors line-clamp-2">
+        <h3 className="font-heading text-lg font-bold text-primary mb-2 leading-snug group-hover:text-primary/80 transition-colors line-clamp-2">
           {post.title}
         </h3>
 
@@ -242,6 +251,16 @@ function PostCard({ post, onClick, onLike }: { post: BlogPost; onClick: () => vo
 
       <div className="px-6 pb-4 flex items-center justify-between border-t border-border pt-4">
         <div className="flex items-center gap-3 text-xs text-secondary">
+          <span className="flex items-center gap-1.5">
+            {post.authorAvatar ? (
+              <img src={post.authorAvatar} alt="" className="w-4 h-4 rounded-full object-cover" />
+            ) : (
+              <span className="w-4 h-4 rounded-full bg-primary flex items-center justify-center text-[7px] font-bold text-canvas">
+                {post.authorName.charAt(0)}
+              </span>
+            )}
+            {post.authorName}
+          </span>
           <span className="flex items-center gap-1"><Clock size={11} /> {post.readTime}m</span>
           <span className="flex items-center gap-1"><Eye size={11} /> {post.views.toLocaleString()}</span>
         </div>

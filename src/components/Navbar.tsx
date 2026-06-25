@@ -27,7 +27,7 @@ export default function Navbar() {
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <span className="text-canvas font-bold text-sm">L</span>
             </div>
-            <span className="font-heading text-xl font-bold text-primary group-hover:text-white/80 transition-colors">
+            <span className="font-heading text-xl font-bold text-primary group-hover:text-primary/80 transition-colors">
               Luminary
             </span>
           </button>
@@ -107,8 +107,12 @@ export default function Navbar() {
                   onClick={() => setProfileOpen(!profileOpen)}
                   className="flex items-center gap-2 rounded-full px-3 py-1.5 border border-border hover:border-primary/50 transition-colors bg-surface"
                 >
-                  <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-canvas">
-                    {user.name.charAt(0).toUpperCase()}
+                  <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-canvas overflow-hidden">
+                    {user.avatar ? (
+                      <img src={user.avatar} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      user.name.charAt(0).toUpperCase()
+                    )}
                   </div>
                   <span className="hidden sm:block text-sm text-primary">{user.name.split(' ')[0]}</span>
                   <ChevronDown size={14} className={`text-secondary transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
