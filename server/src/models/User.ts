@@ -12,6 +12,7 @@ export interface IUser extends Document {
   postsCount: number;
   verified: boolean;
   verificationTokenHash?: string;
+  banned?: boolean;
 }
 
 const userSchema = new Schema<IUser>({
@@ -25,6 +26,7 @@ const userSchema = new Schema<IUser>({
   postsCount: { type: Number, default: 0 },
   verified: { type: Boolean, default: false },
   verificationTokenHash: { type: String },
+  banned: { type: Boolean, default: false },
 });
 
 userSchema.set('toJSON', {

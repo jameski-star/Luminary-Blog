@@ -72,7 +72,7 @@ export default function AutoPostPage() {
   const removeKeyword = (kw: string) => setKeywords(keywords.filter(k => k !== kw));
 
   const runPipeline = async () => {
-    if (!geminiKey) { setError('Please save your Gemini API key first.'); return; }
+    if (!isApiMode() && !geminiKey) { setError('Please save your Gemini API key first.'); return; }
     if (!topic.trim()) { setError('Please enter a topic.'); return; }
     if (keywords.length === 0) { setError('Add at least one target keyword.'); return; }
 
@@ -214,41 +214,43 @@ export default function AutoPostPage() {
           </div>
         </div>
 
-        {/* API Key Section */}
-        <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-6 mb-4 md:mb-6">
-          <h2 className="text-xs md:text-sm font-semibold text-primary mb-0.5 md:mb-1 flex items-center gap-1 md:gap-2">
-            <Key size={12} className="text-secondary" />
-            Gemini API Key
-          </h2>
-          <p className="text-[10px] md:text-xs text-secondary mb-3 md:mb-4">
-            Get your free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">aistudio.google.com</a>.
-          </p>
+        {/* API Key Section — only shown in local mode (no backend); server has its own key */}
+        {!isApiMode() && (
+          <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-6 mb-4 md:mb-6">
+            <h2 className="text-xs md:text-sm font-semibold text-primary mb-0.5 md:mb-1 flex items-center gap-1 md:gap-2">
+              <Key size={12} className="text-secondary" />
+              Gemini API Key
+            </h2>
+            <p className="text-[10px] md:text-xs text-secondary mb-3 md:mb-4">
+              Get your free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">aistudio.google.com</a>.
+            </p>
 
-          <div className="flex gap-2 md:gap-3">
-            <div className="relative flex-1">
-              <input
-                type={keyVisible ? 'text' : 'password'}
-                value={keyInput}
-                onChange={e => { setKeyInput(e.target.value); setKeySaved(false); }}
-                placeholder="AIza..."
-                className="w-full bg-canvas border border-border rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 text-primary text-[10px] md:text-sm outline-none focus:border-primary/60 transition-colors pr-8 md:pr-10 font-mono placeholder-secondary/50"
-              />
+            <div className="flex gap-2 md:gap-3">
+              <div className="relative flex-1">
+                <input
+                  type={keyVisible ? 'text' : 'password'}
+                  value={keyInput}
+                  onChange={e => { setKeyInput(e.target.value); setKeySaved(false); }}
+                  placeholder="AIza..."
+                  className="w-full bg-canvas border border-border rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 text-primary text-[10px] md:text-sm outline-none focus:border-primary/60 transition-colors pr-8 md:pr-10 font-mono placeholder-secondary/50"
+                />
+                <button
+                  type="button"
+                  onClick={() => setKeyVisible(!keyVisible)}
+                  className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-primary"
+                >
+                  <Eye size={12} />
+                </button>
+              </div>
               <button
-                type="button"
-                onClick={() => setKeyVisible(!keyVisible)}
-                className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-primary"
+                onClick={saveKey}
+                className={`px-3 md:px-5 py-2 md:py-3 rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium transition-all whitespace-nowrap ${keySaved ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-primary text-canvas hover:bg-white'}`}
               >
-                <Eye size={12} />
+                {keySaved ? <><CheckCircle size={12} className="inline mr-1" />Saved</> : 'Save Key'}
               </button>
             </div>
-            <button
-              onClick={saveKey}
-              className={`px-3 md:px-5 py-2 md:py-3 rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium transition-all whitespace-nowrap ${keySaved ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-primary text-canvas hover:bg-white'}`}
-            >
-              {keySaved ? <><CheckCircle size={12} className="inline mr-1" />Saved</> : 'Save Key'}
-            </button>
           </div>
-        </div>
+        )}
 
         {/* Pipeline Inputs */}
         <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-6 mb-4 md:mb-6">
@@ -324,7 +326,7 @@ export default function AutoPostPage() {
         {!running && !result && (
           <button
             onClick={runPipeline}
-            disabled={!geminiKey || !topic || keywords.length === 0}
+            disabled={(!isApiMode() && !geminiKey) || !topic || keywords.length === 0}
             className="w-full flex items-center justify-center gap-2 md:gap-3 bg-primary hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed text-canvas font-bold py-3 md:py-4 rounded-xl md:rounded-2xl transition-all duration-200 text-xs md:text-base"
           >
             <Zap size={16} />

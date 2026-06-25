@@ -131,6 +131,46 @@ router.patch('/users/:id/promote', async (req: Request, res: Response) => {
   }
 });
 
+// PATCH /api/admin/users/:id/ban — ban a user
+router.patch('/users/:id/ban', async (req: Request, res: Response) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { banned: true },
+      { new: true }
+    ).select('-passwordHash');
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    res.json({ user: { id: String(user._id), email: user.email, name: user.name, role: user.role, banned: true } });
+  } catch (err) {
+    console.error('Admin ban user error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// PATCH /api/admin/users/:id/unban — unban a user
+router.patch('/users/:id/unban', async (req: Request, res: Response) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { banned: false },
+      { new: true }
+    ).select('-passwordHash');
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    res.json({ user: { id: String(user._id), email: user.email, name: user.name, role: user.role, banned: false } });
+  } catch (err) {
+    console.error('Admin unban user error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
 // GET /api/admin/users — all users
 router.get('/users', async (_req: Request, res: Response) => {
   try {
@@ -148,6 +188,7 @@ router.get('/users', async (_req: Request, res: Response) => {
       role: u.role,
       joinedAt: u.joinedAt.toISOString(),
       postsCount: u.postsCount,
+      banned: u.banned ?? false,
     }));
 
     res.json({ users: result });

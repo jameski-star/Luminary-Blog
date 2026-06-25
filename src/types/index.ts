@@ -8,6 +8,7 @@ export interface User {
   postsCount: number;
   role: 'user' | 'admin';
   verified?: boolean;
+  banned?: boolean;
 }
 
 export interface BlogPost {

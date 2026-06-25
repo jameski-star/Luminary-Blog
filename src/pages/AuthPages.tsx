@@ -138,6 +138,9 @@ export function SignupPage() {
     if (!name.trim() || !email || !password || !confirm) {
       setError('Please fill in all fields.'); return;
     }
+    if (!isValidEmail(email)) {
+      setError('Only @gmail.com, @outlook.com, and @hotmail.com emails are allowed.'); return;
+    }
     if (password !== confirm) {
       setError('Passwords do not match.'); return;
     }
@@ -295,6 +298,13 @@ function FormField({ label, type, value, onChange, placeholder }: {
       />
     </div>
   );
+}
+
+function isValidEmail(email: string): boolean {
+  const match = email.toLowerCase().trim().match(/^[^\s@]+@([^\s@]+)$/);
+  if (!match) return false;
+  const allowed = ['gmail.com', 'outlook.com', 'hotmail.com'];
+  return allowed.includes(match[1]);
 }
 
 function getPasswordStrength(pw: string): { score: number; label: string } {

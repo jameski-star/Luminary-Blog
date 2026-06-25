@@ -85,9 +85,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (isApiMode()) {
       const token = getApiToken();
       if (token) {
-        api.auth.me()
-          .then(res => setUserState(res.user))
-          .catch(() => setApiToken(null));
+      api.auth.me()
+        .then(res => setUserState(res.user))
+        .catch(err => {
+          const msg = err instanceof Error ? err.message.toLowerCase() : '';
+          if (msg.includes('banned')) {
+            setApiToken(null);
+            setUserState(null);
+          } else {
+            setApiToken(null);
+          }
+        });
       }
       api.posts.list({ status: 'published', limit: '100' })
         .then(res => setPosts(res.posts as BlogPost[]))

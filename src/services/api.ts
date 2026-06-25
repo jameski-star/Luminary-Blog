@@ -116,6 +116,16 @@ export const api = {
         method: 'PATCH',
       });
     },
+    banUser(id: string) {
+      return request<{ user: import('../types').User }>(`/admin/users/${id}/ban`, {
+        method: 'PATCH',
+      });
+    },
+    unbanUser(id: string) {
+      return request<{ user: import('../types').User }>(`/admin/users/${id}/unban`, {
+        method: 'PATCH',
+      });
+    },
   },
 
   gemini: {

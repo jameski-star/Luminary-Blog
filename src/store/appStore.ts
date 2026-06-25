@@ -114,10 +114,19 @@ export function calcReadTime(content: string): number {
 // ──────────────────────────────────────────────
 // Auth helpers
 // ──────────────────────────────────────────────
+function isValidEmail(email: string): boolean {
+  const match = email.toLowerCase().trim().match(/^[^\s@]+@([^\s@]+)$/);
+  if (!match) return false;
+  return ['gmail.com', 'outlook.com', 'hotmail.com'].includes(match[1]);
+}
+
 export function signUp(name: string, email: string, password: string): { success: boolean; error?: string; user?: User } {
   const users = getStoredUsers();
   if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
     return { success: false, error: 'Email already registered.' };
+  }
+  if (!isValidEmail(email)) {
+    return { success: false, error: 'Only @gmail.com, @outlook.com, and @hotmail.com emails are allowed.' };
   }
   if (password.length < 8) {
     return { success: false, error: 'Password must be at least 8 characters.' };
@@ -147,6 +156,10 @@ export function signIn(email: string, password: string): { success: boolean; err
   const users = getStoredUsers();
   const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
   if (!user) return { success: false, error: 'No account found with that email.' };
+
+  if (user.banned) {
+    return { success: false, error: 'Your account has been banned. Contact an administrator.' };
+  }
 
   const creds = JSON.parse(localStorage.getItem('luminary_creds') || '{}');
   if (creds[email.toLowerCase()] !== btoa(password)) {

@@ -4,6 +4,7 @@ import SEO from '../components/SEO';
 import { Modal, usePrompt, useConfirm } from '../components/Modal';
 import { validateManualPost } from '../services/geminiPipeline';
 import { generateSlug, calcReadTime } from '../store/appStore';
+import { api, isApiMode } from '../services/api';
 import { detectRogueContent } from '../utils/contentDetection';
 import { friendlyError } from '../utils/errors';
 import { marked } from 'marked';
@@ -223,14 +224,16 @@ export default function EditorPage() {
   };
 
   const runValidation = async () => {
-    if (!geminiKey) { setValidationError('Add a Gemini API key in AutoPost to validate.'); return; }
+    if (!isApiMode() && !geminiKey) { setValidationError('Add a Gemini API key in AutoPost to validate.'); return; }
     const md = getContentMarkdown();
     if (md.split(/\s+/).length < 100) { setValidationError('Write at least 100 words to validate.'); return; }
     setValidating(true);
     setAuditResult(null);
     setValidationError('');
     try {
-      const result = await validateManualPost(md, geminiKey);
+      const result = isApiMode()
+        ? await api.gemini.audit({ content: md })
+        : await validateManualPost(md, geminiKey);
       setAuditResult(result);
     } catch (err: unknown) {
       setValidationError(friendlyError(err));
@@ -263,7 +266,7 @@ export default function EditorPage() {
     const now = new Date().toISOString();
     const finalExcerpt = excerpt || content.replace(/[#*]/g, '').trim().slice(0, 160);
 
-    const isApproved = finalStatus === 'published' && (auditResult?.score || 0) >= 65 && !rogue.isRogue;
+    const isApproved = finalStatus === 'published' && (auditResult ? auditResult.score >= 65 : true) && !rogue.isRogue;
 
     const post: BlogPost = {
       id: `post_${Date.now()}_${Math.random().toString(36).slice(2)}`,
@@ -611,7 +614,7 @@ export default function EditorPage() {
                 Authenticity Check
               </h3>
 
-              {!geminiKey && (
+              {!isApiMode() && !geminiKey && (
                 <div className="flex items-start gap-1.5 md:gap-2 bg-muted/30 border border-muted/50 rounded-xl p-2 md:p-3 mb-2 md:mb-3 text-[10px] md:text-xs text-secondary">
                   <Info size={10} className="mt-0.5 shrink-0" />
                   Add Gemini API key in AutoPost to validate
@@ -653,7 +656,7 @@ export default function EditorPage() {
 
               <button
                 onClick={runValidation}
-                disabled={validating || !geminiKey || wordCount < 100}
+                disabled={validating || (!isApiMode() && !geminiKey) || wordCount < 100}
                 className="w-full flex items-center justify-center gap-1.5 md:gap-2 text-[10px] md:text-xs font-medium bg-raised hover:bg-muted disabled:opacity-40 text-primary py-2 md:py-2.5 rounded-xl transition-colors"
               >
                 {validating ? (

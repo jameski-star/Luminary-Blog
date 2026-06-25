@@ -91,6 +91,38 @@ export default function AdminPage() {
     updatePost(id, { status, ...(status === 'published' ? { isApproved: true } : {}) });
   };
 
+  const banUser = async (targetId: string) => {
+    try {
+      if (isApiMode()) {
+        await api.admin.banUser(targetId);
+      }
+      if (!isApiMode()) {
+        const allUsers = getStoredUsers();
+        const updated = allUsers.map(u => u.id === targetId ? { ...u, banned: true } : u);
+        localStorage.setItem('luminary_users', JSON.stringify(updated));
+      }
+      setUsers(prev => prev.map(u => u.id === targetId ? { ...u, banned: true } : u));
+    } catch (err) {
+      console.error('Ban failed:', err);
+    }
+  };
+
+  const unbanUser = async (targetId: string) => {
+    try {
+      if (isApiMode()) {
+        await api.admin.unbanUser(targetId);
+      }
+      if (!isApiMode()) {
+        const allUsers = getStoredUsers();
+        const updated = allUsers.map(u => u.id === targetId ? { ...u, banned: false } : u);
+        localStorage.setItem('luminary_users', JSON.stringify(updated));
+      }
+      setUsers(prev => prev.map(u => u.id === targetId ? { ...u, banned: false } : u));
+    } catch (err) {
+      console.error('Unban failed:', err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-canvas pt-20">
       <SEO title="Admin Panel" description="Platform administration and content management." noindex />
@@ -386,15 +418,17 @@ export default function AdminPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {users.map(u => (
-                  <AdminUserRow
-                    key={u.id}
-                    user={u}
-                    postsCount={posts.filter(p => p.authorId === u.id).length}
-                    onPromote={() => setPromoteTarget(u)}
-                    isCurrentUser={u.id === user.id}
-                  />
-                ))}
+                  {users.map(u => (
+                   <AdminUserRow
+                     key={u.id}
+                     user={u}
+                     postsCount={posts.filter(p => p.authorId === u.id).length}
+                     onPromote={() => setPromoteTarget(u)}
+                     onBan={() => banUser(u.id)}
+                     onUnban={() => unbanUser(u.id)}
+                     isCurrentUser={u.id === user.id}
+                   />
+                 ))}
               </div>
             )}
           </>
@@ -629,8 +663,8 @@ function ReviewPostCard({ post, authorName, onApprove, onReject, onDelete }: {
   );
 }
 
-function AdminUserRow({ user, postsCount, onPromote, isCurrentUser }: {
-  user: UserType; postsCount: number; onPromote: () => void; isCurrentUser: boolean;
+function AdminUserRow({ user, postsCount, onPromote, onBan, onUnban, isCurrentUser }: {
+  user: UserType; postsCount: number; onPromote: () => void; onBan: () => void; onUnban: () => void; isCurrentUser: boolean;
 }) {
   return (
     <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-4 hover:border-primary/20 transition-all">
@@ -644,6 +678,9 @@ function AdminUserRow({ user, postsCount, onPromote, isCurrentUser }: {
             {user.role === 'admin' && (
               <span className="text-[9px] md:text-xs bg-amber-500/10 text-amber-400 px-1.5 md:px-2 py-0.5 rounded-full font-medium">Admin</span>
             )}
+            {user.banned && (
+              <span className="text-[9px] md:text-xs bg-red-500/10 text-red-400 px-1.5 md:px-2 py-0.5 rounded-full font-medium">Banned</span>
+            )}
             {isCurrentUser && (
               <span className="text-[9px] md:text-xs bg-primary/10 text-primary px-1.5 md:px-2 py-0.5 rounded-full font-medium">You</span>
             )}
@@ -654,7 +691,26 @@ function AdminUserRow({ user, postsCount, onPromote, isCurrentUser }: {
             <span>Joined {formatDistanceToNow(new Date(user.joinedAt), { addSuffix: true })}</span>
           </div>
         </div>
-        {user.role !== 'admin' && (
+        {user.banned ? (
+          <button
+            onClick={onUnban}
+            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50 whitespace-nowrap"
+          >
+            <CheckCircle size={10} />
+            <span className="hidden md:inline">Unban</span>
+            <span className="md:hidden">Unban</span>
+          </button>
+        ) : !isCurrentUser && (
+          <button
+            onClick={onBan}
+            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-red-400 hover:text-red-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-red-500/30 hover:border-red-400/50 whitespace-nowrap"
+          >
+            <Ban size={10} />
+            <span className="hidden md:inline">Ban</span>
+            <span className="md:hidden">Ban</span>
+          </button>
+        )}
+        {user.role !== 'admin' && !user.banned && (
           <button
             onClick={onPromote}
             className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-amber-400 hover:text-amber-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-amber-500/30 hover:border-amber-400/50 whitespace-nowrap"

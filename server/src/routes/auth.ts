@@ -7,13 +7,21 @@ import { config } from '../config.js';
 import { auth } from '../middleware/auth.js';
 import { sendVerificationEmail } from '../services/email.js';
 
+const ALLOWED_DOMAINS = ['gmail.com', 'outlook.com', 'hotmail.com'];
+
+function isValidEmail(email: string): boolean {
+  const match = email.toLowerCase().trim().match(/^[^\s@]+@([^\s@]+)$/);
+  if (!match) return false;
+  return ALLOWED_DOMAINS.includes(match[1]);
+}
+
 const router = Router();
 
 function signToken(userId: string, role: string): string {
   return jwt.sign({ userId, role }, config.jwtSecret, { expiresIn: '7d' });
 }
 
-function sanitizeUser(user: { _id: unknown; email: string; name: string; avatar?: string; bio?: string; role: string; joinedAt: Date; postsCount: number; verified: boolean }) {
+function sanitizeUser(user: { _id: unknown; email: string; name: string; avatar?: string; bio?: string; role: string; joinedAt: Date; postsCount: number; verified: boolean; banned?: boolean }) {
   return {
     id: String(user._id),
     email: user.email,
@@ -24,6 +32,7 @@ function sanitizeUser(user: { _id: unknown; email: string; name: string; avatar?
     joinedAt: user.joinedAt.toISOString(),
     postsCount: user.postsCount,
     verified: user.verified,
+    banned: user.banned ?? false,
   };
 }
 
@@ -34,6 +43,9 @@ router.post('/signup', async (req: Request, res: Response) => {
 
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'Name, email, and password are required.' });
+    }
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'Only @gmail.com, @outlook.com, and @hotmail.com emails are allowed.' });
     }
     if (password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters.' });
@@ -142,6 +154,9 @@ router.post('/signin', async (req: Request, res: Response) => {
     if (!valid) {
       return res.status(401).json({ error: 'Incorrect password.' });
     }
+    if (user.banned) {
+      return res.status(403).json({ error: 'Your account has been banned. Contact an administrator.' });
+    }
 
     const token = signToken(String(user._id), user.role);
 
@@ -158,6 +173,9 @@ router.get('/me', auth, async (req: Request, res: Response) => {
     const user = await User.findById(req.user!.userId);
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
+    }
+    if (user.banned) {
+      return res.status(403).json({ error: 'Your account has been banned.' });
     }
     res.json({ user: sanitizeUser(user.toObject()) });
   } catch (err) {
