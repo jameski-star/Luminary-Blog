@@ -24,16 +24,28 @@ export default function PostPage() {
   useEffect(() => {
     if (!selectedPostId) return;
     const found = getPost(selectedPostId);
+
+    function fetchFull(slug: string) {
+      setLoading(true);
+      api.posts.get(slug)
+        .then(res => setApiPost(res.post))
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    }
+
     if (found) {
-      setApiPost(null);
+      if (isApiMode() && !found.content) {
+        fetchFull(found.slug);
+      }
       return;
     }
+
     if (isApiMode()) {
       setLoading(true);
       api.posts.list({ status: 'published', limit: '100' })
         .then(res => {
           const p = res.posts.find((x: BlogPost) => x.id === selectedPostId);
-          if (p) setApiPost(p as BlogPost);
+          if (p) fetchFull((p as BlogPost).slug);
         })
         .catch(() => {})
         .finally(() => setLoading(false));

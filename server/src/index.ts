@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import { config } from './config';
 import { seed } from './seed';
 import { Post } from './models/Post';
+import { User } from './models/User';
 
 // Routes
 import authRoutes from './routes/auth';
@@ -208,6 +209,7 @@ async function start() {
 
     await seed();
     await migrateApprovedPosts();
+    await ensureAdmin();
 
     // Mount real middleware & routes (evaluated after splash middleware)
     app.use(cors({ origin: config.corsOrigin, credentials: true }));
@@ -241,6 +243,28 @@ async function start() {
   } catch (err) {
     console.error('Failed to start server:', err);
     process.exit(1);
+  }
+}
+
+// ── Auto-promote a user to admin on every startup (set ADMIN_EMAIL env var) ──
+async function ensureAdmin() {
+  const adminEmail = process.env.ADMIN_EMAIL || '';
+  if (!adminEmail) return;
+  try {
+    const user = await User.findOne({ email: adminEmail.toLowerCase().trim() });
+    if (user) {
+      if (user.role !== 'admin') {
+        user.role = 'admin';
+        await user.save();
+        console.log(`Admin privileges restored for: ${adminEmail}`);
+      } else {
+        console.log(`Admin user found: ${adminEmail}`);
+      }
+    } else {
+      console.log(`ADMIN_EMAIL set but no user found with email: ${adminEmail}`);
+    }
+  } catch (err) {
+    console.error('ensureAdmin error:', err);
   }
 }
 
