@@ -201,6 +201,22 @@ app.listen(config.port, () => {
   console.log(`Server listening on port ${config.port} (starting up...)`);
 });
 
+// ── Self-keepalive (prevents Render free-tier spin-down) ──
+function startKeepalive() {
+  const url = config.appUrl.replace(/\/+$/, '');
+  const interval = 10 * 60 * 1000; // 10 minutes
+  console.log(`Keepalive started — pinging ${url} every 10 min`);
+  setInterval(async () => {
+    try {
+      const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(10000) });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      console.log(`Keepalive ping OK (${new Date().toISOString()})`);
+    } catch (err) {
+      console.warn(`Keepalive ping failed:`, (err as Error).message);
+    }
+  }, interval);
+}
+
 // ── Initialize services ──
 async function start() {
   try {
@@ -240,6 +256,9 @@ async function start() {
 
     isReady = true;
     console.log('Server fully ready');
+
+    // ── Self-keepalive: prevents Render free-tier spin-down ──
+    startKeepalive();
   } catch (err) {
     console.error('Failed to start server:', err);
     process.exit(1);
