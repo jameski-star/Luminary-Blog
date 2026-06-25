@@ -44,7 +44,7 @@ export default function DashboardPage() {
   const publishDraft = async (id: string) => {
     const ok = await confirm('Publish Post', 'Are you sure you want to publish this post? It will be visible to everyone.', 'Publish');
     if (!ok) return;
-    updatePost(id, { status: 'published', publishedAt: new Date().toISOString(), isApproved: false });
+    updatePost(id, { status: 'published', publishedAt: new Date().toISOString(), isApproved: true });
   };
 
   const confirmDelete = async (id: string, title: string) => {

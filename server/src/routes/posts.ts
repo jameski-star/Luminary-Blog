@@ -120,7 +120,7 @@ router.get('/:slug', async (req: Request, res: Response) => {
 // POST /api/posts — create
 router.post('/', auth, async (req: Request, res: Response) => {
   try {
-    const { title, content, excerpt, tags, keywords, coverImage, status } = req.body;
+    const { title, content, excerpt, tags, keywords, coverImage, status, isApproved, auditScore } = req.body;
 
     if (!title || !content) {
       return res.status(400).json({ error: 'Title and content are required.' });
@@ -148,10 +148,13 @@ router.post('/', auth, async (req: Request, res: Response) => {
       content,
       tags: tags || [],
       keywords: keywords || [],
+      coverImage,
       authorId: user._id,
       authorName: user.name,
       authorAvatar: user.avatar,
       status: status || 'draft',
+      isApproved: status === 'published' ? (isApproved ?? true) : false,
+      auditScore,
       readTime,
       wordCount,
     });
@@ -179,11 +182,15 @@ router.put('/:id', auth, async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'You can only edit your own posts.' });
     }
 
-    const allowed = ['title', 'content', 'excerpt', 'tags', 'keywords', 'coverImage', 'status'] as const;
+    const allowed = ['title', 'content', 'excerpt', 'tags', 'keywords', 'coverImage', 'status', 'isApproved', 'auditScore', 'publishedAt'] as const;
     for (const field of allowed) {
       if (req.body[field] !== undefined) {
         (post as unknown as Record<string, unknown>)[field] = req.body[field];
       }
+    }
+
+    if (req.body.status === 'published' && req.body.isApproved === undefined) {
+      post.isApproved = true;
     }
 
     if (req.body.content) {
