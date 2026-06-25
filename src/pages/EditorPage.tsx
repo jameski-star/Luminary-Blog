@@ -251,8 +251,8 @@ export default function EditorPage() {
 
     const rogue = detectRogueContent(content);
     let finalStatus: BlogPost['status'] = intendedStatus;
-    if (rogue.isRogue && intendedStatus === 'published') {
-      const ok = await confirm('Suspicious Content Detected', `${rogue.reason} This post will be saved as a draft and submitted for admin review.`, 'Save as Draft');
+    if (rogue.isRogue) {
+      const ok = await confirm('Suspicious Content Detected', `${rogue.reason} This post will be submitted for admin review instead.`, 'Submit for Review');
       if (!ok) return;
       finalStatus = 'review';
     }
@@ -601,7 +601,7 @@ export default function EditorPage() {
                   <div>
                     <p className="font-semibold mb-0.5 md:mb-1">Suspicious Content Detected</p>
                     <p>{rogueWarning}</p>
-                    <p className="mt-0.5 md:mt-1">Publishing will route to admin review.</p>
+                    <p className="mt-0.5 md:mt-1">Saving will route to admin review instead.</p>
                   </div>
                 </div>
               </div>
