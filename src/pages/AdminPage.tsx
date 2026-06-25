@@ -94,88 +94,90 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-canvas pt-20">
       <SEO title="Admin Panel" description="Platform administration and content management." noindex />
-      <div className="max-w-6xl mx-auto px-4 py-10">
+      <div className="max-w-6xl mx-auto px-4 py-6 md:py-10">
 
         {/* Header */}
-        <div className="flex items-start justify-between mb-10">
+        <div className="flex items-start justify-between mb-6 md:mb-10">
           <div>
-            <h1 className="font-heading text-4xl font-bold text-primary mb-2 flex items-center gap-3">
-              <Shield size={28} className="text-amber-400" />
+            <h1 className="font-heading text-2xl md:text-4xl font-bold text-primary mb-1 md:mb-2 flex items-center gap-2 md:gap-3">
+              <Shield size={20} className="text-amber-400" />
               Admin Panel
             </h1>
-            <p className="text-secondary">
+            <p className="text-[10px] md:text-sm text-secondary">
               Manage all posts, users, and platform content from one place
             </p>
           </div>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-          <StatCard icon={<FileText size={18} />} label="Total Posts" value={totalPosts} />
-          <StatCard icon={<TrendingUp size={18} />} label="Published" value={totalPublished} highlighted />
-          <StatCard icon={<Eye size={18} />} label="Total Views" value={totalViews.toLocaleString()} />
-          <StatCard icon={<Heart size={18} />} label="Total Likes" value={totalLikes.toLocaleString()} />
-          <StatCard icon={<FileText size={18} />} label="Drafts" value={totalDrafts} />
-          <StatCard icon={<AlertTriangle size={18} />} label="In Review" value={totalInReview} />
-          <StatCard icon={<Users size={18} />} label="Total Users" value={totalUsers} />
-          <StatCard icon={<TrendingUp size={18} />} label="Avg. Views/Post" value={totalPosts > 0 ? Math.round(totalViews / totalPosts).toLocaleString() : '0'} />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-6 md:mb-10">
+          <StatCard icon={<FileText size={14} />} label="Total Posts" value={totalPosts} />
+          <StatCard icon={<TrendingUp size={14} />} label="Published" value={totalPublished} highlighted />
+          <StatCard icon={<Eye size={14} />} label="Total Views" value={totalViews.toLocaleString()} />
+          <StatCard icon={<Heart size={14} />} label="Total Likes" value={totalLikes.toLocaleString()} />
+          <StatCard icon={<FileText size={14} />} label="Drafts" value={totalDrafts} />
+          <StatCard icon={<AlertTriangle size={14} />} label="In Review" value={totalInReview} />
+          <StatCard icon={<Users size={14} />} label="Total Users" value={totalUsers} />
+          <StatCard icon={<TrendingUp size={14} />} label="Avg. Views/Post" value={totalPosts > 0 ? Math.round(totalViews / totalPosts).toLocaleString() : '0'} />
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 bg-surface p-1 rounded-2xl border border-border w-fit">
+        <div className="flex gap-1 mb-4 md:mb-6 bg-surface p-1 rounded-xl md:rounded-2xl border border-border w-fit overflow-x-auto">
           <button
             onClick={() => setActiveTab('pending')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+            className={`flex items-center gap-1 md:gap-2 px-2.5 md:px-5 py-1.5 md:py-2.5 rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium transition-all whitespace-nowrap ${
               activeTab === 'pending'
                 ? 'bg-primary text-canvas'
                 : 'text-secondary hover:text-primary'
             }`}
           >
-            <CheckCircle size={15} />
-            Pending Approval
-            <span className={`text-xs rounded-full px-2 py-0.5 ${
+            <CheckCircle size={12} />
+            <span className="hidden md:inline">Pending Approval</span>
+            <span className="md:hidden">Pending</span>
+            <span className={`text-[9px] md:text-xs rounded-full px-1.5 md:px-2 py-0.5 ${
               activeTab === 'pending' ? 'bg-canvas/20 text-canvas' : 'bg-raised text-secondary'
             }`}>{totalPending}</span>
           </button>
           <button
             onClick={() => setActiveTab('review')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+            className={`flex items-center gap-1 md:gap-2 px-2.5 md:px-5 py-1.5 md:py-2.5 rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium transition-all whitespace-nowrap ${
               activeTab === 'review'
                 ? 'bg-primary text-canvas'
                 : 'text-secondary hover:text-primary'
             }`}
           >
-            <AlertTriangle size={15} />
-            Review Queue
-            <span className={`text-xs rounded-full px-2 py-0.5 ${
+            <AlertTriangle size={12} />
+            <span className="hidden md:inline">Review Queue</span>
+            <span className="md:hidden">Review</span>
+            <span className={`text-[9px] md:text-xs rounded-full px-1.5 md:px-2 py-0.5 ${
               activeTab === 'review' ? 'bg-canvas/20 text-canvas' : 'bg-raised text-secondary'
             }`}>{totalInReview}</span>
           </button>
           <button
             onClick={() => setActiveTab('posts')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+            className={`flex items-center gap-1 md:gap-2 px-2.5 md:px-5 py-1.5 md:py-2.5 rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium transition-all whitespace-nowrap ${
               activeTab === 'posts'
                 ? 'bg-primary text-canvas'
                 : 'text-secondary hover:text-primary'
             }`}
           >
-            <FileText size={15} />
+            <FileText size={12} />
             Posts
-            <span className={`text-xs rounded-full px-2 py-0.5 ${
+            <span className={`text-[9px] md:text-xs rounded-full px-1.5 md:px-2 py-0.5 ${
               activeTab === 'posts' ? 'bg-canvas/20 text-canvas' : 'bg-raised text-secondary'
             }`}>{totalPosts}</span>
           </button>
           <button
             onClick={() => setActiveTab('users')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+            className={`flex items-center gap-1 md:gap-2 px-2.5 md:px-5 py-1.5 md:py-2.5 rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium transition-all whitespace-nowrap ${
               activeTab === 'users'
                 ? 'bg-primary text-canvas'
                 : 'text-secondary hover:text-primary'
             }`}
           >
-            <Users size={15} />
+            <Users size={12} />
             Users
-            <span className={`text-xs rounded-full px-2 py-0.5 ${
+            <span className={`text-[9px] md:text-xs rounded-full px-1.5 md:px-2 py-0.5 ${
               activeTab === 'users' ? 'bg-canvas/20 text-canvas' : 'bg-raised text-secondary'
             }`}>{totalUsers}</span>
           </button>
@@ -184,22 +186,21 @@ export default function AdminPage() {
         {/* Review Queue Tab */}
         {activeTab === 'review' && (
           <>
-            <div className="flex items-center gap-2 mb-6 p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10">
-              <AlertOctagon size={16} className="text-amber-400 shrink-0" />
-              <p className="text-xs text-amber-400">
-                Posts flagged by the rogue content detector or manually set to "review" status.
-                Approve to publish, reject to return to draft, or delete spam.
+            <div className="flex items-center gap-1.5 md:gap-2 mb-4 md:mb-6 p-2.5 md:p-4 rounded-xl md:rounded-2xl border border-amber-500/30 bg-amber-500/10">
+              <AlertOctagon size={13} className="text-amber-400 shrink-0" />
+              <p className="text-[9px] md:text-xs text-amber-400">
+                Posts flagged by the rogue content detector. Approve to publish, reject to return to draft.
               </p>
             </div>
 
             {totalInReview === 0 ? (
-              <div className="text-center py-20 rounded-3xl border border-border bg-surface">
-                <CheckCircle size={40} className="text-emerald-400 mx-auto mb-3" />
-                <h3 className="text-lg font-semibold text-primary mb-2">All clear</h3>
-                <p className="text-secondary text-sm">No posts currently pending review.</p>
+              <div className="text-center py-12 md:py-20 rounded-2xl md:rounded-3xl border border-border bg-surface">
+                <CheckCircle size={28} className="text-emerald-400 mx-auto mb-2 md:mb-3" />
+                <h3 className="text-sm md:text-lg font-semibold text-primary mb-1 md:mb-2">All clear</h3>
+                <p className="text-[10px] md:text-sm text-secondary">No posts currently pending review.</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2 md:space-y-3">
                 {posts
                   .filter(p => p.status === 'review' || p.status === 'quarantined')
                   .sort((a, b) => {
@@ -225,75 +226,75 @@ export default function AdminPage() {
         {/* Pending Approval Tab */}
         {activeTab === 'pending' && (
           <>
-            <div className="flex items-center gap-2 mb-6 p-4 rounded-2xl border border-primary/30 bg-primary/10">
-              <CheckCircle size={16} className="text-primary shrink-0" />
-              <p className="text-xs text-primary">
+            <div className="flex items-center gap-1.5 md:gap-2 mb-4 md:mb-6 p-2.5 md:p-4 rounded-xl md:rounded-2xl border border-primary/30 bg-primary/10">
+              <CheckCircle size={13} className="text-primary shrink-0" />
+              <p className="text-[9px] md:text-xs text-primary">
                 Posts published manually or without passing the AI audit need admin approval before they appear publicly.
-                Approve to make visible, or reject to return to draft.
               </p>
             </div>
 
             {totalPending === 0 ? (
-              <div className="text-center py-20 rounded-3xl border border-border bg-surface">
-                <CheckCircle size={40} className="text-emerald-400 mx-auto mb-3" />
-                <h3 className="text-lg font-semibold text-primary mb-2">All approved</h3>
-                <p className="text-secondary text-sm">No posts currently pending approval.</p>
+              <div className="text-center py-12 md:py-20 rounded-2xl md:rounded-3xl border border-border bg-surface">
+                <CheckCircle size={28} className="text-emerald-400 mx-auto mb-2 md:mb-3" />
+                <h3 className="text-sm md:text-lg font-semibold text-primary mb-1 md:mb-2">All approved</h3>
+                <p className="text-[10px] md:text-sm text-secondary">No posts currently pending approval.</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2 md:space-y-3">
                 {posts
                   .filter(p => p.status === 'published' && p.isApproved !== true)
                   .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
                   .map(post => (
-                    <div key={post.id} className="rounded-2xl border border-border bg-surface overflow-hidden hover:border-primary/40 transition-all group">
-                      <div className="p-4">
-                        <div className="flex items-start gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-primary/20 text-primary flex items-center justify-center shrink-0">
-                            <CheckCircle size={18} />
+                    <div key={post.id} className="rounded-xl md:rounded-2xl border border-border bg-surface overflow-hidden hover:border-primary/40 transition-all group">
+                      <div className="p-3 md:p-4">
+                        <div className="flex items-start gap-2 md:gap-4">
+                          <div className="w-8 md:w-10 h-8 md:h-10 rounded-lg md:rounded-xl bg-primary/20 text-primary flex items-center justify-center shrink-0">
+                            <CheckCircle size={14} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="text-sm font-semibold text-primary truncate">{post.title}</h3>
-                              <span className="px-2 py-0.5 rounded-full text-xs font-medium shrink-0 bg-amber-500/10 text-amber-400">
-                                Pending Approval
+                            <div className="flex items-center gap-1.5 md:gap-2 mb-0.5 md:mb-1 flex-wrap">
+                              <h3 className="text-[10px] md:text-sm font-semibold text-primary truncate">{post.title}</h3>
+                              <span className="px-1.5 md:px-2 py-0.5 rounded-full text-[9px] md:text-xs font-medium shrink-0 bg-amber-500/10 text-amber-400">
+                                Pending
                               </span>
                             </div>
-                            <div className="flex flex-wrap items-center gap-3 text-xs text-secondary mb-2">
-                              <span className="flex items-center gap-1"><Users size={10} /> {users.find(u => u.id === post.authorId)?.name || post.authorName}</span>
-                              <span className="flex items-center gap-1"><Clock size={10} /> {post.readTime}m read</span>
+                            <div className="flex flex-wrap items-center gap-1.5 md:gap-3 text-[9px] md:text-xs text-secondary mb-1 md:mb-2">
+                              <span className="flex items-center gap-0.5 md:gap-1"><Users size={8} /> {users.find(u => u.id === post.authorId)?.name || post.authorName}</span>
+                              <span className="flex items-center gap-0.5 md:gap-1"><Clock size={8} /> {post.readTime}m</span>
                               <span>{formatDistanceToNow(new Date(post.publishedAt), { addSuffix: true })}</span>
                               {post.auditScore !== undefined && (
-                                <span className={`flex items-center gap-1 ${post.auditScore < 65 ? 'text-red-400' : 'text-emerald-400'}`}>
-                                  <TrendingUp size={10} />
-                                  Audit: {post.auditScore}/100
+                                <span className={`flex items-center gap-0.5 md:gap-1 ${post.auditScore < 65 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                  <TrendingUp size={8} />
+                                  {post.auditScore}/100
                                 </span>
                               )}
                             </div>
                             {post.excerpt && (
-                              <p className="text-xs text-secondary/70 line-clamp-2 mb-3 leading-relaxed">{post.excerpt}</p>
+                              <p className="text-[9px] md:text-xs text-secondary/70 line-clamp-1 md:line-clamp-2 mb-2 md:mb-3 leading-relaxed">{post.excerpt}</p>
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
+                        <div className="flex items-center gap-1.5 md:gap-2 mt-2 md:mt-3 pt-2 md:pt-3 border-t border-border">
                           <button
                             onClick={() => approvePost(post.id)}
-                            className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-3 py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50 font-medium"
+                            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50 font-medium"
                           >
-                            <CheckCircle size={12} />
+                            <CheckCircle size={10} />
                             Approve
                           </button>
                           <button
                             onClick={() => setPostStatus(post.id, 'draft')}
-                            className="flex items-center gap-1.5 text-xs text-secondary hover:text-primary transition-colors px-3 py-1.5 rounded-lg border border-border hover:border-primary/30"
+                            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-secondary hover:text-primary transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-border hover:border-primary/30"
                           >
-                            <XCircle size={12} />
-                            Reject (Draft)
+                            <XCircle size={10} />
+                            <span className="hidden md:inline">Reject (Draft)</span>
+                            <span className="md:hidden">Reject</span>
                           </button>
                           <button
                             onClick={() => confirmDelete(post.id, post.title)}
-                            className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors px-3 py-1.5 rounded-lg border border-red-500/30 hover:border-red-400/50 ml-auto"
+                            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-red-400 hover:text-red-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-red-500/30 hover:border-red-400/50 ml-auto"
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={10} />
                             Delete
                           </button>
                         </div>
@@ -309,13 +310,13 @@ export default function AdminPage() {
         {activeTab === 'posts' && (
           <>
             {/* Filters */}
-            <div className="flex flex-wrap items-center gap-3 mb-6">
-              <div className="flex gap-1 bg-surface p-1 rounded-xl border border-border">
+            <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-4 md:mb-6">
+              <div className="flex gap-1 bg-surface p-0.5 md:p-1 rounded-lg md:rounded-xl border border-border overflow-x-auto">
                 {['all', 'published', 'draft', 'review', 'quarantined'].map(s => (
                   <button
                     key={s}
                     onClick={() => setStatusFilter(s)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    className={`px-1.5 md:px-3 py-1 md:py-1.5 rounded-md md:rounded-lg text-[9px] md:text-xs font-medium transition-all whitespace-nowrap ${
                       statusFilter === s
                         ? 'bg-primary text-canvas'
                         : 'text-secondary hover:text-primary'
@@ -325,14 +326,14 @@ export default function AdminPage() {
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-2 text-xs text-secondary">
-                <ArrowUpDown size={12} />
-                <span className="text-secondary">Sort:</span>
+              <div className="flex items-center gap-1 md:gap-2 text-[9px] md:text-xs text-secondary">
+                <ArrowUpDown size={10} />
+                <span className="text-secondary hidden md:inline">Sort:</span>
                 {(['date', 'views', 'likes'] as const).map(s => (
                   <button
                     key={s}
                     onClick={() => setSortBy(s)}
-                    className={`px-2 py-1 rounded-md transition-all ${
+                    className={`px-1.5 md:px-2 py-1 rounded-md transition-all ${
                       sortBy === s ? 'bg-raised text-primary font-medium' : 'hover:text-primary'
                     }`}
                   >
@@ -453,10 +454,10 @@ function StatCard({ icon, label, value, highlighted }: {
   icon: React.ReactNode; label: string; value: string | number; highlighted?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface p-5">
-      <div className={`mb-3 ${highlighted ? 'text-primary' : 'text-secondary'}`}>{icon}</div>
-      <p className="text-2xl font-bold text-primary mb-1">{value}</p>
-      <p className="text-xs text-secondary">{label}</p>
+    <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-5">
+      <div className={`mb-1 md:mb-3 ${highlighted ? 'text-primary' : 'text-secondary'}`}>{icon}</div>
+      <p className="text-base md:text-2xl font-bold text-primary mb-0.5 md:mb-1">{value}</p>
+      <p className="text-[10px] md:text-xs text-secondary">{label}</p>
     </div>
   );
 }
@@ -477,9 +478,9 @@ function AdminPostRow({ post, authorName, onOpen, onPublish, onDelete, onStatusC
   };
 
   return (
-    <div className="rounded-2xl border border-border bg-surface overflow-hidden hover:border-primary/20 transition-all group">
-      <div className="flex items-center gap-4 p-4">
-        <div className={`w-2 h-2 rounded-full shrink-0 ${
+    <div className="rounded-xl md:rounded-2xl border border-border bg-surface overflow-hidden hover:border-primary/20 transition-all group">
+      <div className="flex items-center gap-2 md:gap-4 p-3 md:p-4">
+        <div className={`w-1.5 md:w-2 h-1.5 md:h-2 rounded-full shrink-0 ${
           post.status === 'published' ? 'bg-emerald-400'
           : post.status === 'draft' ? 'bg-secondary'
           : post.status === 'review' ? 'bg-amber-400'
@@ -487,48 +488,48 @@ function AdminPostRow({ post, authorName, onOpen, onPublish, onDelete, onStatusC
         }`} />
 
         <button onClick={onOpen} className="flex-1 text-left min-w-0">
-          <h3 className="text-sm font-semibold text-primary group-hover:text-primary/80 transition-colors truncate mb-1">
+          <h3 className="text-[10px] md:text-sm font-semibold text-primary group-hover:text-primary/80 transition-colors truncate mb-0.5 md:mb-1">
             {post.title}
           </h3>
-          <div className="flex flex-wrap items-center gap-3 text-xs text-secondary">
-            <span className={`px-2 py-0.5 rounded-full text-xs ${statusColors[post.status] || ''}`}>
+          <div className="flex flex-wrap items-center gap-1.5 md:gap-3 text-[9px] md:text-xs text-secondary">
+            <span className={`px-1 md:px-2 py-0.5 rounded-full text-[9px] md:text-xs ${statusColors[post.status] || ''}`}>
               {post.status === 'review' ? 'In Review' : post.status.charAt(0).toUpperCase() + post.status.slice(1)}
             </span>
-            <span className="flex items-center gap-1"><UserIcon size={10} /> {authorName}</span>
-            <span className="flex items-center gap-1"><Clock size={10} /> {post.readTime}m read</span>
-            <span className="flex items-center gap-1"><Eye size={10} /> {post.views.toLocaleString()}</span>
-            <span className="flex items-center gap-1"><Heart size={10} /> {post.likes}</span>
+            <span className="flex items-center gap-0.5 md:gap-1"><UserIcon size={8} /> {authorName}</span>
+            <span className="flex items-center gap-0.5 md:gap-1"><Clock size={8} /> {post.readTime}m</span>
+            <span className="hidden md:flex items-center gap-1"><Eye size={10} /> {post.views.toLocaleString()}</span>
+            <span className="hidden md:flex items-center gap-1"><Heart size={10} /> {post.likes}</span>
             {post.auditScore !== undefined && (
-              <span className="flex items-center gap-1">
-                <TrendingUp size={10} />
-                Score: {post.auditScore}/100
+              <span className="flex items-center gap-0.5 md:gap-1">
+                <TrendingUp size={8} />
+                {post.auditScore}/100
               </span>
             )}
-            <span>{formatDistanceToNow(new Date(post.publishedAt), { addSuffix: true })}</span>
+            <span className="hidden md:inline">{formatDistanceToNow(new Date(post.publishedAt), { addSuffix: true })}</span>
           </div>
         </button>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1 md:gap-2 shrink-0">
           {post.status !== 'published' && (
             <button
               onClick={onPublish}
-              className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-3 py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50"
+              className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50"
             >
-              <Send size={12} />
-              Publish
+              <Send size={10} />
+              <span className="hidden md:inline">Publish</span>
             </button>
           )}
           <div className="relative group/status">
-            <button className="flex items-center gap-1 text-xs text-secondary hover:text-primary transition-colors px-2 py-1.5 rounded-lg border border-border hover:border-primary/30">
-              <Ban size={12} />
-              Status
+            <button className="flex items-center gap-0.5 md:gap-1 text-[9px] md:text-xs text-secondary hover:text-primary transition-colors px-1.5 md:px-2 py-1 md:py-1.5 rounded-lg border border-border hover:border-primary/30">
+              <Ban size={10} />
+              <span className="hidden md:inline">Status</span>
             </button>
-            <div className="absolute right-0 top-8 w-36 rounded-xl border border-border bg-surface shadow-2xl overflow-hidden z-50 opacity-0 invisible group-hover/status:opacity-100 group-hover/status:visible transition-all">
+            <div className="absolute right-0 top-8 w-28 md:w-36 rounded-xl border border-border bg-surface shadow-2xl overflow-hidden z-50 opacity-0 invisible group-hover/status:opacity-100 group-hover/status:visible transition-all">
               {(['published', 'draft', 'review', 'quarantined'] as const).map(s => (
                 <button
                   key={s}
                   onClick={() => onStatusChange(s)}
-                  className={`w-full text-left px-3 py-2 text-xs transition-colors hover:bg-raised ${
+                  className={`w-full text-left px-2 md:px-3 py-1.5 md:py-2 text-[10px] md:text-xs transition-colors hover:bg-raised ${
                     post.status === s ? 'text-primary font-medium' : 'text-secondary'
                   }`}
                 >
@@ -539,9 +540,9 @@ function AdminPostRow({ post, authorName, onOpen, onPublish, onDelete, onStatusC
           </div>
           <button
             onClick={onDelete}
-            className="text-secondary hover:text-red-400 transition-colors p-1.5 rounded-lg hover:bg-red-950/30"
+            className="text-secondary hover:text-red-400 transition-colors p-1 md:p-1.5 rounded-lg hover:bg-red-950/30"
           >
-            <Trash2 size={14} />
+            <Trash2 size={12} />
           </button>
         </div>
       </div>
@@ -557,67 +558,69 @@ function ReviewPostCard({ post, authorName, onApprove, onReject, onDelete }: {
   onDelete: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface overflow-hidden hover:border-amber-400/40 transition-all group">
-      <div className="p-4">
-        <div className="flex items-start gap-4">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+    <div className="rounded-xl md:rounded-2xl border border-border bg-surface overflow-hidden hover:border-amber-400/40 transition-all group">
+      <div className="p-3 md:p-4">
+        <div className="flex items-start gap-2 md:gap-4">
+          <div className={`w-8 md:w-10 h-8 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center shrink-0 ${
             post.status === 'quarantined'
               ? 'bg-red-500/20 text-red-400'
               : 'bg-amber-500/20 text-amber-400'
           }`}>
-            {post.status === 'quarantined' ? <Ban size={18} /> : <AlertTriangle size={18} />}
+            {post.status === 'quarantined' ? <Ban size={14} /> : <AlertTriangle size={14} />}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-sm font-semibold text-primary truncate">{post.title}</h3>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${
+            <div className="flex items-center gap-1.5 md:gap-2 mb-0.5 md:mb-1">
+              <h3 className="text-[10px] md:text-sm font-semibold text-primary truncate">{post.title}</h3>
+              <span className={`px-1.5 md:px-2 py-0.5 rounded-full text-[9px] md:text-xs font-medium shrink-0 ${
                 post.status === 'quarantined'
                   ? 'bg-red-500/10 text-red-400'
                   : 'bg-amber-500/10 text-amber-400'
               }`}>
-                {post.status === 'quarantined' ? 'Auto-Quarantined' : 'Flagged'}
+                {post.status === 'quarantined' ? 'Auto-Q' : 'Flagged'}
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-3 text-xs text-secondary mb-2">
-              <span className="flex items-center gap-1"><UserIcon size={10} /> {authorName}</span>
-              <span className="flex items-center gap-1"><Clock size={10} /> {post.readTime}m read</span>
+            <div className="flex flex-wrap items-center gap-1.5 md:gap-3 text-[9px] md:text-xs text-secondary mb-1 md:mb-2">
+              <span className="flex items-center gap-0.5 md:gap-1"><UserIcon size={8} /> {authorName}</span>
+              <span className="flex items-center gap-0.5 md:gap-1"><Clock size={8} /> {post.readTime}m</span>
               <span>{formatDistanceToNow(new Date(post.publishedAt), { addSuffix: true })}</span>
               {post.auditScore !== undefined && (
-                <span className={`flex items-center gap-1 ${
+                <span className={`flex items-center gap-0.5 md:gap-1 ${
                   post.auditScore < 50 ? 'text-red-400' : 'text-amber-400'
                 }`}>
-                  <TrendingUp size={10} />
-                  Audit: {post.auditScore}/100
+                  <TrendingUp size={8} />
+                  {post.auditScore}/100
                 </span>
               )}
             </div>
             {post.excerpt && (
-              <p className="text-xs text-secondary/70 line-clamp-2 mb-3 leading-relaxed">
+              <p className="text-[9px] md:text-xs text-secondary/70 line-clamp-1 md:line-clamp-2 mb-2 md:mb-3 leading-relaxed">
                 {post.excerpt}
               </p>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
+        <div className="flex items-center gap-1.5 md:gap-2 mt-2 md:mt-3 pt-2 md:pt-3 border-t border-border flex-wrap">
           <button
             onClick={onApprove}
-            className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-3 py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50 font-medium"
+            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50 font-medium"
           >
-            <CheckCircle size={12} />
-            Approve & Publish
+            <CheckCircle size={10} />
+            <span className="hidden md:inline">Approve & Publish</span>
+            <span className="md:hidden">Approve</span>
           </button>
           <button
             onClick={onReject}
-            className="flex items-center gap-1.5 text-xs text-secondary hover:text-primary transition-colors px-3 py-1.5 rounded-lg border border-border hover:border-primary/30"
+            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-secondary hover:text-primary transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-border hover:border-primary/30"
           >
-            <XCircle size={12} />
-            Reject (Draft)
+            <XCircle size={10} />
+            <span className="hidden md:inline">Reject (Draft)</span>
+            <span className="md:hidden">Reject</span>
           </button>
           <button
             onClick={onDelete}
-            className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors px-3 py-1.5 rounded-lg border border-red-500/30 hover:border-red-400/50 ml-auto"
+            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-red-400 hover:text-red-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-red-500/30 hover:border-red-400/50 ml-auto"
           >
-            <Trash2 size={12} />
+            <Trash2 size={10} />
             Delete
           </button>
         </div>
@@ -630,34 +633,35 @@ function AdminUserRow({ user, postsCount, onPromote, isCurrentUser }: {
   user: UserType; postsCount: number; onPromote: () => void; isCurrentUser: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface p-4 hover:border-primary/20 transition-all">
-      <div className="flex items-center gap-4">
-        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+    <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-4 hover:border-primary/20 transition-all">
+      <div className="flex items-center gap-2 md:gap-4">
+        <div className="w-8 md:w-10 h-8 md:h-10 rounded-full bg-primary/20 flex items-center justify-center text-[10px] md:text-sm font-bold text-primary shrink-0">
           {user.name.charAt(0).toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-primary">{user.name}</span>
+          <div className="flex items-center gap-1 md:gap-2 flex-wrap">
+            <span className="text-[10px] md:text-sm font-semibold text-primary truncate">{user.name}</span>
             {user.role === 'admin' && (
-              <span className="text-xs bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full font-medium">Admin</span>
+              <span className="text-[9px] md:text-xs bg-amber-500/10 text-amber-400 px-1.5 md:px-2 py-0.5 rounded-full font-medium">Admin</span>
             )}
             {isCurrentUser && (
-              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">You</span>
+              <span className="text-[9px] md:text-xs bg-primary/10 text-primary px-1.5 md:px-2 py-0.5 rounded-full font-medium">You</span>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-xs text-secondary mt-0.5">
-            <span>{user.email}</span>
-            <span className="flex items-center gap-1"><FileText size={10} /> {postsCount} posts</span>
+          <div className="flex flex-wrap items-center gap-1.5 md:gap-3 text-[9px] md:text-xs text-secondary mt-0.5">
+            <span className="truncate max-w-[120px] md:max-w-none">{user.email}</span>
+            <span className="hidden md:flex items-center gap-1"><FileText size={10} /> {postsCount} posts</span>
             <span>Joined {formatDistanceToNow(new Date(user.joinedAt), { addSuffix: true })}</span>
           </div>
         </div>
         {user.role !== 'admin' && (
           <button
             onClick={onPromote}
-            className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 transition-colors px-3 py-1.5 rounded-lg border border-amber-500/30 hover:border-amber-400/50"
+            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-amber-400 hover:text-amber-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-amber-500/30 hover:border-amber-400/50 whitespace-nowrap"
           >
-            <Crown size={12} />
-            Make Admin
+            <Crown size={10} />
+            <span className="hidden md:inline">Make Admin</span>
+            <span className="md:hidden">Admin</span>
           </button>
         )}
       </div>

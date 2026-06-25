@@ -286,3 +286,45 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
 }
+
+/* ── Mobile prose override ── */
+@media (max-width: 767px) {
+  .prose-premium-mobile {
+    font-size: 0.925rem !important;
+    line-height: 1.7 !important;
+  }
+
+  .prose-premium-mobile h1 { font-size: 1.7em !important; }
+  .prose-premium-mobile h2 { font-size: 1.35em !important; }
+  .prose-premium-mobile h3 { font-size: 1.1em !important; }
+  .prose-premium-mobile h4 { font-size: 1em !important; }
+
+  .prose-premium-mobile blockquote {
+    padding: 0.75rem 1rem !important;
+    margin: 1.25em 0 !important;
+  }
+
+  .prose-premium-mobile pre {
+    padding: 1rem !important;
+    margin: 1.25em 0 !important;
+  }
+
+  .prose-premium-mobile img {
+    margin: 1.25em 0 !important;
+  }
+
+  .prose-premium-mobile ul,
+  .prose-premium-mobile ol {
+    padding-left: 1.25em !important;
+    margin: 1em 0 !important;
+  }
+
+  .prose-premium-mobile table {
+    font-size: 0.8em !important;
+  }
+
+  .prose-premium-mobile th,
+  .prose-premium-mobile td {
+    padding: 0.5rem 0.6rem !important;
+  }
+}

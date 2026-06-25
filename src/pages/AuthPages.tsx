@@ -56,41 +56,41 @@ export function LoginPage() {
           <ArrowLeft size={16} /> Back to Home
         </button>
 
-        <div className="rounded-3xl border border-border bg-surface p-8">
-          <div className="mb-8">
-            <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center mb-4">
-              <span className="text-canvas font-bold text-xl">L</span>
+        <div className="rounded-2xl md:rounded-3xl border border-border bg-surface p-5 md:p-8">
+          <div className="mb-5 md:mb-8">
+            <div className="w-10 md:w-12 h-10 md:h-12 rounded-xl md:rounded-2xl bg-primary flex items-center justify-center mb-3 md:mb-4">
+              <span className="text-canvas font-bold text-base md:text-xl">L</span>
             </div>
-            <h1 className="font-heading text-3xl font-bold text-primary mb-2">Welcome back</h1>
-            <p className="text-secondary">Sign in to continue writing.</p>
+            <h1 className="font-heading text-xl md:text-3xl font-bold text-primary mb-1 md:mb-2">Welcome back</h1>
+            <p className="text-xs md:text-sm text-secondary">Sign in to continue writing.</p>
           </div>
 
           {error && (
-            <div className="flex items-start gap-3 p-4 rounded-2xl border border-border bg-surface mb-6 text-sm">
-              <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2 md:gap-3 p-3 md:p-4 rounded-xl md:rounded-2xl border border-border bg-surface mb-4 md:mb-6 text-[10px] md:text-sm">
+              <AlertTriangle size={13} className="text-amber-400 shrink-0 mt-0.5" />
               <p className="text-secondary">{error}</p>
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={handleLogin} className="space-y-3 md:space-y-5">
             <FormField label="Email address" type="email" value={email} onChange={setEmail} placeholder="you@example.com" />
 
             <div>
-              <label className="block text-sm font-medium text-secondary mb-2">Password</label>
+              <label className="block text-[10px] md:text-sm font-medium text-secondary mb-1 md:mb-2">Password</label>
               <div className="relative">
                 <input
                   type={showPw ? 'text' : 'password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-canvas border border-border rounded-xl px-4 py-3 text-primary text-sm outline-none focus:border-primary/60 transition-colors pr-12 placeholder-secondary/50"
+                  className="w-full bg-canvas border border-border rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 text-primary text-[10px] md:text-sm outline-none focus:border-primary/60 transition-colors pr-10 md:pr-12 placeholder-secondary/50"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-primary transition-colors"
+                  className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-primary transition-colors"
                 >
-                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPw ? <EyeOff size={13} /> : <Eye size={13} />}
                 </button>
               </div>
             </div>
@@ -98,13 +98,13 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary hover:bg-white disabled:opacity-60 text-canvas font-semibold py-3 rounded-xl transition-all duration-200 text-sm"
+              className="w-full bg-primary hover:bg-white disabled:opacity-60 text-canvas font-semibold py-2.5 md:py-3 rounded-lg md:rounded-xl transition-all duration-200 text-[10px] md:text-sm"
             >
               {loading ? 'Signing in…' : 'Sign In'}
             </button>
           </form>
 
-          <p className="text-center text-sm text-secondary mt-6">
+          <p className="text-center text-[10px] md:text-sm text-secondary mt-4 md:mt-6">
             Don't have an account?{' '}
             <button onClick={() => setCurrentPage('signup')} className="text-secondary hover:text-primary font-medium transition-colors">
               Create one
@@ -179,51 +179,51 @@ export function SignupPage() {
           <ArrowLeft size={16} /> Back to Home
         </button>
 
-        <div className="rounded-3xl border border-border bg-surface p-8">
-          <div className="mb-8">
-            <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center mb-4">
-              <span className="text-canvas font-bold text-xl">L</span>
+        <div className="rounded-2xl md:rounded-3xl border border-border bg-surface p-5 md:p-8">
+          <div className="mb-5 md:mb-8">
+            <div className="w-10 md:w-12 h-10 md:h-12 rounded-xl md:rounded-2xl bg-primary flex items-center justify-center mb-3 md:mb-4">
+              <span className="text-canvas font-bold text-base md:text-xl">L</span>
             </div>
-            <h1 className="font-heading text-3xl font-bold text-primary mb-2">Create your account</h1>
-            <p className="text-secondary">Start publishing content that ranks.</p>
+            <h1 className="font-heading text-xl md:text-3xl font-bold text-primary mb-1 md:mb-2">Create your account</h1>
+            <p className="text-xs md:text-sm text-secondary">Start publishing content that ranks.</p>
           </div>
 
           {error && (
-            <div className="flex items-start gap-3 p-4 rounded-2xl border border-border bg-surface mb-6 text-sm">
-              <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2 md:gap-3 p-3 md:p-4 rounded-xl md:rounded-2xl border border-border bg-surface mb-4 md:mb-6 text-[10px] md:text-sm">
+              <AlertTriangle size={13} className="text-amber-400 shrink-0 mt-0.5" />
               <p className="text-secondary">{error}</p>
             </div>
           )}
 
-          <form onSubmit={handleSignup} className="space-y-4">
+          <form onSubmit={handleSignup} className="space-y-3 md:space-y-4">
             <FormField label="Full name" type="text" value={name} onChange={setName} placeholder="Your Name" />
             <FormField label="Email address" type="email" value={email} onChange={setEmail} placeholder="you@example.com" />
 
             <div>
-              <label className="block text-sm font-medium text-secondary mb-2">Password</label>
+              <label className="block text-[10px] md:text-sm font-medium text-secondary mb-1 md:mb-2">Password</label>
               <div className="relative">
                 <input
                   type={showPw ? 'text' : 'password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="Min. 8 characters"
-                  className="w-full bg-canvas border border-border rounded-xl px-4 py-3 text-primary text-sm outline-none focus:border-primary/60 transition-colors pr-12 placeholder-secondary/50"
+                  className="w-full bg-canvas border border-border rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 text-primary text-[10px] md:text-sm outline-none focus:border-primary/60 transition-colors pr-10 md:pr-12 placeholder-secondary/50"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-primary transition-colors"
+                  className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-primary transition-colors"
                 >
-                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPw ? <EyeOff size={13} /> : <Eye size={13} />}
                 </button>
               </div>
               {password && (
-                <div className="mt-2">
-                  <div className="flex gap-1 mb-1">
+                <div className="mt-1 md:mt-2">
+                  <div className="flex gap-1 mb-0.5 md:mb-1">
                     {[0, 1, 2, 3].map(i => (
                       <div
                         key={i}
-                        className={`h-1 flex-1 rounded-full transition-colors ${i < strength.score
+                        className={`h-0.5 md:h-1 flex-1 rounded-full transition-colors ${i < strength.score
                           ? strength.score <= 1 ? 'bg-red-500'
                             : strength.score <= 2 ? 'bg-secondary'
                             : strength.score <= 3 ? 'bg-primary'
@@ -232,7 +232,7 @@ export function SignupPage() {
                       />
                     ))}
                   </div>
-                  <p className={`text-xs ${strength.score <= 1 ? 'text-red-400' : strength.score <= 2 ? 'text-secondary' : 'text-emerald-400'}`}>
+                  <p className={`text-[9px] md:text-xs ${strength.score <= 1 ? 'text-red-400' : strength.score <= 2 ? 'text-secondary' : 'text-emerald-400'}`}>
                     {strength.label}
                   </p>
                 </div>
@@ -242,12 +242,12 @@ export function SignupPage() {
             <FormField label="Confirm password" type="password" value={confirm} onChange={setConfirm} placeholder="Repeat password" />
 
             {/* Terms */}
-            <div className="text-xs text-secondary bg-canvas rounded-xl p-4 border border-border">
-              <p className="font-medium text-primary mb-2 flex items-center gap-1.5">
-                <CheckCircle size={13} className="text-emerald-400" />
+            <div className="text-[9px] md:text-xs text-secondary bg-canvas rounded-lg md:rounded-xl p-2.5 md:p-4 border border-border">
+              <p className="font-medium text-primary mb-1 md:mb-2 flex items-center gap-1 md:gap-1.5">
+                <CheckCircle size={10} className="text-emerald-400" />
                 Publishing Standards
               </p>
-              <ul className="space-y-1 text-secondary">
+              <ul className="space-y-0.5 md:space-y-1 text-secondary">
                 <li>• All AI-generated content passes our 4-stage authenticity pipeline</li>
                 <li>• Manual posts undergo fact-check validation before publishing</li>
                 <li>• Content flagged for misinformation is quarantined, not published</li>
@@ -258,13 +258,13 @@ export function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary hover:bg-white disabled:opacity-60 text-canvas font-semibold py-3 rounded-xl transition-all duration-200 text-sm"
+              className="w-full bg-primary hover:bg-white disabled:opacity-60 text-canvas font-semibold py-2.5 md:py-3 rounded-lg md:rounded-xl transition-all duration-200 text-[10px] md:text-sm"
             >
               {loading ? 'Creating account…' : 'Create Account'}
             </button>
           </form>
 
-          <p className="text-center text-sm text-secondary mt-6">
+          <p className="text-center text-[10px] md:text-sm text-secondary mt-4 md:mt-6">
             Already have an account?{' '}
             <button onClick={() => setCurrentPage('login')} className="text-secondary hover:text-primary font-medium transition-colors">
               Sign in
@@ -285,13 +285,13 @@ function FormField({ label, type, value, onChange, placeholder }: {
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-secondary mb-2">{label}</label>
+      <label className="block text-[10px] md:text-sm font-medium text-secondary mb-1 md:mb-2">{label}</label>
       <input
         type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full bg-canvas border border-border rounded-xl px-4 py-3 text-primary text-sm outline-none focus:border-primary/60 transition-colors placeholder-secondary/50"
+        className="w-full bg-canvas border border-border rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 text-primary text-[10px] md:text-sm outline-none focus:border-primary/60 transition-colors placeholder-secondary/50"
       />
     </div>
   );

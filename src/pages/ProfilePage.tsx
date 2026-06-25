@@ -83,17 +83,17 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-canvas pt-20">
       <SEO title={user.name} description="Your profile settings." noindex />
-      <div className="max-w-2xl mx-auto px-4 py-10">
-        <h1 className="font-heading text-3xl font-bold text-primary mb-8 flex items-center gap-3">
-          <User size={24} className="text-secondary" />
+      <div className="max-w-2xl mx-auto px-4 py-6 md:py-10">
+        <h1 className="font-heading text-xl md:text-3xl font-bold text-primary mb-4 md:mb-8 flex items-center gap-2 md:gap-3">
+          <User size={18} className="text-secondary" />
           Your Profile
         </h1>
 
-        <div className="rounded-3xl border border-border bg-surface p-8">
+        <div className="rounded-2xl md:rounded-3xl border border-border bg-surface p-4 md:p-8">
           {/* Avatar */}
-          <div className="flex items-center gap-5 mb-8 pb-8 border-b border-border">
+          <div className="flex items-center gap-3 md:gap-5 mb-4 md:mb-8 pb-4 md:pb-8 border-b border-border">
             <div className="relative group">
-              <div className="w-20 h-20 rounded-2xl bg-primary flex items-center justify-center text-3xl font-bold text-canvas overflow-hidden">
+              <div className="w-14 md:w-20 h-14 md:h-20 rounded-xl md:rounded-2xl bg-primary flex items-center justify-center text-xl md:text-3xl font-bold text-canvas overflow-hidden">
                 {avatarPreview ? (
                   <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
                 ) : (
@@ -102,9 +102,9 @@ export default function ProfilePage() {
               </div>
               <button
                 onClick={() => fileRef.current?.click()}
-                className="absolute inset-0 rounded-2xl bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                className="absolute inset-0 rounded-xl md:rounded-2xl bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
               >
-                <Camera size={18} className="text-white" />
+                <Camera size={14} className="text-white" />
               </button>
               <input
                 ref={fileRef}
@@ -114,48 +114,48 @@ export default function ProfilePage() {
                 onChange={handleAvatarSelect}
               />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-primary">{user.name}</h2>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 md:gap-2">
+                <h2 className="text-sm md:text-xl font-bold text-primary truncate">{user.name}</h2>
                 {user.role === 'admin' && (
-                  <span className="text-xs bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-full font-medium">Admin</span>
+                  <span className="text-[9px] md:text-xs bg-amber-500/10 text-amber-400 px-1.5 md:px-2 py-0.5 rounded-full font-medium">Admin</span>
                 )}
               </div>
-              <p className="text-secondary text-sm">{user.email}</p>
-              <p className="text-xs text-secondary mt-1">
-                Member since {new Date(user.joinedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+              <p className="text-[10px] md:text-sm text-secondary truncate">{user.email}</p>
+              <p className="text-[9px] md:text-xs text-secondary mt-0.5 md:mt-1">
+                Member since {new Date(user.joinedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}
               </p>
             </div>
           </div>
 
-          <div className="space-y-5">
+          <div className="space-y-3 md:space-y-5">
             <div>
-              <label className="block text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Display Name</label>
+              <label className="block text-[10px] md:text-xs font-semibold text-secondary uppercase tracking-wider mb-1 md:mb-2">Display Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
-                className="w-full bg-canvas border border-border rounded-xl px-4 py-3 text-primary text-sm outline-none focus:border-primary/60 transition-colors"
+                className="w-full bg-canvas border border-border rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 text-primary text-[10px] md:text-sm outline-none focus:border-primary/60 transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Bio</label>
+              <label className="block text-[10px] md:text-xs font-semibold text-secondary uppercase tracking-wider mb-1 md:mb-2">Bio</label>
               <textarea
                 value={bio}
                 onChange={e => setBio(e.target.value)}
-                rows={4}
+                rows={3}
                 placeholder="Tell readers about yourself…"
-                className="w-full bg-canvas border border-border rounded-xl px-4 py-3 text-primary text-sm outline-none focus:border-primary/60 transition-colors resize-none placeholder-secondary/50"
+                className="w-full bg-canvas border border-border rounded-lg md:rounded-xl px-3 md:px-4 py-2 md:py-3 text-primary text-[10px] md:text-sm outline-none focus:border-primary/60 transition-colors resize-none placeholder-secondary/50"
               />
             </div>
 
-            <div className="bg-canvas rounded-xl p-4 border border-border">
-              <p className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3">Account Info</p>
-              <div className="grid sm:grid-cols-2 gap-3 text-xs">
+            <div className="bg-canvas rounded-lg md:rounded-xl p-3 md:p-4 border border-border">
+              <p className="text-[10px] md:text-xs font-semibold text-secondary uppercase tracking-wider mb-2 md:mb-3">Account Info</p>
+              <div className="grid sm:grid-cols-2 gap-2 md:gap-3 text-[10px] md:text-xs">
                 <div>
                   <p className="text-secondary">Email</p>
-                  <p className="text-primary mt-0.5 font-mono">{user.email}</p>
+                  <p className="text-primary mt-0.5 font-mono text-[10px] md:text-xs truncate">{user.email}</p>
                 </div>
                 <div>
                   <p className="text-secondary">Role</p>
@@ -166,12 +166,12 @@ export default function ProfilePage() {
 
             {/* Admin Recovery */}
             {user.role !== 'admin' && (
-              <div className="bg-amber-500/10 rounded-xl p-4 border border-amber-500/30">
-                <div className="flex items-start gap-2.5 text-amber-400 text-xs">
-                  <Crown size={14} className="mt-0.5 shrink-0" />
+              <div className="bg-amber-500/10 rounded-lg md:rounded-xl p-3 md:p-4 border border-amber-500/30">
+                <div className="flex items-start gap-1.5 md:gap-2.5 text-amber-400 text-[10px] md:text-xs">
+                  <Crown size={12} className="mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-semibold mb-1">Need Admin Access?</p>
-                    <p>If you lost your admin account, go to the Admin Panel (requires existing admin) to promote this account, or check your database directly.</p>
+                    <p className="font-semibold mb-0.5 md:mb-1">Need Admin Access?</p>
+                    <p>If you lost your admin account, go to the Admin Panel to promote this account, or check your database directly.</p>
                   </div>
                 </div>
               </div>
@@ -180,7 +180,7 @@ export default function ProfilePage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-sm transition-all duration-200 ${
+              className={`w-full flex items-center justify-center gap-1.5 md:gap-2 py-2.5 md:py-3.5 rounded-lg md:rounded-xl font-semibold text-[10px] md:text-sm transition-all duration-200 ${
                 saved
                   ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400'
                   : saving
@@ -189,11 +189,11 @@ export default function ProfilePage() {
               }`}
             >
               {saving ? (
-                <><div className="w-4 h-4 border-2 border-canvas border-t-transparent rounded-full animate-spin" /> Saving…</>
+                <><div className="w-3 md:w-4 h-3 md:h-4 border-2 border-canvas border-t-transparent rounded-full animate-spin" /> Saving…</>
               ) : saved ? (
-                <><CheckCircle size={16} />Saved!</>
+                <><CheckCircle size={13} />Saved!</>
               ) : (
-                <><Save size={16} />Save Changes</>
+                <><Save size={13} />Save Changes</>
               )}
             </button>
           </div>

@@ -27,9 +27,9 @@ export default function HomePage() {
       <OrganizationSchema />
 
       {/* Hero Section */}
-      <section className="relative pt-32 pb-28 px-4 overflow-hidden">
+      <section className="relative pt-24 md:pt-32 pb-20 md:pb-28 px-4 overflow-hidden">
         <div className="max-w-4xl mx-auto text-center relative z-10">
-          <h1 className="font-heading text-5xl md:text-7xl font-bold text-primary leading-none tracking-tighter mb-6">
+          <h1 className="font-heading text-3xl md:text-7xl font-bold text-primary leading-none tracking-tighter mb-4 md:mb-6">
             The Blog That{' '}
             <span className="italic text-primary/70">
               Outranks
@@ -37,25 +37,25 @@ export default function HomePage() {
             Everything
           </h1>
 
-          <p className="text-lg md:text-xl text-secondary max-w-2xl mx-auto mb-10 leading-relaxed">
+          <p className="text-sm md:text-xl text-secondary max-w-2xl mx-auto mb-6 md:mb-10 leading-relaxed">
             Every article passes a 4-stage authenticity pipeline — outline, draft, fact-check, and polish —
             before a single word reaches the index.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 md:gap-4">
             <button
               onClick={() => navTo('blog')}
-              className="flex items-center gap-2 bg-primary hover:bg-white text-canvas font-semibold px-8 py-3.5 rounded-full transition-all duration-200 cursor-pointer"
+              className="flex items-center gap-2 bg-primary hover:bg-white text-canvas font-semibold px-6 md:px-8 py-2.5 md:py-3.5 rounded-full transition-all duration-200 cursor-pointer text-sm md:text-base"
             >
               Explore Articles
-              <ArrowRight size={18} />
+              <ArrowRight size={16} />
             </button>
             {!geminiKey && (
               <button
                 onClick={() => navTo('autopost')}
-                className="flex items-center gap-2 border border-border hover:border-primary/50 text-primary px-8 py-3.5 rounded-full transition-all duration-200 hover:bg-surface cursor-pointer"
+                className="flex items-center gap-2 border border-border hover:border-primary/50 text-primary px-6 md:px-8 py-2.5 md:py-3.5 rounded-full transition-all duration-200 hover:bg-surface cursor-pointer text-sm md:text-base"
               >
-                <Zap size={18} className="text-secondary" />
+                <Zap size={16} className="text-secondary" />
                 Try AutoPost AI
               </button>
             )}
@@ -64,18 +64,18 @@ export default function HomePage() {
       </section>
 
       {/* Editorial Stats — replaces uniform feature card grid to avoid AI-template tell */}
-      <section className="px-4 pb-28">
-        <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-px bg-border rounded-2xl overflow-hidden">
+      <section className="px-4 pb-16 md:pb-28">
+        <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-px bg-border rounded-xl md:rounded-2xl overflow-hidden">
           {[
             { value: '4-Stage', label: 'AI Pipeline', desc: 'Outline → Draft → Fact-check → Polish' },
             { value: '100%', label: 'Fact-Checked', desc: 'Every claim verified before publish' },
             { value: '0', label: 'AI Clichés', desc: 'No filler. No fluff. No hallucinations.' },
             { value: '∞', label: 'Indexable', desc: 'Every word searchable, every concept linked' },
           ].map((s, i) => (
-            <div key={i} className="bg-surface p-6 md:p-8 flex flex-col items-center text-center gap-2">
-              <span className="font-heading text-3xl md:text-4xl font-bold text-primary tracking-tight">{s.value}</span>
-              <span className="text-sm font-semibold text-primary">{s.label}</span>
-              <span className="text-xs text-secondary leading-relaxed max-w-[18ch]">{s.desc}</span>
+            <div key={i} className="bg-surface p-4 md:p-8 flex flex-col items-center text-center gap-1 md:gap-2">
+              <span className="font-heading text-xl md:text-4xl font-bold text-primary tracking-tight">{s.value}</span>
+              <span className="text-[10px] md:text-sm font-semibold text-primary">{s.label}</span>
+              <span className="text-[9px] md:text-xs text-secondary leading-relaxed max-w-[18ch]">{s.desc}</span>
             </div>
           ))}
         </div>
@@ -83,66 +83,66 @@ export default function HomePage() {
 
       {/* Featured Post */}
       {featured && (
-        <section className="px-4 pb-16">
+        <section className="px-4 pb-12 md:pb-16">
           <div className="max-w-5xl mx-auto">
             <button
               onClick={() => openPost(featured)}
-              className="w-full text-left group rounded-3xl border border-border bg-surface overflow-hidden hover:border-primary/40 transition-all duration-300 cursor-pointer"
+              className="w-full text-left group rounded-2xl md:rounded-3xl border border-border bg-surface overflow-hidden hover:border-primary/40 transition-all duration-300 cursor-pointer"
             >
               {featured.coverImage && (
-                <div className="w-full h-56 md:h-80 overflow-hidden">
+                <div className="w-full h-40 md:h-80 overflow-hidden">
                   <img src={featured.coverImage} alt="" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500" />
                 </div>
               )}
-              <div className="p-8 md:p-12">
-                <div className="flex flex-wrap items-center gap-3 mb-6">
+              <div className="p-4 md:p-12">
+                <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-3 md:mb-6">
                   {featured.tags.slice(0, 2).map(tag => (
-                    <span key={tag} className="text-xs px-3 py-1 rounded-full bg-raised text-secondary">
+                    <span key={tag} className="text-[10px] md:text-xs px-2 md:px-3 py-0.5 md:py-1 rounded-full bg-raised text-secondary">
                       {tag}
                     </span>
                   ))}
                   {featured.auditScore && (
-                    <span className="text-xs px-3 py-1 rounded-full bg-primary/10 text-primary border border-muted tabular-nums">
+                    <span className="text-[10px] md:text-xs px-2 md:px-3 py-0.5 md:py-1 rounded-full bg-primary/10 text-primary border border-muted tabular-nums">
                       Quality {featured.auditScore}/100
                     </span>
                   )}
-                  <span className="text-xs text-muted ml-auto">Featured</span>
+                  <span className="text-[10px] md:text-xs text-muted ml-auto">Featured</span>
                 </div>
 
-                <h2 className="font-heading text-3xl md:text-5xl font-bold text-primary mb-4 leading-tight tracking-tight group-hover:text-primary/80 transition-colors">
+                <h2 className="font-heading text-xl md:text-5xl font-bold text-primary mb-2 md:mb-4 leading-tight tracking-tight group-hover:text-primary/80 transition-colors">
                   {featured.title}
                 </h2>
 
-                <p className="text-lg text-secondary mb-8 max-w-3xl leading-relaxed">
+                <p className="text-sm md:text-lg text-secondary mb-4 md:mb-8 max-w-3xl leading-relaxed line-clamp-3 md:line-clamp-none">
                   {featured.excerpt}
                 </p>
 
-                <div className="flex flex-wrap items-center gap-6 text-sm text-secondary">
-                  <span className="flex items-center gap-1.5 font-medium text-primary">
+                <div className="flex flex-wrap items-center gap-3 md:gap-6 text-[10px] md:text-sm text-secondary">
+                  <span className="flex items-center gap-1 md:gap-1.5 font-medium text-primary">
                     {featured.authorAvatar ? (
-                      <img src={featured.authorAvatar} alt="" className="w-5 h-5 rounded-full object-cover" />
+                      <img src={featured.authorAvatar} alt="" className="w-4 md:w-5 h-4 md:h-5 rounded-full object-cover" />
                     ) : (
-                      <span className="w-5 h-5 rounded-full bg-primary flex items-center justify-center text-[9px] font-bold text-canvas">
+                      <span className="w-4 md:w-5 h-4 md:h-5 rounded-full bg-primary flex items-center justify-center text-[7px] md:text-[9px] font-bold text-canvas">
                         {featured.authorName.charAt(0)}
                       </span>
                     )}
                     {featured.authorName}
                   </span>
-                  <span className="flex items-center gap-1.5 tabular-nums">
-                    <Clock size={13} />
+                  <span className="flex items-center gap-1 md:gap-1.5 tabular-nums">
+                    <Clock size={11} />
                     {featured.readTime}m
                   </span>
-                  <span className="flex items-center gap-1.5 tabular-nums">
-                    <Eye size={13} />
+                  <span className="flex items-center gap-1 md:gap-1.5 tabular-nums">
+                    <Eye size={11} />
                     {featured.views.toLocaleString()}
                   </span>
-                  <span className="flex items-center gap-1.5 tabular-nums">
-                    <Heart size={13} />
+                  <span className="flex items-center gap-1 md:gap-1.5 tabular-nums">
+                    <Heart size={11} />
                     {featured.likes}
                   </span>
-                  <span>{formatDistanceToNow(new Date(featured.publishedAt), { addSuffix: true })}</span>
-                  <span className="ml-auto flex items-center gap-1.5 text-primary font-medium group-hover:gap-3 transition-all">
-                    Read Article <ArrowRight size={15} />
+                  <span className="hidden md:inline">{formatDistanceToNow(new Date(featured.publishedAt), { addSuffix: true })}</span>
+                  <span className="ml-auto flex items-center gap-1 md:gap-1.5 text-primary font-medium group-hover:gap-3 transition-all text-[10px] md:text-sm">
+                    Read Article <ArrowRight size={12} />
                   </span>
                 </div>
               </div>
@@ -176,30 +176,30 @@ export default function HomePage() {
 
       {/* Trending Sidebar Section */}
       {topPosts.length > 0 && (
-        <section className="px-4 pb-28">
+        <section className="px-4 pb-16 md:pb-28">
           <div className="max-w-5xl mx-auto">
-            <div className="rounded-3xl border border-border bg-surface p-8">
-              <h2 className="font-heading text-xl font-bold text-primary mb-6 flex items-center gap-2 tracking-tight">
-                <TrendingUp size={18} className="text-secondary" />
+            <div className="rounded-2xl md:rounded-3xl border border-border bg-surface p-4 md:p-8">
+              <h2 className="font-heading text-base md:text-xl font-bold text-primary mb-4 md:mb-6 flex items-center gap-2 tracking-tight">
+                <TrendingUp size={15} className="text-secondary" />
                 Most Read This Month
               </h2>
-              <div className="space-y-5">
+              <div className="space-y-3 md:space-y-5">
                 {topPosts.map((post, i) => (
                   <button
                     key={post.id}
                     onClick={() => openPost(post)}
-                    className="w-full text-left flex items-start gap-4 group cursor-pointer"
+                    className="w-full text-left flex items-start gap-3 md:gap-4 group cursor-pointer"
                   >
-                    <span className="text-3xl font-bold text-raised leading-none mt-0.5 tabular-nums group-hover:text-muted transition-colors">
+                    <span className="text-xl md:text-3xl font-bold text-raised leading-none mt-0.5 tabular-nums group-hover:text-muted transition-colors">
                       {String(i + 1).padStart(2, '0')}
                     </span>
-                    <div>
-                      <h3 className="text-sm font-semibold text-primary group-hover:text-primary/80 transition-colors leading-snug mb-1 tracking-tight">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-xs md:text-sm font-semibold text-primary group-hover:text-primary/80 transition-colors leading-snug mb-0.5 md:mb-1 tracking-tight line-clamp-2">
                         {post.title}
                       </h3>
-                      <p className="text-xs text-secondary flex items-center gap-2 tabular-nums">
-                        <Eye size={11} /> {post.views.toLocaleString()}
-                        <Clock size={11} /> {post.readTime}m
+                      <p className="text-[10px] md:text-xs text-secondary flex items-center gap-1.5 md:gap-2 tabular-nums">
+                        <Eye size={10} /> {post.views.toLocaleString()}
+                        <Clock size={10} /> {post.readTime}m
                       </p>
                     </div>
                   </button>

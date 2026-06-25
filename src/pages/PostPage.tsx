@@ -132,58 +132,58 @@ export default function PostPage() {
         />
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 pt-24 pb-20">
+      <div className="max-w-4xl mx-auto px-4 pt-20 md:pt-24 pb-16 md:pb-20">
 
         {/* Back */}
         <button
           onClick={() => setCurrentPage('blog')}
-          className="flex items-center gap-2 text-sm text-secondary hover:text-primary transition-colors mb-10"
+          className="flex items-center gap-1.5 md:gap-2 text-[10px] md:text-sm text-secondary hover:text-primary transition-colors mb-4 md:mb-10"
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={13} />
           Back to Archive
         </button>
 
         {/* Cover Image */}
         {post.coverImage && (
-          <div className="mb-10 -mx-4 md:-mx-8 rounded-2xl overflow-hidden">
+          <div className="mb-4 md:mb-10 -mx-4 md:-mx-8 rounded-xl md:rounded-2xl overflow-hidden">
             <img
               src={post.coverImage}
               alt={post.title}
-              className="w-full h-64 md:h-96 object-cover"
+              className="w-full h-40 md:h-96 object-cover"
             />
           </div>
         )}
 
         {/* Tags */}
-        <div className="flex flex-wrap gap-2 mb-6">
+        <div className="flex flex-wrap gap-1.5 md:gap-2 mb-3 md:mb-6">
           {post.tags.map(tag => (
-            <span key={tag} className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-raised text-secondary">
-              <Tag size={10} />
+            <span key={tag} className="flex items-center gap-1 md:gap-1.5 text-[10px] md:text-xs px-1.5 md:px-3 py-0.5 md:py-1 rounded-full bg-raised text-secondary">
+              <Tag size={8} />
               {tag}
             </span>
           ))}
           {post.auditScore && (
-            <span className="flex items-center gap-1.5 text-xs px-3 py-1 rounded-full bg-primary/10 text-primary border border-muted">
-              <Shield size={10} />
+            <span className="flex items-center gap-1 md:gap-1.5 text-[10px] md:text-xs px-1.5 md:px-3 py-0.5 md:py-1 rounded-full bg-primary/10 text-primary border border-muted">
+              <Shield size={8} />
               Verified {post.auditScore}/100
             </span>
           )}
         </div>
 
         {/* Title */}
-        <h1 className="font-heading text-4xl md:text-6xl font-bold text-primary leading-tight mb-6">
+        <h1 className="font-heading text-2xl md:text-6xl font-bold text-primary leading-tight mb-3 md:mb-6">
           {post.title}
         </h1>
 
         {/* Excerpt */}
-        <p className="text-xl text-secondary leading-relaxed mb-8 border-l-4 border-primary pl-5">
+        <p className="text-sm md:text-xl text-secondary leading-relaxed mb-4 md:mb-8 border-l-2 md:border-l-4 border-primary pl-3 md:pl-5">
           {post.excerpt}
         </p>
 
         {/* Meta bar */}
-        <div className="flex flex-wrap items-center gap-5 text-sm text-secondary pb-8 mb-8 border-b border-border">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-canvas overflow-hidden">
+        <div className="flex flex-wrap items-center gap-3 md:gap-5 text-[10px] md:text-sm text-secondary pb-4 md:pb-8 mb-4 md:mb-8 border-b border-border">
+          <div className="flex items-center gap-1.5 md:gap-2.5">
+            <div className="w-6 md:w-8 h-6 md:h-8 rounded-full bg-primary flex items-center justify-center text-[8px] md:text-xs font-bold text-canvas overflow-hidden">
               {post.authorAvatar || (post as any).avatar ? (
                 <img src={post.authorAvatar || (post as any).avatar} alt="" className="w-full h-full object-cover" />
               ) : (
@@ -191,45 +191,46 @@ export default function PostPage() {
               )}
             </div>
             <div>
-              <p className="text-primary font-medium text-sm leading-tight">{post.authorName}</p>
-              <p className="text-xs text-secondary">Author</p>
+              <p className="text-primary font-medium text-[10px] md:text-sm leading-tight">{post.authorName}</p>
+              <p className="hidden md:block text-[10px] md:text-xs text-secondary">Author</p>
             </div>
           </div>
 
-          <div className="h-4 w-px bg-border" />
+          <div className="h-3 md:h-4 w-px bg-border" />
 
-          <time dateTime={post.publishedAt} className="flex items-center gap-1.5">
-            <span>{format(new Date(post.publishedAt), 'MMMM d, yyyy')}</span>
+          <time dateTime={post.publishedAt} className="flex items-center gap-1 md:gap-1.5">
+            <span className="hidden md:inline">{format(new Date(post.publishedAt), 'MMMM d, yyyy')}</span>
+            <span className="md:hidden">{format(new Date(post.publishedAt), 'MMM d, yyyy')}</span>
           </time>
 
-          <span className="flex items-center gap-1.5">
-            <Clock size={13} />
-            {post.readTime} min read
+          <span className="flex items-center gap-0.5 md:gap-1.5">
+            <Clock size={11} />
+            {post.readTime}m
           </span>
 
-          <span className="flex items-center gap-1.5">
+          <span className="flex items-center gap-0.5 md:gap-1.5 hidden md:flex">
             <BookOpen size={13} />
             {post.wordCount?.toLocaleString()} words
           </span>
 
-          <span className="flex items-center gap-1.5">
-            <Eye size={13} />
-            {post.views.toLocaleString()} views
+          <span className="flex items-center gap-0.5 md:gap-1.5">
+            <Eye size={11} />
+            {post.views.toLocaleString()}
           </span>
 
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2 md:gap-3">
             <button
               onClick={handleLike}
-              className={`flex items-center gap-1.5 text-sm transition-colors ${liked ? 'text-red-400' : 'text-secondary hover:text-red-400'}`}
+              className={`flex items-center gap-1 md:gap-1.5 text-[10px] md:text-sm transition-colors ${liked ? 'text-red-400' : 'text-secondary hover:text-red-400'}`}
             >
-              <Heart size={15} className={liked ? 'fill-red-400' : ''} />
+              <Heart size={13} className={liked ? 'fill-red-400' : ''} />
               {post.likes + (liked ? 1 : 0)}
             </button>
             <button
               onClick={handleShare}
-              className="flex items-center gap-1.5 text-sm text-secondary hover:text-primary transition-colors"
+              className="flex items-center gap-1 md:gap-1.5 text-[10px] md:text-sm text-secondary hover:text-primary transition-colors"
             >
-              {copied ? <Check size={15} /> : <Share2 size={15} />}
+              {copied ? <Check size={13} /> : <Share2 size={13} />}
               {copied ? 'Copied!' : 'Share'}
             </button>
           </div>
@@ -237,17 +238,17 @@ export default function PostPage() {
 
         {/* Article Content */}
         <article
-          className="prose-premium"
+          className="prose-premium prose-premium-mobile"
           dangerouslySetInnerHTML={{ __html: htmlContent }}
         />
 
         {/* Keywords */}
         {post.keywords.length > 0 && (
-          <div className="mt-12 pt-8 border-t border-border">
-            <p className="text-xs text-secondary uppercase tracking-widest mb-3">Keywords</p>
-            <div className="flex flex-wrap gap-2">
+          <div className="mt-6 md:mt-12 pt-4 md:pt-8 border-t border-border">
+            <p className="text-[10px] md:text-xs text-secondary uppercase tracking-widest mb-2 md:mb-3">Keywords</p>
+            <div className="flex flex-wrap gap-1.5 md:gap-2">
               {post.keywords.map(kw => (
-                <span key={kw} className="text-xs px-3 py-1 rounded-full bg-raised text-secondary">
+                <span key={kw} className="text-[10px] md:text-xs px-1.5 md:px-3 py-0.5 md:py-1 rounded-full bg-raised text-secondary">
                   {kw}
                 </span>
               ))}
@@ -256,20 +257,20 @@ export default function PostPage() {
         )}
 
         {/* Share */}
-        <div className="mt-8 flex items-center justify-between">
+        <div className="mt-4 md:mt-8 flex items-center justify-between">
           <button
             onClick={() => setCurrentPage('blog')}
-            className="flex items-center gap-2 text-sm text-secondary hover:text-primary transition-colors"
+            className="flex items-center gap-1.5 md:gap-2 text-[10px] md:text-sm text-secondary hover:text-primary transition-colors"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={13} />
             Back to Archive
           </button>
           <button
             onClick={handleShare}
-            className="flex items-center gap-2 text-sm bg-surface border border-border hover:border-primary/50 text-primary px-4 py-2 rounded-full transition-colors"
+            className="flex items-center gap-1.5 md:gap-2 text-[10px] md:text-sm bg-surface border border-border hover:border-primary/50 text-primary px-2.5 md:px-4 py-1.5 md:py-2 rounded-full transition-colors"
           >
-            <Share2 size={14} />
-            {copied ? 'Copied!' : 'Share Article'}
+            <Share2 size={12} />
+            {copied ? 'Copied!' : 'Share'}
           </button>
         </div>
       </div>

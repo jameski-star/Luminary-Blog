@@ -22,7 +22,7 @@ function FormatButton({ icon, label, onClick, active }: { icon: React.ReactNode;
     <button
       onClick={onClick}
       title={label}
-      className={`p-1.5 rounded-lg transition-colors ${
+      className={`p-1 md:p-1.5 rounded-lg transition-colors ${
         active ? 'bg-primary/20 text-primary' : 'text-secondary hover:text-primary hover:bg-raised'
       }`}
     >
@@ -302,29 +302,29 @@ export default function EditorPage() {
       <div className="max-w-5xl mx-auto px-4 py-8">
 
         {/* Toolbar */}
-        <div className="flex items-center justify-between mb-6">
-          <button onClick={() => setCurrentPage('dashboard')} className="flex items-center gap-2 text-sm text-secondary hover:text-primary transition-colors">
-            <ArrowLeft size={16} /> Dashboard
+        <div className="flex items-center justify-between mb-4 md:mb-6">
+          <button onClick={() => setCurrentPage('dashboard')} className="flex items-center gap-1.5 md:gap-2 text-xs md:text-sm text-secondary hover:text-primary transition-colors">
+            <ArrowLeft size={14} /> Dashboard
           </button>
 
-          <div className="flex items-center gap-2 text-xs text-secondary">
-            <span>{wordCount.toLocaleString()} words</span>
-            <span>·</span>
-            <span>{readTime} min read</span>
+          <div className="flex items-center gap-1.5 md:gap-2 text-[10px] md:text-xs text-secondary">
+            <span>{wordCount.toLocaleString()}w</span>
+            <span className="hidden md:inline">·</span>
+            <span className="hidden md:inline">{readTime} min read</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 md:gap-2">
             <button
               onClick={() => setPreview(!preview)}
-              className="flex items-center gap-2 text-sm text-secondary hover:text-primary transition-colors px-3 py-1.5 rounded-lg border border-border hover:border-primary/30"
+              className="flex items-center gap-1 md:gap-2 text-xs md:text-sm text-secondary hover:text-primary transition-colors px-2 md:px-3 py-1.5 rounded-lg border border-border hover:border-primary/30"
             >
-              {preview ? <EyeOff size={14} /> : <Eye size={14} />}
-              {preview ? 'Edit' : 'Preview'}
+              {preview ? <EyeOff size={13} /> : <Eye size={13} />}
+              <span className="hidden md:inline">{preview ? 'Edit' : 'Preview'}</span>
             </button>
             <button
               onClick={() => publishPost('draft')}
               disabled={!canPublish}
-              className="flex items-center gap-2 text-sm text-secondary hover:text-primary transition-colors px-3 py-1.5 rounded-lg border border-border hover:border-primary/30 disabled:opacity-40"
+              className="hidden md:flex items-center gap-2 text-sm text-secondary hover:text-primary transition-colors px-3 py-1.5 rounded-lg border border-border hover:border-primary/30 disabled:opacity-40"
             >
               <Save size={14} />
               Save Draft
@@ -332,15 +332,16 @@ export default function EditorPage() {
             <button
               onClick={() => publishPost('published')}
               disabled={!canPublish}
-              className="flex items-center gap-2 text-sm bg-primary hover:bg-white text-canvas font-semibold px-4 py-1.5 rounded-lg disabled:opacity-40 transition-all"
+              className="flex items-center gap-1 md:gap-2 text-xs md:text-sm bg-primary hover:bg-white text-canvas font-semibold px-3 md:px-4 py-1.5 rounded-lg disabled:opacity-40 transition-all"
             >
-              <Send size={14} />
-              Publish
+              <Send size={12} />
+              <span className="hidden md:inline">Publish</span>
+              <span className="md:hidden">Pub</span>
             </button>
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
+        <div className="grid lg:grid-cols-3 gap-4 md:gap-6">
           {/* Main Editor */}
           <div className="lg:col-span-2">
             {/* Title */}
@@ -349,17 +350,17 @@ export default function EditorPage() {
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder="Article title…"
-              className="w-full bg-transparent text-primary font-heading text-4xl font-bold outline-none mb-6 placeholder-raised border-b border-border pb-4 focus:border-primary/40 transition-colors"
+              className="w-full bg-transparent text-primary font-heading text-2xl md:text-4xl font-bold outline-none mb-4 md:mb-6 placeholder-raised border-b border-border pb-3 md:pb-4 focus:border-primary/40 transition-colors"
             />
 
             {/* Formatting Toolbar */}
-            <div className="flex items-center gap-1 px-3 py-2 mb-3 rounded-xl border border-border bg-surface flex-wrap">
-              <FormatButton icon={<LayoutTemplate size={15} />} label="Templates" onClick={() => setShowTemplates(true)} />
-              <span className="w-px h-5 bg-border mx-1" />
+            <div className="flex items-center gap-0.5 md:gap-1 px-2 md:px-3 py-1.5 md:py-2 mb-3 rounded-xl border border-border bg-surface flex-wrap">
+              <FormatButton icon={<LayoutTemplate size={13} />} label="Templates" onClick={() => setShowTemplates(true)} />
+              <span className="w-px h-4 bg-border mx-0.5 md:mx-1" />
               <select
                 value={writingFont}
                 onChange={e => setWritingFont(e.target.value)}
-                className="text-xs bg-canvas border border-border rounded-lg px-2 py-1.5 text-primary outline-none focus:border-primary/40 cursor-pointer max-w-[120px]"
+                className="text-[10px] md:text-xs bg-canvas border border-border rounded-lg px-1 md:px-2 py-1 md:py-1.5 text-primary outline-none focus:border-primary/40 cursor-pointer max-w-[80px] md:max-w-[120px]"
                 style={{ fontFamily: writingFont }}
               >
                 {PREMIUM_FONTS.map(f => (
@@ -368,19 +369,19 @@ export default function EditorPage() {
                   </option>
                 ))}
               </select>
-              <span className="w-px h-5 bg-border mx-1" />
-              <FormatButton icon={<Bold size={15} />} label="Bold" onClick={() => execFormat('bold')} />
-              <FormatButton icon={<Italic size={15} />} label="Italic" onClick={() => execFormat('italic')} />
-              <span className="w-px h-5 bg-border mx-1" />
-              <FormatButton icon={<Heading1 size={15} />} label="Heading 1" onClick={() => execFormat('formatBlock', 'h1')} />
-              <FormatButton icon={<Heading2 size={15} />} label="Heading 2" onClick={() => execFormat('formatBlock', 'h2')} />
-              <FormatButton icon={<Heading3 size={15} />} label="Heading 3" onClick={() => execFormat('formatBlock', 'h3')} />
-              <span className="w-px h-5 bg-border mx-1" />
-              <FormatButton icon={<Quote size={15} />} label="Blockquote" onClick={() => execFormat('formatBlock', 'blockquote')} />
-              <FormatButton icon={<List size={15} />} label="Bullet List" onClick={() => execFormat('insertUnorderedList')} />
-              <FormatButton icon={<ListOrdered size={15} />} label="Numbered List" onClick={() => execFormat('insertOrderedList')} />
-              <span className="w-px h-5 bg-border mx-1" />
-              <FormatButton icon={<Link2 size={15} />} label="Link" onClick={async () => {
+              <span className="w-px h-4 bg-border mx-0.5 md:mx-1" />
+              <FormatButton icon={<Bold size={13} />} label="Bold" onClick={() => execFormat('bold')} />
+              <FormatButton icon={<Italic size={13} />} label="Italic" onClick={() => execFormat('italic')} />
+              <span className="w-px h-4 bg-border mx-0.5 md:mx-1 hidden md:block" />
+              <FormatButton icon={<Heading1 size={13} />} label="H1" onClick={() => execFormat('formatBlock', 'h1')} />
+              <FormatButton icon={<Heading2 size={13} />} label="H2" onClick={() => execFormat('formatBlock', 'h2')} />
+              <FormatButton icon={<Heading3 size={13} />} label="H3" onClick={() => execFormat('formatBlock', 'h3')} />
+              <span className="w-px h-4 bg-border mx-0.5 md:mx-1" />
+              <FormatButton icon={<Quote size={13} />} label="Blockquote" onClick={() => execFormat('formatBlock', 'blockquote')} />
+              <FormatButton icon={<List size={13} />} label="List" onClick={() => execFormat('insertUnorderedList')} />
+              <FormatButton icon={<ListOrdered size={13} />} label="OL" onClick={() => execFormat('insertOrderedList')} />
+              <span className="w-px h-4 bg-border mx-0.5 md:mx-1" />
+              <FormatButton icon={<Link2 size={13} />} label="Link" onClick={async () => {
                 const sel = window.getSelection();
                 const editor = editorRef.current;
                 let savedRange: Range | null = null;
@@ -403,7 +404,7 @@ export default function EditorPage() {
                 }
                 document.execCommand('insertHTML', false, `<a href="${url.replace(/"/g, '&quot;')}">${displayText}</a>`);
               }} />
-              <FormatButton icon={<Image size={15} />} label="Image" onClick={insertImage} />
+              <FormatButton icon={<Image size={13} />} label="Image" onClick={insertImage} />
             </div>
 
             {/* Editor / Preview */}
@@ -419,10 +420,10 @@ export default function EditorPage() {
               }}
               onClick={() => setContextMenu(null)}
               suppressContentEditableWarning
-              className={`w-full bg-transparent text-primary text-base outline-none leading-relaxed min-h-[60vh] ${
-                preview ? '' : 'border border-border rounded-2xl p-5'
+              className={`w-full bg-transparent text-primary text-sm md:text-base outline-none leading-relaxed min-h-[50vh] md:min-h-[60vh] ${
+                preview ? '' : 'border border-border rounded-xl md:rounded-2xl p-3 md:p-5'
               } ${preview ? 'prose-premium' : ''}`}
-              style={preview ? {} : { minHeight: '60vh', fontFamily: writingFont }}
+              style={preview ? {} : { minHeight: '50vh', fontFamily: writingFont }}
             />
 
             {/* Context Menu */}
@@ -466,61 +467,81 @@ export default function EditorPage() {
                 </div>
               </>
             )}
+
+            {/* Mobile Publish / Save buttons at end of writing board */}
+            <div className="md:hidden flex items-center gap-2 mt-4">
+              <button
+                onClick={() => publishPost('draft')}
+                disabled={!canPublish}
+                className="flex-1 flex items-center justify-center gap-2 text-sm text-secondary hover:text-primary transition-colors px-3 py-2.5 rounded-xl border border-border hover:border-primary/30 disabled:opacity-40"
+              >
+                <Save size={14} />
+                Save Draft
+              </button>
+              <button
+                onClick={() => publishPost('published')}
+                disabled={!canPublish}
+                className="flex-1 flex items-center justify-center gap-2 text-sm bg-primary hover:bg-white text-canvas font-semibold px-4 py-2.5 rounded-xl disabled:opacity-40 transition-all"
+              >
+                <Send size={14} />
+                Publish
+              </button>
+            </div>
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-4">
+          <div className="space-y-3 md:space-y-4">
 
             {/* Tags */}
-            <div className="rounded-2xl border border-border bg-surface p-5">
-              <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3">Categories</h3>
-              <div className="flex gap-2 mb-3">
+            <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-5">
+              <h3 className="text-[10px] md:text-xs font-semibold text-secondary uppercase tracking-wider mb-2 md:mb-3">Categories</h3>
+              <div className="flex gap-1.5 md:gap-2 mb-2 md:mb-3">
                 <input
                   type="text"
                   value={tagInput}
                   onChange={e => setTagInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
                   placeholder="Add tag…"
-                  className="flex-1 bg-canvas border border-border rounded-lg px-3 py-2 text-primary text-xs outline-none focus:border-primary/60"
+                  className="flex-1 bg-canvas border border-border rounded-lg px-2 md:px-3 py-1.5 md:py-2 text-primary text-[10px] md:text-xs outline-none focus:border-primary/60"
                 />
-                <button onClick={addTag} className="px-2.5 bg-raised rounded-lg hover:bg-muted transition-colors">
-                  <Plus size={14} className="text-primary" />
+                <button onClick={addTag} className="px-2 md:px-2.5 bg-raised rounded-lg hover:bg-muted transition-colors">
+                  <Plus size={12} className="text-primary" />
                 </button>
               </div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1 md:gap-1.5">
                 {tags.map(t => (
-                  <span key={t} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-raised text-secondary">
+                  <span key={t} className="flex items-center gap-1 text-[10px] md:text-xs px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full bg-raised text-secondary">
                     {t}
-                    <button onClick={() => setTags(tags.filter(x => x !== t))}><X size={10} /></button>
+                    <button onClick={() => setTags(tags.filter(x => x !== t))}><X size={8} /></button>
                   </span>
                 ))}
               </div>
             </div>
 
             {/* Cover Image */}
-            <div className="rounded-2xl border border-border bg-surface p-5">
-              <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                <Image size={12} className="text-secondary" />
+            <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-5">
+              <h3 className="text-[10px] md:text-xs font-semibold text-secondary uppercase tracking-wider mb-2 md:mb-3 flex items-center gap-1.5">
+                <Image size={10} className="text-secondary" />
                 Cover Image
               </h3>
               {coverImage ? (
-                <div className="relative mb-3">
-                  <img src={coverImage} alt="Cover" className="w-full h-32 object-cover rounded-xl" />
+                <div className="relative mb-2 md:mb-3">
+                  <img src={coverImage} alt="Cover" className="w-full h-24 md:h-32 object-cover rounded-xl" />
                   <button
                     onClick={() => setCoverImage('')}
-                    className="absolute top-2 right-2 bg-black/60 text-white p-1 rounded-lg hover:bg-black/80 transition-colors"
+                    className="absolute top-1.5 right-1.5 bg-black/60 text-white p-0.5 md:p-1 rounded-lg hover:bg-black/80 transition-colors"
                   >
-                    <X size={14} />
+                    <X size={12} />
                   </button>
                 </div>
               ) : (
-                <div className="mb-3">
+                <div className="mb-2 md:mb-3">
                   <button
                     onClick={() => coverInputRef.current?.click()}
-                    className="w-full flex items-center justify-center gap-2 py-8 border-2 border-dashed border-border rounded-xl text-secondary hover:text-primary hover:border-primary/40 transition-colors"
+                    className="w-full flex items-center justify-center gap-1.5 md:gap-2 py-4 md:py-8 border-2 border-dashed border-border rounded-xl text-secondary hover:text-primary hover:border-primary/40 transition-colors"
                   >
-                    <Upload size={20} />
-                    <span className="text-sm">Upload Cover Image</span>
+                    <Upload size={16} />
+                    <span className="text-[10px] md:text-sm">Upload Cover Image</span>
                   </button>
                   <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={e => {
                     const file = e.target.files?.[0];
@@ -532,38 +553,38 @@ export default function EditorPage() {
                   }} />
                 </div>
               )}
-              <div className="flex gap-2">
+              <div className="flex gap-1.5 md:gap-2">
                 <input
                   type="text"
                   value={coverImage}
                   onChange={e => setCoverImage(e.target.value)}
                   placeholder="Or paste image URL…"
-                  className="flex-1 bg-canvas border border-border rounded-lg px-3 py-2 text-primary text-xs outline-none focus:border-primary/60"
+                  className="flex-1 bg-canvas border border-border rounded-lg px-2 md:px-3 py-1.5 md:py-2 text-primary text-[10px] md:text-xs outline-none focus:border-primary/60"
                 />
               </div>
             </div>
 
             {/* Keywords */}
-            <div className="rounded-2xl border border-border bg-surface p-5">
-              <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3">Keywords</h3>
-              <div className="flex gap-2 mb-3">
+            <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-5">
+              <h3 className="text-[10px] md:text-xs font-semibold text-secondary uppercase tracking-wider mb-2 md:mb-3">Keywords</h3>
+              <div className="flex gap-1.5 md:gap-2 mb-2 md:mb-3">
                 <input
                   type="text"
                   value={keywordInput}
                   onChange={e => setKeywordInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addKeyword(); } }}
                   placeholder="Add keyword…"
-                  className="flex-1 bg-canvas border border-border rounded-lg px-3 py-2 text-primary text-xs outline-none focus:border-primary/60"
+                  className="flex-1 bg-canvas border border-border rounded-lg px-2 md:px-3 py-1.5 md:py-2 text-primary text-[10px] md:text-xs outline-none focus:border-primary/60"
                 />
-                <button onClick={addKeyword} className="px-2.5 bg-raised rounded-lg hover:bg-muted transition-colors">
-                  <Plus size={14} className="text-primary" />
+                <button onClick={addKeyword} className="px-2 md:px-2.5 bg-raised rounded-lg hover:bg-muted transition-colors">
+                  <Plus size={12} className="text-primary" />
                 </button>
               </div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1 md:gap-1.5">
                 {keywords.map(k => (
-                  <span key={k} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-raised text-secondary">
+                  <span key={k} className="flex items-center gap-1 text-[10px] md:text-xs px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full bg-raised text-secondary">
                     {k}
-                    <button onClick={() => setKeywords(keywords.filter(x => x !== k))}><X size={10} /></button>
+                    <button onClick={() => setKeywords(keywords.filter(x => x !== k))}><X size={8} /></button>
                   </span>
                 ))}
               </div>
@@ -571,59 +592,59 @@ export default function EditorPage() {
 
             {/* Rogue Content Warning */}
             {rogueWarning && (
-              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5">
-                <div className="flex items-start gap-2.5 text-amber-400 text-xs">
-                  <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+              <div className="rounded-xl md:rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 md:p-5">
+                <div className="flex items-start gap-1.5 md:gap-2.5 text-amber-400 text-[10px] md:text-xs">
+                  <AlertTriangle size={12} className="mt-0.5 shrink-0" />
                   <div>
-                    <p className="font-semibold mb-1">Suspicious Content Detected</p>
+                    <p className="font-semibold mb-0.5 md:mb-1">Suspicious Content Detected</p>
                     <p>{rogueWarning}</p>
-                    <p className="mt-1">Publishing will route to admin review.</p>
+                    <p className="mt-0.5 md:mt-1">Publishing will route to admin review.</p>
                   </div>
                 </div>
               </div>
             )}
 
             {/* Validation */}
-            <div className="rounded-2xl border border-border bg-surface p-5">
-              <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                <Shield size={12} className="text-secondary" />
+            <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-5">
+              <h3 className="text-[10px] md:text-xs font-semibold text-secondary uppercase tracking-wider mb-2 md:mb-3 flex items-center gap-1.5">
+                <Shield size={10} className="text-secondary" />
                 Authenticity Check
               </h3>
 
               {!geminiKey && (
-                <div className="flex items-start gap-2 bg-muted/30 border border-muted/50 rounded-xl p-3 mb-3 text-xs text-secondary">
-                  <Info size={12} className="mt-0.5 shrink-0" />
+                <div className="flex items-start gap-1.5 md:gap-2 bg-muted/30 border border-muted/50 rounded-xl p-2 md:p-3 mb-2 md:mb-3 text-[10px] md:text-xs text-secondary">
+                  <Info size={10} className="mt-0.5 shrink-0" />
                   Add Gemini API key in AutoPost to validate
                 </div>
               )}
 
               {validationError && (
-                <div className="flex items-start gap-2 p-3 rounded-xl border border-border bg-surface mb-3 text-xs text-secondary">
-                  <AlertTriangle size={12} className="text-amber-400 mt-0.5 shrink-0" />
+                <div className="flex items-start gap-1.5 md:gap-2 p-2 md:p-3 rounded-xl border border-border bg-surface mb-2 md:mb-3 text-[10px] md:text-xs text-secondary">
+                  <AlertTriangle size={10} className="text-amber-400 mt-0.5 shrink-0" />
                   {validationError}
                 </div>
               )}
 
               {auditResult && (
-                <div className={`rounded-xl p-3 mb-3 border ${
+                <div className={`rounded-xl p-2 md:p-3 mb-2 md:mb-3 border ${
                   auditResult.score >= 80 ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'
                 }`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-primary">Score</span>
-                    <span className={`text-lg font-bold ${auditResult.score >= 80 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <div className="flex items-center justify-between mb-1 md:mb-2">
+                    <span className="text-[10px] md:text-xs font-medium text-primary">Score</span>
+                    <span className={`text-base md:text-lg font-bold ${auditResult.score >= 80 ? 'text-emerald-400' : 'text-red-400'}`}>
                       {auditResult.score}/100
                     </span>
                   </div>
                   {auditResult.vulnerabilities.length > 0 && (
-                    <ul className="space-y-1">
+                    <ul className="space-y-0.5 md:space-y-1">
                       {auditResult.vulnerabilities.slice(0, 3).map((v, i) => (
-                        <li key={i} className="text-xs text-secondary line-clamp-2">• {v}</li>
+                        <li key={i} className="text-[10px] md:text-xs text-secondary line-clamp-2">• {v}</li>
                       ))}
                     </ul>
                   )}
                   {auditResult.passedCheck && (
-                    <div className="flex items-center gap-1.5 text-xs text-emerald-400 mt-2">
-                      <CheckCircle size={12} />
+                    <div className="flex items-center gap-1 md:gap-1.5 text-[10px] md:text-xs text-emerald-400 mt-1 md:mt-2">
+                      <CheckCircle size={10} />
                       Passed authenticity check
                     </div>
                   )}
@@ -633,20 +654,20 @@ export default function EditorPage() {
               <button
                 onClick={runValidation}
                 disabled={validating || !geminiKey || wordCount < 100}
-                className="w-full flex items-center justify-center gap-2 text-xs font-medium bg-raised hover:bg-muted disabled:opacity-40 text-primary py-2.5 rounded-xl transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 md:gap-2 text-[10px] md:text-xs font-medium bg-raised hover:bg-muted disabled:opacity-40 text-primary py-2 md:py-2.5 rounded-xl transition-colors"
               >
                 {validating ? (
-                  <><div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />Validating…</>
+                  <><div className="w-2.5 h-2.5 md:w-3 md:h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />Validating…</>
                 ) : (
-                  <><Shield size={13} />Run Validation</>
+                  <><Shield size={11} />Run Validation</>
                 )}
               </button>
             </div>
 
             {/* Markdown Reference */}
-            <div className="rounded-2xl border border-border bg-surface p-5">
-              <h3 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-3">Formatting Reference</h3>
-              <div className="space-y-1.5 text-xs font-mono text-secondary">
+            <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-5">
+              <h3 className="text-[10px] md:text-xs font-semibold text-secondary uppercase tracking-wider mb-2 md:mb-3">Formatting Reference</h3>
+              <div className="space-y-1 md:space-y-1.5 text-[10px] md:text-xs font-mono text-secondary">
                 {[
                   ['Ctrl+B', 'Bold'],
                   ['Ctrl+I', 'Italic'],
@@ -654,7 +675,7 @@ export default function EditorPage() {
                   ['Select text then click a tool', 'Apply formatting'],
                 ].map(([syntax, label]) => (
                   <div key={label} className="flex items-center justify-between">
-                    <code className="bg-canvas px-2 py-0.5 rounded text-primary">{syntax}</code>
+                    <code className="bg-canvas px-1.5 md:px-2 py-0.5 rounded text-primary">{syntax}</code>
                     <span className="text-secondary">{label}</span>
                   </div>
                 ))}
