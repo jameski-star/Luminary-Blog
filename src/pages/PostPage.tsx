@@ -21,6 +21,9 @@ export default function PostPage() {
   const localPost = selectedPostId ? getPost(selectedPostId) : null;
   const post = apiPost || localPost;
 
+  const contentStripped = (post?.content || '').replace(/[#*`>\[\]]/g, '').trim();
+  const excerptIsDuplicate = !!post?.excerpt && contentStripped.startsWith(post.excerpt);
+
   useEffect(() => {
     if (!selectedPostId) return;
     const found = getPost(selectedPostId);
@@ -175,10 +178,12 @@ export default function PostPage() {
           {post.title}
         </h1>
 
-        {/* Excerpt */}
-        <p className="text-sm md:text-xl text-secondary leading-relaxed mb-4 md:mb-8 border-l-2 md:border-l-4 border-primary pl-3 md:pl-5">
-          {post.excerpt}
-        </p>
+        {/* Excerpt — hidden if it's just auto-generated from the first 160 chars of content */}
+        {post.excerpt && !excerptIsDuplicate && (
+          <p className="text-sm md:text-xl text-secondary leading-relaxed mb-4 md:mb-8 border-l-2 md:border-l-4 border-primary pl-3 md:pl-5">
+            {post.excerpt}
+          </p>
+        )}
 
         {/* Meta bar */}
         <div className="flex flex-wrap items-center gap-3 md:gap-5 text-[10px] md:text-sm text-secondary pb-4 md:pb-8 mb-4 md:mb-8 border-b border-border">

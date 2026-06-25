@@ -6,7 +6,7 @@ import { api, isApiMode } from '../services/api';
 import type { PipelineStage, PipelineResult } from '../types';
 import { generateSlug, calcReadTime } from '../store/appStore';
 import { detectRogueContent } from '../utils/contentDetection';
-import { friendlyError } from '../utils/errors';
+import { friendlyError, isCongestionError, isQuotaError } from '../utils/errors';
 import type { BlogPost } from '../types';
 import {
   Zap, Key, X, CheckCircle, AlertTriangle, Clock, Plus,
@@ -85,36 +85,54 @@ export default function AutoPostPage() {
       { name: 'Polishing for Human Cadence', status: 'pending' },
     ]);
 
-    try {
-      let pipelineResult;
+    const MAX_RETRIES = 3;
+    let lastError: unknown;
 
-      if (isApiMode()) {
-        setStages([
-          { name: 'Drafting Deep-Dive Content', status: 'running' },
-          { name: 'Authenticity & Fact-Check Audit', status: 'pending' },
-          { name: 'Polishing for Human Cadence', status: 'pending' },
-        ]);
-        pipelineResult = await api.gemini.pipeline({ topic: topic.trim(), keywords });
-        setStages([
-          { name: 'Drafting Deep-Dive Content', status: 'done' },
-          { name: 'Authenticity & Fact-Check Audit', status: 'done' },
-          { name: 'Polishing for Human Cadence', status: 'done' },
-        ]);
-      } else {
-        pipelineResult = await executeAutopostPipeline(
-          topic.trim(),
-          keywords,
-          geminiKey,
-          (updatedStages) => setStages(updatedStages)
-        );
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        let pipelineResult;
+
+        if (isApiMode()) {
+          setStages([
+            { name: attempt > 1 ? `Drafting Deep-Dive Content (retry ${attempt})` : 'Drafting Deep-Dive Content', status: 'running' },
+            { name: 'Authenticity & Fact-Check Audit', status: 'pending' },
+            { name: 'Polishing for Human Cadence', status: 'pending' },
+          ]);
+          pipelineResult = await api.gemini.pipeline({ topic: topic.trim(), keywords });
+          setStages([
+            { name: 'Drafting Deep-Dive Content', status: 'done' },
+            { name: 'Authenticity & Fact-Check Audit', status: 'done' },
+            { name: 'Polishing for Human Cadence', status: 'done' },
+          ]);
+        } else {
+          pipelineResult = await executeAutopostPipeline(
+            topic.trim(),
+            keywords,
+            geminiKey,
+            (updatedStages) => setStages(updatedStages)
+          );
+        }
+
+        setResult(pipelineResult as PipelineResult & { excerpt?: string; tags?: string[] });
+        setRunning(false);
+        return;
+      } catch (err: unknown) {
+        lastError = err;
+        if (attempt < MAX_RETRIES && (isCongestionError(err) || isQuotaError(err))) {
+          setStages([
+            { name: `Auto-retrying (${attempt}/${MAX_RETRIES})…`, status: 'running' },
+            { name: '', status: 'pending' },
+            { name: '', status: 'pending' },
+          ]);
+          await new Promise(r => setTimeout(r, 2000 * attempt));
+        } else {
+          break;
+        }
       }
-
-      setResult(pipelineResult as PipelineResult & { excerpt?: string; tags?: string[] });
-    } catch (err: unknown) {
-      setError(friendlyError(err));
-    } finally {
-      setRunning(false);
     }
+
+    setError(friendlyError(lastError));
+    setRunning(false);
   };
 
   const publishPost = () => {
