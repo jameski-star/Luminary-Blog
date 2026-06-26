@@ -67,3 +67,29 @@ export interface AuthState {
 }
 
 export type NavPage = 'home' | 'blog' | 'post' | 'editor' | 'autopost' | 'login' | 'signup' | 'profile' | 'dashboard' | 'admin' | 'privacy' | 'terms' | 'cookies';
+
+export interface KeywordResearch {
+  topic: string;
+  keywords: string[];
+  peopleAlsoAsk: { question: string; snippet: string }[];
+  relatedSearches: string[];
+  topRankingTitles: string[];
+  topRankingSnippets: string[];
+  missingKeywords: string[];
+}
+
+export interface CompetitorAnalysis {
+  url: string;
+  title: string;
+  snippet: string;
+  position: number;
+}
+
+export interface ContentOptimization {
+  titleScore: number;
+  contentScore: number;
+  titleSuggestions: string[];
+  contentSuggestions: string[];
+  missingKeywords: string[];
+  readabilityScore: number;
+}

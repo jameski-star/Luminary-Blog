@@ -8,9 +8,10 @@ import { generateSlug, calcReadTime } from '../store/appStore';
 import { detectRogueContent } from '../utils/contentDetection';
 
 import type { BlogPost } from '../types';
+import SeoInsights from '../components/SeoInsights';
 import {
   Zap, Key, X, CheckCircle, AlertTriangle, Clock, Plus,
-  Eye, Save, Send, ChevronDown, ChevronUp, Info
+  Eye, Save, Send, ChevronDown, ChevronUp, Info, TrendingUp
 } from 'lucide-react';
 import { marked } from 'marked';
 
@@ -357,6 +358,19 @@ export default function AutoPostPage() {
               The pipeline will run 3 sequential Gemini API calls. Average time: 2–5 minutes depending on article length. Content scoring below 65/100 is quarantined and routed to your draft queue instead of being published.
             </p>
           </div>
+        </div>
+
+        {/* SEO Insights */}
+        <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-6 mb-4 md:mb-6">
+          <h2 className="text-xs md:text-sm font-semibold text-primary mb-3 md:mb-4 flex items-center gap-1 md:gap-2">
+            <TrendingUp size={14} className="text-secondary" />
+            SEO Insights
+          </h2>
+          <SeoInsights
+            topic={topic}
+            keywords={keywords}
+            title={topic}
+          />
         </div>
 
         {/* Error */}

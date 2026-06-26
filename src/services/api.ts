@@ -145,4 +145,22 @@ export const api = {
       });
     },
   },
+
+  seo: {
+    keywords(body: { topic: string }) {
+      return request<import('../types').KeywordResearch>('/seo/keywords', {
+        method: 'POST', body: JSON.stringify(body),
+      });
+    },
+    competitors(body: { keyword: string }) {
+      return request<{ competitors: import('../types').CompetitorAnalysis[]; keyword: string }>('/seo/competitors', {
+        method: 'POST', body: JSON.stringify(body),
+      });
+    },
+    optimize(body: { title: string; content: string; keywords?: string[] }) {
+      return request<import('../types').ContentOptimization>('/seo/optimize', {
+        method: 'POST', body: JSON.stringify(body),
+      });
+    },
+  },
 };

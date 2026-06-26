@@ -11,11 +11,12 @@ import { marked } from 'marked';
 import { getTemplates, getTemplateCategories } from '../utils/templates';
 import type { PostTemplate } from '../utils/templates';
 import type { BlogPost, AuditResult } from '../types';
+import SeoInsights from '../components/SeoInsights';
 import {
   Save, Send, Eye, EyeOff, Plus, X, Shield,
   AlertTriangle, CheckCircle, Info, ArrowLeft,
   Bold, Italic, Link2, Heading1, Heading2, Heading3, Image, Upload,
-  Quote, List, ListOrdered, LayoutTemplate
+  Quote, List, ListOrdered, LayoutTemplate, TrendingUp
 } from 'lucide-react';
 
 function FormatButton({ icon, label, onClick, active, onPointerDown }: { icon: React.ReactNode; label: string; onClick: () => void; active?: boolean; onPointerDown?: () => void }) {
@@ -774,6 +775,20 @@ export default function EditorPage() {
                   </span>
                 ))}
               </div>
+            </div>
+
+            {/* SEO Insights */}
+            <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-5">
+              <h3 className="text-[10px] md:text-xs font-semibold text-secondary uppercase tracking-wider mb-2 md:mb-3 flex items-center gap-1.5">
+                <TrendingUp size={10} className="text-secondary" />
+                SEO Insights
+              </h3>
+              <SeoInsights
+                topic={title}
+                keywords={keywords}
+                content={getContentMarkdown()}
+                title={title}
+              />
             </div>
 
             {/* Smart Format */}

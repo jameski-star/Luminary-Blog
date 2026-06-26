@@ -15,6 +15,7 @@ import authRoutes from './routes/auth.js';
 import postRoutes from './routes/posts.js';
 import adminRoutes from './routes/admin.js';
 import geminiRoutes from './routes/gemini.js';
+import seoRoutes from './routes/seo.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -283,6 +284,7 @@ async function start() {
     app.use('/api/posts', postRoutes);
     app.use('/api/admin', adminRoutes);
     app.use('/api/gemini', geminiRoutes);
+    app.use('/api/seo', seoRoutes);
 
     app.use('/api/*', (_req, res) => {
       res.status(404).json({ error: 'API endpoint not found.' });
