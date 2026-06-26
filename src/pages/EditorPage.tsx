@@ -568,9 +568,16 @@ export default function EditorPage() {
                 const html = e.clipboardData.getData('text/html');
                 const text = e.clipboardData.getData('text/plain');
                 if (html) {
-                  document.execCommand('insertHTML', false, html);
+                  const md = htmlToMarkdown(html);
+                  const clean = marked.parse(md);
+                  document.execCommand('insertHTML', false, clean);
                 } else if (text) {
-                  document.execCommand('insertText', false, text);
+                  if (/[*#[\]`>_-]/.test(text)) {
+                    const rendered = marked.parse(text);
+                    document.execCommand('insertHTML', false, rendered);
+                  } else {
+                    document.execCommand('insertText', false, text);
+                  }
                 }
               }}
               onContextMenu={e => {
