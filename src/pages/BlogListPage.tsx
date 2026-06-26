@@ -146,7 +146,7 @@ function BlogRow({ post, rank, onClick, onLike }: {
         {/* Cover Thumbnail */}
         {post.coverImage && (
           <div className="w-16 md:w-24 shrink-0 hidden sm:block">
-            <img src={post.coverImage} alt="" className="w-full h-full object-cover" />
+            <img src={post.coverImage} alt="" loading="lazy" className="w-full h-full object-cover" />
           </div>
         )}
 

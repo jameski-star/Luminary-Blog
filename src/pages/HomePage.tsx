@@ -91,7 +91,7 @@ export default function HomePage() {
             >
               {featured.coverImage && (
                 <div className="w-full h-40 md:h-80 overflow-hidden">
-                  <img src={featured.coverImage} alt="" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500" />
+                  <img src={featured.coverImage} alt="" loading="lazy" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500" />
                 </div>
               )}
               <div className="p-4 md:p-12">
@@ -120,7 +120,7 @@ export default function HomePage() {
                 <div className="flex flex-wrap items-center gap-3 md:gap-6 text-[10px] md:text-sm text-secondary">
                   <span className="flex items-center gap-1 md:gap-1.5 font-medium text-primary">
                     {featured.authorAvatar ? (
-                      <img src={featured.authorAvatar} alt="" className="w-4 md:w-5 h-4 md:h-5 rounded-full object-cover" />
+                      <img src={featured.authorAvatar} alt="" loading="lazy" className="w-4 md:w-5 h-4 md:h-5 rounded-full object-cover" />
                     ) : (
                       <span className="w-4 md:w-5 h-4 md:h-5 rounded-full bg-primary flex items-center justify-center text-[7px] md:text-[9px] font-bold text-canvas">
                         {featured.authorName.charAt(0)}
@@ -218,7 +218,7 @@ function PostCard({ post, onClick, onLike }: { post: BlogPost; onClick: () => vo
     <div className="group rounded-2xl border border-border bg-surface overflow-hidden hover:border-primary/40 transition-all duration-300 flex flex-col">
       {post.coverImage && (
         <div className="w-full h-40 overflow-hidden">
-          <img src={post.coverImage} alt="" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500" />
+          <img src={post.coverImage} alt="" loading="lazy" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500" />
         </div>
       )}
       <button onClick={onClick} className="flex-1 text-left p-6 cursor-pointer">
@@ -245,7 +245,7 @@ function PostCard({ post, onClick, onLike }: { post: BlogPost; onClick: () => vo
         <div className="flex items-center gap-3 text-xs text-secondary tabular-nums">
           <span className="flex items-center gap-1.5">
             {post.authorAvatar ? (
-              <img src={post.authorAvatar} alt="" className="w-4 h-4 rounded-full object-cover" />
+              <img src={post.authorAvatar} alt="" loading="lazy" className="w-4 h-4 rounded-full object-cover" />
             ) : (
               <span className="w-4 h-4 rounded-full bg-primary flex items-center justify-center text-[7px] font-bold text-canvas">
                 {post.authorName.charAt(0)}

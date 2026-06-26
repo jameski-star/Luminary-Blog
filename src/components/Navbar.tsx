@@ -109,7 +109,7 @@ export default function Navbar() {
                 >
                   <div className="w-5 md:w-6 h-5 md:h-6 rounded-full bg-primary flex items-center justify-center text-[9px] md:text-xs font-bold text-canvas overflow-hidden">
                     {user.avatar ? (
-                      <img src={user.avatar} alt="" className="w-full h-full object-cover" />
+                      <img src={user.avatar} alt="" loading="lazy" className="w-full h-full object-cover" />
                     ) : (
                       user.name.charAt(0).toUpperCase()
                     )}

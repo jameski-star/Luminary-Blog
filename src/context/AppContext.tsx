@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { User, BlogPost, NavPage } from '../types';
 import {
   getCurrentUser,
@@ -134,42 +134,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  // Search effect
+  // Search effect with debounce
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
       return;
     }
 
-    if (isApiMode()) {
-      api.posts.search(searchQuery.trim())
-        .then(res => setSearchResults(res.posts as BlogPost[]))
-        .catch(() => setSearchResults([]));
-      return;
-    }
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      if (isApiMode()) {
+        api.posts.search(searchQuery.trim())
+          .then(res => setSearchResults(res.posts as BlogPost[]))
+          .catch(() => setSearchResults([]));
+        return;
+      }
 
-    const query = searchQuery.toLowerCase().trim();
-    const words = query.split(/\s+/);
+      const query = searchQuery.toLowerCase().trim();
+      const words = query.split(/\s+/);
 
-    const results = posts
-      .filter(p => p.status === 'published' && p.isApproved !== false)
-      .map(post => {
-        let score = 0;
-        words.forEach(word => {
-          if (post.title.toLowerCase().includes(word)) score += 10;
-          if (post.excerpt.toLowerCase().includes(word)) score += 5;
-          if ((post.content || '').toLowerCase().includes(word)) score += 3;
-          if (post.tags.some(t => t.toLowerCase().includes(word))) score += 8;
-          if (post.keywords.some(k => k.toLowerCase().includes(word))) score += 6;
-          if (post.wordIndex && post.wordIndex[word]) score += post.wordIndex[word].length * 2;
-        });
-        return { post, score };
-      })
-      .filter(r => r.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map(r => r.post);
+      const results = posts
+        .filter(p => p.status === 'published' && p.isApproved !== false)
+        .map(post => {
+          let score = 0;
+          words.forEach(word => {
+            if (post.title.toLowerCase().includes(word)) score += 10;
+            if (post.excerpt.toLowerCase().includes(word)) score += 5;
+            if ((post.content || '').toLowerCase().includes(word)) score += 3;
+            if (post.tags.some(t => t.toLowerCase().includes(word))) score += 8;
+            if (post.keywords.some(k => k.toLowerCase().includes(word))) score += 6;
+            if (post.wordIndex && post.wordIndex[word]) score += post.wordIndex[word].length * 2;
+          });
+          return { post, score };
+        })
+        .filter(r => r.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map(r => r.post);
 
-    setSearchResults(results);
+      setSearchResults(results);
+    }, 300);
   }, [searchQuery, posts]);
 
   const setUser = useCallback((u: User | null) => {

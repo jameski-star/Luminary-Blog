@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import SEO from '../components/SEO';
 import { Modal, useConfirm } from '../components/Modal';
@@ -20,12 +20,18 @@ export default function AdminPage() {
   const [users, setUsers] = useState<UserType[]>([]);
   const [adminPosts, setAdminPosts] = useState<BlogPost[]>([]);
 
-  useEffect(() => {
+  const refreshPosts = useCallback(() => {
     if (isApiMode()) {
-      api.admin.users().then(res => setUsers(res.users)).catch(() => {});
       api.admin.posts({ status: 'all' })
         .then(res => setAdminPosts(res.posts as BlogPost[]))
         .catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isApiMode()) {
+      api.admin.users().then(res => setUsers(res.users)).catch(() => {});
+      refreshPosts();
     } else {
       setUsers(getStoredUsers());
     }
@@ -555,7 +561,7 @@ function AdminPostRow({ post, authorName, onOpen, onPublish, onDelete, onStatusC
           : 'bg-red-400'
         }`} />
 
-        <button onClick={onOpen} className="flex-1 text-left min-w-0">
+        <button onClick={onOpen} className="flex-1 text-left min-w-0 max-w-[45%] md:max-w-none">
           <h3 className="text-[10px] md:text-sm font-semibold text-primary group-hover:text-primary/80 transition-colors truncate mb-0.5 md:mb-1">
             {post.title}
           </h3>
@@ -577,18 +583,18 @@ function AdminPostRow({ post, authorName, onOpen, onPublish, onDelete, onStatusC
           </div>
         </button>
 
-        <div className="flex items-center gap-1 md:gap-2 shrink-0">
+        <div className="flex items-center gap-1 md:gap-2 shrink-0 ml-auto">
           {post.status !== 'published' && (
             <button
               onClick={onPublish}
-              className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50"
+              className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-1 md:px-3 py-1 md:py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50"
             >
               <Send size={10} />
               <span className="hidden md:inline">Publish</span>
             </button>
           )}
           <div className="relative group/status">
-            <button className="flex items-center gap-0.5 md:gap-1 text-[9px] md:text-xs text-secondary hover:text-primary transition-colors px-1.5 md:px-2 py-1 md:py-1.5 rounded-lg border border-border hover:border-primary/30">
+            <button className="flex items-center gap-0.5 md:gap-1 text-[9px] md:text-xs text-secondary hover:text-primary transition-colors px-1 md:px-2 py-1 md:py-1.5 rounded-lg border border-border hover:border-primary/30">
               <Ban size={10} />
               <span className="hidden md:inline">Status</span>
             </button>

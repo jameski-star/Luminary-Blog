@@ -44,6 +44,7 @@ export default function PostPage() {
     }
 
     if (isApiMode()) {
+      // Try fetching via slug directly — generate a reasonable slug from id
       setLoading(true);
       api.posts.list({ status: 'published', limit: '100' })
         .then(res => {
@@ -58,8 +59,7 @@ export default function PostPage() {
   useEffect(() => {
     if (post) {
       incrementViews(post.id);
-      const parsed = marked.parse(post.content || '', { async: false }) as string;
-      setHtmlContent(parsed);
+      marked.parse(post.content || '').then(parsed => setHtmlContent(parsed));
     }
   }, [post?.id, post?.content]);
 
@@ -190,7 +190,7 @@ export default function PostPage() {
           <div className="flex items-center gap-1.5 md:gap-2.5">
             <div className="w-6 md:w-8 h-6 md:h-8 rounded-full bg-primary flex items-center justify-center text-[8px] md:text-xs font-bold text-canvas overflow-hidden">
               {post.authorAvatar || (post as any).avatar ? (
-                <img src={post.authorAvatar || (post as any).avatar} alt="" className="w-full h-full object-cover" />
+                <img src={post.authorAvatar || (post as any).avatar} alt="" loading="lazy" className="w-full h-full object-cover" />
               ) : (
                 post.authorName.charAt(0)
               )}

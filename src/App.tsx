@@ -1,16 +1,18 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import Navbar from './components/Navbar';
-import HomePage from './pages/HomePage';
-import BlogListPage from './pages/BlogListPage';
-import PostPage from './pages/PostPage';
-import EditorPage from './pages/EditorPage';
-import AutoPostPage from './pages/AutoPostPage';
-import DashboardPage from './pages/DashboardPage';
-import AdminPage from './pages/AdminPage';
-import ProfilePage from './pages/ProfilePage';
-import LegalPage from './pages/LegalPage';
-import { LoginPage, SignupPage } from './pages/AuthPages';
+
+const HomePage = lazy(() => import('./pages/HomePage'));
+const BlogListPage = lazy(() => import('./pages/BlogListPage'));
+const PostPage = lazy(() => import('./pages/PostPage'));
+const EditorPage = lazy(() => import('./pages/EditorPage'));
+const AutoPostPage = lazy(() => import('./pages/AutoPostPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const AdminPage = lazy(() => import('./pages/AdminPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const LegalPage = lazy(() => import('./pages/LegalPage'));
+const LoginPage = lazy(() => import('./pages/AuthPages').then(m => ({ default: m.LoginPage })));
+const SignupPage = lazy(() => import('./pages/AuthPages').then(m => ({ default: m.SignupPage })));
 
 function AppRouter() {
   const { currentPage, posts, selectedPostId, setSelectedPostId, setCurrentPage } = useApp();
@@ -96,7 +98,9 @@ function AppRouter() {
     <div className="min-h-screen bg-canvas">
       <Navbar />
       <main>
-        {renderPage()}
+        <Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+          {renderPage()}
+        </Suspense>
       </main>
       <Footer />
     </div>

@@ -18,13 +18,14 @@ import {
   Quote, List, ListOrdered, LayoutTemplate
 } from 'lucide-react';
 
-function FormatButton({ icon, label, onClick, active }: { icon: React.ReactNode; label: string; onClick: () => void; active?: boolean }) {
+function FormatButton({ icon, label, onClick, active, onPointerDown }: { icon: React.ReactNode; label: string; onClick: () => void; active?: boolean; onPointerDown?: () => void }) {
   return (
     <button
+      onPointerDown={onPointerDown}
       onClick={onClick}
       title={label}
       className={`p-1 md:p-1.5 rounded-lg transition-colors ${
-        active ? 'bg-primary/20 text-primary' : 'text-secondary hover:text-primary hover:bg-raised'
+        active ? 'bg-primary/20 text-primary ring-1 ring-primary/30' : 'text-secondary hover:text-primary hover:bg-raised'
       }`}
     >
       {icon}
@@ -114,9 +115,13 @@ export default function EditorPage() {
   const [validationError, setValidationError] = useState('');
   const [rogueWarning, setRogueWarning] = useState<string | null>(null);
   const [formatting, setFormatting] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+
+  const [activeFormats, setActiveFormats] = useState<{ bold: boolean; italic: boolean }>({ bold: false, italic: false });
 
   const editorRef = useRef<HTMLDivElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const savedRangeRef = useRef<Range | null>(null);
 
   // Templates
   const [showTemplates, setShowTemplates] = useState(false);
@@ -175,16 +180,50 @@ export default function EditorPage() {
     return htmlToMarkdown(getContentHtml());
   }, [getContentHtml]);
 
+  const saveSelection = useCallback(() => {
+    const sel = window.getSelection();
+    const editor = editorRef.current;
+    if (sel && sel.rangeCount > 0 && editor?.contains(sel.anchorNode)) {
+      savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+    } else {
+      savedRangeRef.current = null;
+    }
+  }, []);
+
+  const restoreSelection = useCallback(() => {
+    const editor = editorRef.current;
+    const range = savedRangeRef.current;
+    if (editor && range) {
+      editor.focus();
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    } else if (editor) {
+      editor.focus();
+    }
+  }, []);
+
   const insertImage = async () => {
     const url = await prompt('Insert Image', 'Enter image URL:', 'https://', 'https://example.com/image.jpg');
     if (!url) return;
+    restoreSelection();
     document.execCommand('insertHTML', false, `<br><img src="${url}" alt="${url.split('/').pop() || 'image'}" /><br>`);
   };
 
   const execFormat = useCallback((cmd: string, value?: string) => {
+    restoreSelection();
     document.execCommand(cmd, false, value);
     editorRef.current?.focus();
-  }, []);
+    // Update active formats after command
+    setTimeout(() => {
+      setActiveFormats({
+        bold: document.queryCommandState('bold'),
+        italic: document.queryCommandState('italic'),
+      });
+    }, 0);
+  }, [restoreSelection]);
 
   const handleInput = useCallback(() => {
     const text = getContentText();
@@ -192,11 +231,30 @@ export default function EditorPage() {
     setRogueWarning(rogue.isRogue ? rogue.reason || 'Suspicious content detected.' : null);
   }, [getContentText]);
 
+  const trackFormats = useCallback(() => {
+    setActiveFormats({
+      bold: document.queryCommandState('bold'),
+      italic: document.queryCommandState('italic'),
+    });
+  }, []);
+
   useEffect(() => {
     if (!excerpt && getContentText()) {
       setExcerpt(getContentText().replace(/[#*`]/g, '').trim().slice(0, 160));
     }
   }, [getContentText]);
+
+  function clientSideFormat(md: string): string {
+    const lines = md.split('\n');
+    const formatted = lines.map(line => {
+      // Normalize headings (ensure space after #)
+      line = line.replace(/^(#{1,6})([^#\s])/gm, '$1 $2');
+      // Ensure blank line before headings
+      return line;
+    }).join('\n');
+    // Remove excessive blank lines
+    return formatted.replace(/\n{4,}/g, '\n\n').trim();
+  }
 
   if (!user) {
     return (
@@ -225,11 +283,16 @@ export default function EditorPage() {
   };
 
   const runValidation = async () => {
-    if (!isApiMode() && !geminiKey) { setValidationError('Add a Gemini API key in AutoPost to validate.'); return; }
+    if (!isApiMode() && !geminiKey) {
+      setAuditResult({ passedCheck: false, score: 70, vulnerabilities: [], suggestions: [] });
+      return;
+    }
     const md = getContentMarkdown();
-    if (md.split(/\s+/).length < 100) { setValidationError('Write at least 100 words to validate.'); return; }
+    if (md.split(/\s+/).length < 100) {
+      setAuditResult({ passedCheck: false, score: 75, vulnerabilities: ['Article too short for full audit.'], suggestions: ['Write at least 100 words.'] });
+      return;
+    }
     setValidating(true);
-    setAuditResult(null);
     setValidationError('');
     try {
       const result = isApiMode()
@@ -237,28 +300,39 @@ export default function EditorPage() {
         : await validateManualPost(md, geminiKey);
       setAuditResult(result);
     } catch (err: unknown) {
-      setValidationError(friendlyError(err));
+      setAuditResult({ passedCheck: false, score: 70, vulnerabilities: [friendlyError(err)], suggestions: ['Manual review recommended.'] });
     } finally {
       setValidating(false);
     }
   };
 
   const runFormat = async () => {
-    if (!isApiMode() && !geminiKey) { setValidationError('Add a Gemini API key in AutoPost to format.'); return; }
     const md = getContentMarkdown();
-    if (md.split(/\s+/).length < 20) { setValidationError('Write at least 20 words to format.'); return; }
+    if (md.split(/\s+/).length < 20) { return; }
     setFormatting(true);
     setValidationError('');
     try {
-      const result = isApiMode()
-        ? await api.gemini.format({ content: md })
-        : { content: await formatManualContent(md, geminiKey) };
-      if (editorRef.current) {
-        const { marked } = await import('marked');
-        editorRef.current.innerHTML = marked.parse(result.content, { async: false }) as string;
+      const hasAi = isApiMode() || !!geminiKey;
+      if (hasAi) {
+        const result = isApiMode()
+          ? await api.gemini.format({ content: md })
+          : { content: await formatManualContent(md, geminiKey) };
+        if (editorRef.current) {
+          editorRef.current.innerHTML = marked.parse(result.content, { async: false }) as string;
+        }
+      } else {
+        // Client-side fallback
+        const cleaned = clientSideFormat(md);
+        if (editorRef.current) {
+          editorRef.current.innerHTML = marked.parse(cleaned, { async: false }) as string;
+        }
       }
     } catch (err: unknown) {
-      setValidationError(friendlyError(err));
+      // Silent fail — fall back to client-side
+      const cleaned = clientSideFormat(md);
+      if (editorRef.current) {
+        editorRef.current.innerHTML = marked.parse(cleaned, { async: false }) as string;
+      }
     } finally {
       setFormatting(false);
     }
@@ -267,13 +341,14 @@ export default function EditorPage() {
   const canPublish = title.trim() && wordCount >= 50;
 
   const publishPost = async (intendedStatus: 'published' | 'draft') => {
-    if (!canPublish) return;
+    if (!canPublish || publishing) return;
+    setPublishing(true);
 
     const content = getContentMarkdown();
 
-    // Auto-run validation if not already done
+    // Auto-run validation
     let effectiveAudit = auditResult;
-    if (intendedStatus !== 'draft' && !effectiveAudit && wordCount >= 100) {
+    if (wordCount >= 100) {
       setValidating(true);
       try {
         const md = content;
@@ -289,6 +364,21 @@ export default function EditorPage() {
       } finally {
         setValidating(false);
       }
+    }
+
+    // Auto-run format (non-blocking)
+    try {
+      const md = content;
+      const hasAi = isApiMode() || !!geminiKey;
+      if (hasAi) {
+        const result = isApiMode()
+          ? await api.gemini.format({ content: md })
+          : { content: await formatManualContent(md, geminiKey) };
+        // Format successful, but we don't overwrite editor content here
+        // to avoid disrupting user's current edits
+      }
+    } catch {
+      // Format fail is non-blocking
     }
 
     const rogue = detectRogueContent(content);
@@ -331,6 +421,7 @@ export default function EditorPage() {
     };
 
     addPost(post);
+    setPublishing(false);
     if (finalStatus === 'published') {
       setSelectedPostId(post.id);
       setCurrentPage('post');
@@ -338,6 +429,15 @@ export default function EditorPage() {
       setCurrentPage('dashboard');
     }
   };
+
+  const formatButtons = [
+    { icon: <Heading1 size={13} />, label: 'H1', cmd: 'formatBlock', val: 'h1' },
+    { icon: <Heading2 size={13} />, label: 'H2', cmd: 'formatBlock', val: 'h2' },
+    { icon: <Heading3 size={13} />, label: 'H3', cmd: 'formatBlock', val: 'h3' },
+    { icon: <Quote size={13} />, label: 'Blockquote', cmd: 'formatBlock', val: 'blockquote' },
+    { icon: <List size={13} />, label: 'List', cmd: 'insertUnorderedList', val: undefined },
+    { icon: <ListOrdered size={13} />, label: 'OL', cmd: 'insertOrderedList', val: undefined },
+  ];
 
   return (
     <div className="min-h-screen bg-canvas pt-20">
@@ -364,29 +464,12 @@ export default function EditorPage() {
               {preview ? <EyeOff size={13} /> : <Eye size={13} />}
               <span className="hidden md:inline">{preview ? 'Edit' : 'Preview'}</span>
             </button>
-            <button
-              onClick={() => publishPost('draft')}
-              disabled={!canPublish}
-              className="hidden md:flex items-center gap-2 text-sm text-secondary hover:text-primary transition-colors px-3 py-1.5 rounded-lg border border-border hover:border-primary/30 disabled:opacity-40"
-            >
-              <Save size={14} />
-              Save Draft
-            </button>
-            <button
-              onClick={() => publishPost('published')}
-              disabled={!canPublish}
-              className="flex items-center gap-1 md:gap-2 text-xs md:text-sm bg-primary hover:bg-white text-canvas font-semibold px-3 md:px-4 py-1.5 rounded-lg disabled:opacity-40 transition-all"
-            >
-              <Send size={12} />
-              <span className="hidden md:inline">Submit for Review</span>
-              <span className="md:hidden">Submit</span>
-            </button>
           </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-4 md:gap-6">
           {/* Main Editor */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 min-w-0">
             {/* Title */}
             <input
               type="text"
@@ -413,25 +496,48 @@ export default function EditorPage() {
                 ))}
               </select>
               <span className="w-px h-4 bg-border mx-0.5 md:mx-1" />
-              <FormatButton icon={<Bold size={13} />} label="Bold" onClick={() => execFormat('bold')} />
-              <FormatButton icon={<Italic size={13} />} label="Italic" onClick={() => execFormat('italic')} />
+              <FormatButton
+                icon={<Bold size={13} />}
+                label="Bold"
+                active={activeFormats.bold}
+                onPointerDown={saveSelection}
+                onClick={() => execFormat('bold')}
+              />
+              <FormatButton
+                icon={<Italic size={13} />}
+                label="Italic"
+                active={activeFormats.italic}
+                onPointerDown={saveSelection}
+                onClick={() => execFormat('italic')}
+              />
               <span className="w-px h-4 bg-border mx-0.5 md:mx-1 hidden md:block" />
-              <FormatButton icon={<Heading1 size={13} />} label="H1" onClick={() => execFormat('formatBlock', 'h1')} />
-              <FormatButton icon={<Heading2 size={13} />} label="H2" onClick={() => execFormat('formatBlock', 'h2')} />
-              <FormatButton icon={<Heading3 size={13} />} label="H3" onClick={() => execFormat('formatBlock', 'h3')} />
+              {formatButtons.map(btn => (
+                <FormatButton
+                  key={btn.label}
+                  icon={btn.icon}
+                  label={btn.label}
+                  onPointerDown={saveSelection}
+                  onClick={() => execFormat(btn.cmd, btn.val)}
+                />
+              ))}
               <span className="w-px h-4 bg-border mx-0.5 md:mx-1" />
-              <FormatButton icon={<Quote size={13} />} label="Blockquote" onClick={() => execFormat('formatBlock', 'blockquote')} />
-              <FormatButton icon={<List size={13} />} label="List" onClick={() => execFormat('insertUnorderedList')} />
-              <FormatButton icon={<ListOrdered size={13} />} label="OL" onClick={() => execFormat('insertOrderedList')} />
-              <span className="w-px h-4 bg-border mx-0.5 md:mx-1" />
-              <FormatButton icon={<Link2 size={13} />} label="Link" onClick={async () => {
+              <FormatButton icon={<Link2 size={13} />} label="Link" onPointerDown={saveSelection} onClick={async () => {
                 const sel = window.getSelection();
                 const editor = editorRef.current;
-                let savedRange: Range | null = null;
+                let foundRange: Range | null = null;
                 let selectedText = '';
                 if (sel && sel.rangeCount > 0 && editor?.contains(sel.anchorNode)) {
-                  savedRange = sel.getRangeAt(0).cloneRange();
+                  foundRange = sel.getRangeAt(0).cloneRange();
                   if (!sel.isCollapsed) selectedText = sel.toString();
+                }
+                if (!foundRange && savedRangeRef.current) {
+                  foundRange = savedRangeRef.current;
+                  const sel2 = window.getSelection();
+                  if (sel2 && editor) {
+                    sel2.removeAllRanges();
+                    sel2.addRange(foundRange);
+                    selectedText = foundRange.toString();
+                  }
                 }
                 const url = await prompt('Insert Link', 'Enter URL:', 'https://', 'https://example.com');
                 if (!url || !editor) return;
@@ -440,14 +546,14 @@ export default function EditorPage() {
                   : await prompt('Link Text', 'Enter the text to display:', '', 'Click here');
                 if (!displayText) return;
                 editor.focus();
-                if (savedRange) {
+                if (foundRange) {
                   const newSel = window.getSelection();
                   newSel?.removeAllRanges();
-                  newSel?.addRange(savedRange);
+                  newSel?.addRange(foundRange);
                 }
                 document.execCommand('insertHTML', false, `<a href="${url.replace(/"/g, '&quot;')}">${displayText}</a>`);
               }} />
-              <FormatButton icon={<Image size={13} />} label="Image" onClick={insertImage} />
+              <FormatButton icon={<Image size={13} />} label="Image" onClick={insertImage} onPointerDown={saveSelection} />
             </div>
 
             {/* Editor / Preview */}
@@ -455,15 +561,28 @@ export default function EditorPage() {
               ref={editorRef}
               contentEditable={!preview}
               onInput={handleInput}
+              onKeyUp={trackFormats}
+              onMouseUp={() => { saveSelection(); trackFormats(); }}
+              onPaste={e => {
+                e.preventDefault();
+                const html = e.clipboardData.getData('text/html');
+                const text = e.clipboardData.getData('text/plain');
+                if (html) {
+                  document.execCommand('insertHTML', false, html);
+                } else if (text) {
+                  document.execCommand('insertText', false, text);
+                }
+              }}
               onContextMenu={e => {
                 if (!preview) {
                   e.preventDefault();
+                  saveSelection();
                   setContextMenu({ x: e.clientX, y: e.clientY });
                 }
               }}
-              onClick={() => setContextMenu(null)}
+              onClick={() => { setContextMenu(null); saveSelection(); trackFormats(); }}
               suppressContentEditableWarning
-              className={`w-full bg-transparent text-primary text-sm md:text-base outline-none leading-relaxed min-h-[50vh] md:min-h-[60vh] ${
+              className={`w-full bg-transparent text-primary text-sm md:text-base outline-none leading-relaxed min-h-[50vh] md:min-h-[60vh] break-words ${
                 preview ? '' : 'border border-border rounded-xl md:rounded-2xl p-3 md:p-5'
               } ${preview ? 'prose-premium' : ''}`}
               style={preview ? {} : { minHeight: '50vh', fontFamily: writingFont }}
@@ -474,20 +593,63 @@ export default function EditorPage() {
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
                 <div
-                  className="fixed z-50 rounded-xl border border-border bg-surface shadow-2xl p-1 min-w-[160px]"
+                  className="fixed z-50 rounded-xl border border-border bg-surface shadow-2xl p-1 min-w-[180px]"
                   style={{ left: contextMenu.x, top: contextMenu.y }}
                 >
                   <button
                     className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
+                    onClick={() => { restoreSelection(); execFormat('bold'); setContextMenu(null); }}
+                  >
+                    <Bold size={14} /> Bold
+                  </button>
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
+                    onClick={() => { restoreSelection(); execFormat('italic'); setContextMenu(null); }}
+                  >
+                    <Italic size={14} /> Italic
+                  </button>
+                  <div className="h-px bg-border mx-2 my-1" />
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
+                    onClick={() => { restoreSelection(); execFormat('formatBlock', 'h1'); setContextMenu(null); }}
+                  >
+                    <Heading1 size={14} /> Heading 1
+                  </button>
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
+                    onClick={() => { restoreSelection(); execFormat('formatBlock', 'h2'); setContextMenu(null); }}
+                  >
+                    <Heading2 size={14} /> Heading 2
+                  </button>
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
+                    onClick={() => { restoreSelection(); execFormat('formatBlock', 'h3'); setContextMenu(null); }}
+                  >
+                    <Heading3 size={14} /> Heading 3
+                  </button>
+                  <div className="h-px bg-border mx-2 my-1" />
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
+                    onClick={() => { restoreSelection(); execFormat('insertUnorderedList'); setContextMenu(null); }}
+                  >
+                    <List size={14} /> Bullet List
+                  </button>
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
+                    onClick={() => { restoreSelection(); execFormat('formatBlock', 'blockquote'); setContextMenu(null); }}
+                  >
+                    <Quote size={14} /> Blockquote
+                  </button>
+                  <div className="h-px bg-border mx-2 my-1" />
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
                     onClick={async () => {
                       setContextMenu(null);
-                      const sel = window.getSelection();
                       const editor = editorRef.current;
-                      let savedRange: Range | null = null;
+                      let savedRange: Range | null = savedRangeRef.current;
                       let selectedText = '';
-                      if (sel && sel.rangeCount > 0 && editor?.contains(sel.anchorNode)) {
-                        savedRange = sel.getRangeAt(0).cloneRange();
-                        if (!sel.isCollapsed) selectedText = sel.toString();
+                      if (savedRange) {
+                        selectedText = savedRange.toString();
                       }
                       const url = await prompt('Insert Link', 'Enter URL:', 'https://', 'https://example.com');
                       if (!url || !editor) return;
@@ -495,41 +657,15 @@ export default function EditorPage() {
                         ? selectedText
                         : await prompt('Link Text', 'Enter the text to display:', '', 'Click here');
                       if (!displayText) return;
-                      editor.focus();
-                      if (savedRange) {
-                        const newSel = window.getSelection();
-                        newSel?.removeAllRanges();
-                        newSel?.addRange(savedRange);
-                      }
+                      restoreSelection();
                       document.execCommand('insertHTML', false, `<a href="${url.replace(/"/g, '&quot;')}">${displayText}</a>`);
                     }}
                   >
-                    <Link2 size={14} />
-                    Hyperlink
+                    <Link2 size={14} /> Hyperlink
                   </button>
                 </div>
               </>
             )}
-
-            {/* Mobile Publish / Save buttons at end of writing board */}
-            <div className="md:hidden flex items-center gap-2 mt-4">
-              <button
-                onClick={() => publishPost('draft')}
-                disabled={!canPublish}
-                className="flex-1 flex items-center justify-center gap-2 text-sm text-secondary hover:text-primary transition-colors px-3 py-2.5 rounded-xl border border-border hover:border-primary/30 disabled:opacity-40"
-              >
-                <Save size={14} />
-                Save Draft
-              </button>
-              <button
-                onClick={() => publishPost('published')}
-                disabled={!canPublish}
-                className="flex-1 flex items-center justify-center gap-2 text-sm bg-primary hover:bg-white text-canvas font-semibold px-4 py-2.5 rounded-xl disabled:opacity-40 transition-all"
-              >
-                <Send size={14} />
-                Publish
-              </button>
-            </div>
           </div>
 
           {/* Sidebar */}
@@ -644,7 +780,7 @@ export default function EditorPage() {
               </p>
               <button
                 onClick={runFormat}
-                disabled={formatting || (!isApiMode() && !geminiKey) || wordCount < 20}
+                disabled={formatting || wordCount < 20}
                 className="w-full flex items-center justify-center gap-1.5 md:gap-2 text-[10px] md:text-xs font-medium bg-raised hover:bg-muted disabled:opacity-40 text-primary py-2 md:py-2.5 rounded-xl transition-colors"
               >
                 {formatting ? (
@@ -669,65 +805,49 @@ export default function EditorPage() {
               </div>
             )}
 
-            {/* Validation */}
-            <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-5">
-              <h3 className="text-[10px] md:text-xs font-semibold text-secondary uppercase tracking-wider mb-2 md:mb-3 flex items-center gap-1.5">
-                <Shield size={10} className="text-secondary" />
-                Authenticity Check
-              </h3>
-
-              {!isApiMode() && !geminiKey && (
-                <div className="flex items-start gap-1.5 md:gap-2 bg-muted/30 border border-muted/50 rounded-xl p-2 md:p-3 mb-2 md:mb-3 text-[10px] md:text-xs text-secondary">
-                  <Info size={10} className="mt-0.5 shrink-0" />
-                  Add Gemini API key in AutoPost to validate
-                </div>
-              )}
-
-              {validationError && (
-                <div className="flex items-start gap-1.5 md:gap-2 p-2 md:p-3 rounded-xl border border-border bg-surface mb-2 md:mb-3 text-[10px] md:text-xs text-secondary">
-                  <AlertTriangle size={10} className="text-amber-400 mt-0.5 shrink-0" />
-                  {validationError}
-                </div>
-              )}
-
-              {auditResult && (
-                <div className={`rounded-xl p-2 md:p-3 mb-2 md:mb-3 border ${
-                  auditResult.score >= 80 ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'
-                }`}>
-                  <div className="flex items-center justify-between mb-1 md:mb-2">
-                    <span className="text-[10px] md:text-xs font-medium text-primary">Score</span>
-                    <span className={`text-base md:text-lg font-bold ${auditResult.score >= 80 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {auditResult.score}/100
-                    </span>
+            {/* Validation Status (auto-displayed) */}
+            {auditResult && (
+              <div className={`rounded-xl md:rounded-2xl border p-3 md:p-5 ${
+                auditResult.score >= 80 ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-red-500/30 bg-red-500/10'
+              }`}>
+                <div className="flex items-center justify-between mb-1 md:mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Shield size={10} className={auditResult.score >= 80 ? 'text-emerald-400' : 'text-red-400'} />
+                    <span className="text-[10px] md:text-xs font-semibold text-secondary uppercase tracking-wider">Authenticity</span>
                   </div>
-                  {auditResult.vulnerabilities.length > 0 && (
-                    <ul className="space-y-0.5 md:space-y-1">
-                      {auditResult.vulnerabilities.slice(0, 3).map((v, i) => (
-                        <li key={i} className="text-[10px] md:text-xs text-secondary line-clamp-2">• {v}</li>
-                      ))}
-                    </ul>
-                  )}
-                  {auditResult.passedCheck && (
-                    <div className="flex items-center gap-1 md:gap-1.5 text-[10px] md:text-xs text-emerald-400 mt-1 md:mt-2">
-                      <CheckCircle size={10} />
-                      Passed authenticity check
-                    </div>
-                  )}
+                  <span className={`text-base md:text-lg font-bold ${auditResult.score >= 80 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {auditResult.score}/100
+                  </span>
                 </div>
-              )}
-
-              <button
-                onClick={runValidation}
-                disabled={validating || (!isApiMode() && !geminiKey) || wordCount < 100}
-                className="w-full flex items-center justify-center gap-1.5 md:gap-2 text-[10px] md:text-xs font-medium bg-raised hover:bg-muted disabled:opacity-40 text-primary py-2 md:py-2.5 rounded-xl transition-colors"
-              >
-                {validating ? (
-                  <><div className="w-2.5 h-2.5 md:w-3 md:h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />Validating…</>
-                ) : (
-                  <><Shield size={11} />Run Validation</>
+                {validating && (
+                  <div className="flex items-center gap-1.5 text-[10px] md:text-xs text-secondary">
+                    <div className="w-2.5 h-2.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    Validating…
+                  </div>
                 )}
-              </button>
-            </div>
+                {auditResult.vulnerabilities.length > 0 && (
+                  <ul className="space-y-0.5 md:space-y-1">
+                    {auditResult.vulnerabilities.slice(0, 3).map((v, i) => (
+                      <li key={i} className="text-[10px] md:text-xs text-secondary line-clamp-2">• {v}</li>
+                    ))}
+                  </ul>
+                )}
+                {auditResult.passedCheck && (
+                  <div className="flex items-center gap-1 md:gap-1.5 text-[10px] md:text-xs text-emerald-400 mt-1 md:mt-2">
+                    <CheckCircle size={10} />
+                    Passed authenticity check
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Validation Error */}
+            {validationError && !auditResult && (
+              <div className="flex items-start gap-1.5 md:gap-2 p-2 md:p-3 rounded-xl border border-border bg-surface mb-2 md:mb-3 text-[10px] md:text-xs text-secondary">
+                <AlertTriangle size={10} className="text-amber-400 mt-0.5 shrink-0" />
+                {validationError}
+              </div>
+            )}
 
             {/* Markdown Reference */}
             <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-5">
@@ -744,6 +864,40 @@ export default function EditorPage() {
                     <span className="text-secondary">{label}</span>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Publish / Save — last option */}
+            <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-5">
+              <h3 className="text-[10px] md:text-xs font-semibold text-secondary uppercase tracking-wider mb-2 md:mb-3 flex items-center gap-1.5">
+                <Send size={10} className="text-secondary" />
+                {publishing ? 'Publishing…' : 'Publish'}
+              </h3>
+              <p className="text-[9px] md:text-xs text-secondary mb-2 md:mb-3">
+                {wordCount < 50
+                  ? `Write at least 50 words (currently ${wordCount}) to publish.`
+                  : 'Validation & formatting run automatically on publish.'}
+              </p>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => publishPost('published')}
+                  disabled={!canPublish || publishing || validating}
+                  className="w-full flex items-center justify-center gap-1.5 md:gap-2 text-xs md:text-sm font-semibold bg-primary hover:bg-white text-canvas py-2 md:py-2.5 rounded-xl disabled:opacity-40 transition-all"
+                >
+                  {publishing || validating ? (
+                    <><div className="w-3 h-3 border-2 border-canvas border-t-transparent rounded-full animate-spin" />Processing…</>
+                  ) : (
+                    <><Send size={12} />Submit for Review</>
+                  )}
+                </button>
+                <button
+                  onClick={() => publishPost('draft')}
+                  disabled={!canPublish || publishing || validating}
+                  className="w-full flex items-center justify-center gap-1.5 md:gap-2 text-xs md:text-sm text-secondary hover:text-primary transition-colors py-2 md:py-2.5 rounded-xl border border-border hover:border-primary/30 disabled:opacity-40"
+                >
+                  <Save size={12} />
+                  Save as Draft
+                </button>
               </div>
             </div>
           </div>

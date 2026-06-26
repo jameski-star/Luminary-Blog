@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import SEO from '../components/SEO';
 import { signUp, signIn } from '../store/appStore';
@@ -23,7 +23,6 @@ export function LoginPage() {
     if (!email || !password) { setError('Please fill in all fields.'); return; }
 
     setLoading(true);
-    await new Promise(r => setTimeout(r, 400));
 
     try {
       if (isApiMode()) {
@@ -129,7 +128,7 @@ export function SignupPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const strength = getPasswordStrength(password);
+  const strength = useMemo(() => getPasswordStrength(password), [password]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,7 +148,6 @@ export function SignupPage() {
     }
 
     setLoading(true);
-    await new Promise(r => setTimeout(r, 600));
 
     try {
       if (isApiMode()) {
