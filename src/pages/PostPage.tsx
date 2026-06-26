@@ -57,11 +57,12 @@ export default function PostPage() {
   }, [selectedPostId, posts]);
 
   useEffect(() => {
-    if (post) {
-      incrementViews(post.id);
-      marked.parse(post.content || '').then(parsed => setHtmlContent(parsed));
-    }
-  }, [post?.id, post?.content]);
+    if (post?.id) incrementViews(post.id);
+  }, [post?.id]);
+
+  useEffect(() => {
+    if (post) setHtmlContent(marked.parse(post.content || ''));
+  }, [post?.content]);
 
   if (!post && loading) {
     return (
