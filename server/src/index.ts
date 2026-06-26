@@ -8,6 +8,7 @@ import { config } from './config.js';
 import { seed } from './seed.js';
 import { Post } from './models/Post.js';
 import { User } from './models/User.js';
+import { marked } from 'marked';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -300,12 +301,17 @@ async function start() {
       const appUrl = baseUrl(req);
       const blogMatch = req.path.match(/^\/blog\/(.+)/);
 
+      function sanitize(str: string): string {
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      }
+
       let ogTitle = 'Luminary — Premium AI-Powered Blog';
       let ogDesc = 'A premium blogging platform where every article passes a 3-stage AI authenticity pipeline. No filler. No fluff.';
-      let ogImage = `${appUrl}/og-default.jpg`;
+      let ogImage = `${appUrl}/hero-bg.jpg`;
       let ogUrl = `${appUrl}${req.path}`;
       let ogType = 'website';
       let extraMeta = '';
+      let contentHtml = '';
 
       if (blogMatch) {
         const slug = blogMatch[1];
@@ -318,13 +324,20 @@ async function start() {
             ogUrl = `${appUrl}/blog/${slug}`;
             ogType = 'article';
             if (post.tags?.length) {
-              extraMeta = post.tags.map((t: string) => `<meta property="article:tag" content="${t.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />`).join('\n    ');
+              extraMeta = post.tags.map((t: string) => `<meta property="article:tag" content="${sanitize(t)}" />`).join('\n    ');
             }
             if (post.publishedAt) {
               extraMeta += `\n    <meta property="article:published_time" content="${post.publishedAt}" />`;
             }
             if (post.authorName) {
-              extraMeta += `\n    <meta name="author" content="${post.authorName.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />`;
+              extraMeta += `\n    <meta name="author" content="${sanitize(post.authorName)}" />`;
+            }
+            if (post.excerpt) {
+              extraMeta += `\n    <meta name="description" content="${sanitize(post.excerpt)}" />`;
+            }
+            // Render full content for crawler word-for-word indexing
+            if (post.content) {
+              contentHtml = marked.parse(post.content) as string;
             }
           }
         } catch {}
@@ -333,21 +346,28 @@ async function start() {
       }
 
       const ogTags = `
-    <meta property="og:title" content="${ogTitle.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />
-    <meta property="og:description" content="${ogDesc.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />
-    <meta property="og:image" content="${ogImage.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />
+    <meta property="og:title" content="${sanitize(ogTitle)}" />
+    <meta property="og:description" content="${sanitize(ogDesc)}" />
+    <meta property="og:image" content="${sanitize(ogImage)}" />
     <meta property="og:url" content="${ogUrl}" />
     <meta property="og:type" content="${ogType}" />
     <meta property="og:site_name" content="Luminary" />
     <meta property="og:locale" content="en_US" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="${ogTitle.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />
-    <meta name="twitter:description" content="${ogDesc.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />
-    <meta name="twitter:image" content="${ogImage.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" />
+    <meta name="twitter:title" content="${sanitize(ogTitle)}" />
+    <meta name="twitter:description" content="${sanitize(ogDesc)}" />
+    <meta name="twitter:image" content="${sanitize(ogImage)}" />
     <link rel="canonical" href="${ogUrl}" />${extraMeta ? '\n    ' + extraMeta : ''}
   `;
 
       html = html.replace('</head>', ogTags + '</head>');
+
+      // Inject sr-only CSS and pre-rendered content for crawlers
+      html = html.replace('</style>', '.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>');
+      if (contentHtml) {
+        html = html.replace('</body>', `<article class="sr-only">${contentHtml}</article></body>`);
+      }
+
       res.type('html').send(html);
     });
 

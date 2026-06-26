@@ -126,6 +126,7 @@ export default function PostPage() {
         publishedAt={post.publishedAt}
         author={post.authorName}
         tags={post.tags}
+        image={post.coverImage}
       />
       <BlogPostingSchema post={post} />
       {/* Sticky progress bar */}

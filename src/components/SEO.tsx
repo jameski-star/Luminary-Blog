@@ -21,7 +21,7 @@ export default function SEO({ title, description, canonical, image, type, publis
   const pageTitle = title ? `${title} — ${SITE_NAME}` : `${SITE_NAME} — Premium AI-Powered Blog`;
   const desc = description || DEFAULT_DESC;
   const url = canonical || SITE_URL;
-  const img = image || `${SITE_URL}/og-default.jpg`;
+  const img = image || `${SITE_URL}/hero-bg.jpg`;
 
   return (
     <Helmet>
@@ -57,7 +57,10 @@ export function OrganizationSchema() {
     name: SITE_NAME,
     url: SITE_URL,
     description: DEFAULT_DESC,
-    sameAs: [],
+    sameAs: [
+      'https://twitter.com/luminaryblog',
+      'https://github.com/luminary-blog',
+    ],
   };
 
   return (
