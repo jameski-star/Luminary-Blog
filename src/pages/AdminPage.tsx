@@ -16,16 +16,22 @@ type AdminTab = 'review' | 'pending' | 'posts' | 'users';
 
 
 export default function AdminPage() {
-  const { user: currentUser, posts, updatePost, deletePost, setCurrentPage, setSelectedPostId } = useApp();
+  const { user: currentUser, posts: contextPosts, updatePost, deletePost, setCurrentPage, setSelectedPostId } = useApp();
   const [users, setUsers] = useState<UserType[]>([]);
+  const [adminPosts, setAdminPosts] = useState<BlogPost[]>([]);
 
   useEffect(() => {
     if (isApiMode()) {
       api.admin.users().then(res => setUsers(res.users)).catch(() => {});
+      api.admin.posts({ status: 'all' })
+        .then(res => setAdminPosts(res.posts as BlogPost[]))
+        .catch(() => {});
     } else {
       setUsers(getStoredUsers());
     }
   }, []);
+
+  const posts = isApiMode() ? adminPosts : contextPosts;
 
   const user = currentUser;
 
@@ -65,16 +71,11 @@ export default function AdminPage() {
       return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
     });
 
-  const confirmDelete = async (id: string, title: string) => {
-    const ok = await confirm('Delete Post', `Permanently delete "${title}"? This cannot be undone.`, 'Delete', true);
-    if (ok) deletePost(id);
-  };
-
   const approvePost = async (id: string) => {
     if (isApiMode()) {
       try {
-        await api.admin.approve(id);
-        updatePost(id, { isApproved: true });
+        const res = await api.admin.approve(id);
+        setAdminPosts(prev => prev.map(p => p.id === id ? res.post as BlogPost : p));
       } catch (err) {
         console.error('Approve failed:', err);
       }
@@ -83,12 +84,45 @@ export default function AdminPage() {
     }
   };
 
-  const publishPost = (id: string) => {
-    updatePost(id, { status: 'published', publishedAt: new Date().toISOString(), isApproved: true });
+  const publishPost = async (id: string) => {
+    if (isApiMode()) {
+      try {
+        const res = await api.admin.setStatus(id, 'published');
+        setAdminPosts(prev => prev.map(p => p.id === id ? res.post as BlogPost : p));
+      } catch (err) {
+        console.error('Admin publish failed:', err);
+      }
+    } else {
+      updatePost(id, { status: 'published', publishedAt: new Date().toISOString(), isApproved: true });
+    }
   };
 
-  const setPostStatus = (id: string, status: BlogPost['status']) => {
-    updatePost(id, { status, ...(status === 'published' ? { isApproved: true } : {}) });
+  const setPostStatus = async (id: string, status: BlogPost['status']) => {
+    if (isApiMode()) {
+      try {
+        const res = await api.admin.setStatus(id, status);
+        setAdminPosts(prev => prev.map(p => p.id === id ? res.post as BlogPost : p));
+      } catch (err) {
+        console.error('Admin setStatus failed:', err);
+      }
+    } else {
+      updatePost(id, { status, ...(status === 'published' ? { isApproved: true } : {}) });
+    }
+  };
+
+  const deletePostById = async (id: string, title: string) => {
+    const ok = await confirm('Delete Post', `Permanently delete "${title}"? This cannot be undone.`, 'Delete', true);
+    if (!ok) return;
+    if (isApiMode()) {
+      try {
+        await api.admin.deletePost(id);
+        setAdminPosts(prev => prev.filter(p => p.id !== id));
+      } catch (err) {
+        console.error('Admin delete failed:', err);
+      }
+    } else {
+      deletePost(id);
+    }
   };
 
   const banUser = async (targetId: string) => {
@@ -247,7 +281,7 @@ export default function AdminPage() {
                       authorName={users.find(u => u.id === post.authorId)?.name || post.authorName}
                       onApprove={() => publishPost(post.id)}
                       onReject={() => setPostStatus(post.id, 'disapproved')}
-                      onDelete={() => confirmDelete(post.id, post.title)}
+                      onDelete={() => deletePostById(post.id, post.title)}
                     />
                   ))}
               </div>
@@ -323,7 +357,7 @@ export default function AdminPage() {
                             <span className="md:hidden">Reject</span>
                           </button>
                           <button
-                            onClick={() => confirmDelete(post.id, post.title)}
+                            onClick={() => deletePostById(post.id, post.title)}
                             className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-red-400 hover:text-red-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-red-500/30 hover:border-red-400/50 ml-auto"
                           >
                             <Trash2 size={10} />
@@ -391,7 +425,7 @@ export default function AdminPage() {
                     authorName={users.find(u => u.id === post.authorId)?.name || post.authorName}
                     onOpen={() => { setSelectedPostId(post.id); setCurrentPage('post'); }}
                     onPublish={() => publishPost(post.id)}
-                    onDelete={() => confirmDelete(post.id, post.title)}
+                    onDelete={() => deletePostById(post.id, post.title)}
                     onStatusChange={(status) => setPostStatus(post.id, status)}
                   />
                 ))}

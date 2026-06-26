@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import SEO from '../components/SEO';
 import { Modal, usePrompt, useConfirm } from '../components/Modal';
-import { validateManualPost } from '../services/geminiPipeline';
+import { validateManualPost, formatManualContent } from '../services/geminiPipeline';
 import { generateSlug, calcReadTime } from '../store/appStore';
 import { api, isApiMode } from '../services/api';
 import { detectRogueContent } from '../utils/contentDetection';
@@ -113,6 +113,7 @@ export default function EditorPage() {
   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
   const [validationError, setValidationError] = useState('');
   const [rogueWarning, setRogueWarning] = useState<string | null>(null);
+  const [formatting, setFormatting] = useState(false);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -242,6 +243,27 @@ export default function EditorPage() {
     }
   };
 
+  const runFormat = async () => {
+    if (!isApiMode() && !geminiKey) { setValidationError('Add a Gemini API key in AutoPost to format.'); return; }
+    const md = getContentMarkdown();
+    if (md.split(/\s+/).length < 20) { setValidationError('Write at least 20 words to format.'); return; }
+    setFormatting(true);
+    setValidationError('');
+    try {
+      const result = isApiMode()
+        ? await api.gemini.format({ content: md })
+        : { content: await formatManualContent(md, geminiKey) };
+      if (editorRef.current) {
+        const { marked } = await import('marked');
+        editorRef.current.innerHTML = marked.parse(result.content, { async: false }) as string;
+      }
+    } catch (err: unknown) {
+      setValidationError(friendlyError(err));
+    } finally {
+      setFormatting(false);
+    }
+  };
+
   const canPublish = title.trim() && wordCount >= 50;
 
   const publishPost = async (intendedStatus: 'published' | 'draft') => {
@@ -249,12 +271,32 @@ export default function EditorPage() {
 
     const content = getContentMarkdown();
 
+    // Auto-run validation if not already done
+    let effectiveAudit = auditResult;
+    if (intendedStatus !== 'draft' && !effectiveAudit && wordCount >= 100) {
+      setValidating(true);
+      try {
+        const md = content;
+        const hasKey = isApiMode() || geminiKey;
+        if (hasKey) {
+          effectiveAudit = isApiMode()
+            ? await api.gemini.audit({ content: md })
+            : await validateManualPost(md, geminiKey);
+          setAuditResult(effectiveAudit);
+        }
+      } catch {
+        // Validation failed — route to review
+      } finally {
+        setValidating(false);
+      }
+    }
+
     const rogue = detectRogueContent(content);
-    const lowScore = (auditResult?.score ?? 100) < 65;
+    const lowScore = (effectiveAudit?.score ?? 100) < 65;
     let finalStatus: BlogPost['status'];
     if (intendedStatus === 'draft') {
       finalStatus = 'draft';
-    } else if (rogue.isRogue || lowScore) {
+    } else if (rogue.isRogue || lowScore || !effectiveAudit) {
       finalStatus = 'review';
     } else {
       finalStatus = 'published';
@@ -283,7 +325,7 @@ export default function EditorPage() {
       readTime,
       views: 0,
       likes: 0,
-      auditScore: auditResult?.score,
+      auditScore: effectiveAudit?.score,
       wordCount,
       isApproved,
     };
@@ -589,6 +631,28 @@ export default function EditorPage() {
                   </span>
                 ))}
               </div>
+            </div>
+
+            {/* Smart Format */}
+            <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-5">
+              <h3 className="text-[10px] md:text-xs font-semibold text-secondary uppercase tracking-wider mb-2 md:mb-3 flex items-center gap-1.5">
+                <Image size={10} className="text-secondary" />
+                Smart Format
+              </h3>
+              <p className="text-[9px] md:text-xs text-secondary mb-2 md:mb-3">
+                Auto-clean headings, lists, and structure while keeping all content intact.
+              </p>
+              <button
+                onClick={runFormat}
+                disabled={formatting || (!isApiMode() && !geminiKey) || wordCount < 20}
+                className="w-full flex items-center justify-center gap-1.5 md:gap-2 text-[10px] md:text-xs font-medium bg-raised hover:bg-muted disabled:opacity-40 text-primary py-2 md:py-2.5 rounded-xl transition-colors"
+              >
+                {formatting ? (
+                  <><div className="w-2.5 h-2.5 md:w-3 md:h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />Formatting…</>
+                ) : (
+                  <><Image size={11} />Auto-Enhance Formatting</>
+                )}
+              </button>
             </div>
 
             {/* Rogue Content Warning */}

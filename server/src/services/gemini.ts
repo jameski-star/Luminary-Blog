@@ -5,6 +5,7 @@ const MAX_RETRIES = 5;
 const INITIAL_RETRY_DELAY = 2000;
 
 let keyIndex = 0;
+const keyLastUsed: number[] = [];
 
 function isQuotaError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
@@ -23,57 +24,60 @@ function isTransientError(err: unknown): boolean {
 }
 
 async function withRetry<T>(fn: (key: string) => Promise<T>, apiKeys: string[]): Promise<T> {
-  const maxAttempts = Math.max(20, apiKeys.length * 4);
+  const maxAttempts = Math.max(25, apiKeys.length * 6);
+  const MIN_KEY_INTERVAL = 60_000;
   let lastError: unknown;
-  let sameKeyStrikes = 0;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const keyIdx = keyIndex % apiKeys.length;
     const key = apiKeys[keyIdx];
+
+    // Enforce 60s minimum between consecutive uses of the same key
+    const now = Date.now();
+    const lastTs = keyLastUsed[keyIdx] ?? 0;
+    const elapsed = now - lastTs;
+    if (elapsed < MIN_KEY_INTERVAL && attempt > 0) {
+      const wait = MIN_KEY_INTERVAL - elapsed;
+      console.log(`Key ${keyIdx + 1} used ${(elapsed / 1000).toFixed(0)}s ago — waiting ${(wait / 1000).toFixed(0)}s before reuse (attempt ${attempt + 1})`);
+      await new Promise(resolve => setTimeout(resolve, wait));
+    }
+
+    keyLastUsed[keyIdx] = Date.now();
+
     try {
       return await fn(key);
     } catch (err) {
       lastError = err;
+      const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
       const isQuota = isQuotaError(err);
       const isTransient = isTransientError(err);
 
-      if (!isTransient) {
-        const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
-        if (msg.includes('api key') || msg.includes('not found') || msg.includes('safety')) {
-          throw err;
-        }
-        if (msg.includes('permission') || msg.includes('access')) {
-          throw err;
-        }
+      // Non-recoverable errors
+      if (msg.includes('api key') || msg.includes('not found') || msg.includes('safety')
+          || msg.includes('permission') || msg.includes('access')) {
+        throw err;
       }
 
       // Rotate to next key
       keyIndex = (keyIndex + 1) % apiKeys.length;
 
-      // If we cycled through all keys, increase delay
-      if (keyIdx === keyIndex) {
-        sameKeyStrikes++;
-      } else {
-        sameKeyStrikes = 0;
-      }
-
+      const expBase = Math.min(attempt, 10);
       let delay: number;
+
       if (isQuota) {
-        delay = 60000 + Math.random() * 10000;
-        console.log(`Quota exceeded on key ${keyIdx + 1} — ${sameKeyStrikes > 0 ? `waiting ${(delay / 1000).toFixed(0)}s` : 'trying next key'} (attempt ${attempt + 1})`);
+        delay = 30000 + Math.random() * 10000;
+        console.log(`Quota on key ${keyIdx + 1} — waiting ${(delay / 1000).toFixed(0)}s before retry (attempt ${attempt + 1})`);
       } else if (isTransient) {
-        delay = sameKeyStrikes > 0 ? 10000 + Math.random() * 5000 : 500;
-        console.log(`Model busy on key ${keyIdx + 1} — ${sameKeyStrikes > 0 ? `waiting ${(delay / 1000).toFixed(0)}s` : 'trying next key'} (attempt ${attempt + 1})`);
+        delay = Math.min(1000 * Math.pow(2, expBase), 30000) + Math.random() * 2000;
+        console.log(`Model busy on key ${keyIdx + 1} — ${apiKeys.length > 1 ? 'trying next key' : `backoff ${(delay / 1000).toFixed(0)}s`} (attempt ${attempt + 1})`);
       } else {
-        delay = 5000 + Math.random() * 3000;
-        console.log(`Retrying key ${keyIdx + 1} in ${(delay / 1000).toFixed(0)}s (attempt ${attempt + 1})`);
+        delay = 2000 + Math.random() * 2000;
+        console.log(`Retry attempt ${attempt + 1} for key ${keyIdx + 1} in ${(delay / 1000).toFixed(0)}s`);
       }
 
-      if (sameKeyStrikes > 2 && isQuota) {
-        delay = 120000 + Math.random() * 30000;
+      if (isQuota || !isTransient) {
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
-
-      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
   throw lastError;
@@ -327,6 +331,34 @@ export async function executePipeline(
       reason: errMsg,
     };
   }
+}
+
+export async function formatContent(
+  content: string,
+  primaryKey: string,
+  key2 = '',
+  key3 = ''
+): Promise<string> {
+  const apiKeys = availableKeys(primaryKey, key2, key3);
+  return withRetry(
+    (k) => {
+      const ai = createAI(k);
+      return ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: `Clean up and enhance the formatting of this document. Fix inconsistent heading levels, organize loose paragraphs under appropriate headings, normalize list formatting, fix broken markdown, and improve overall readability. Preserve ALL original content and meaning — do not rewrite or summarize. Only fix structure and formatting.
+
+DOCUMENT:
+${content.slice(0, 12000)}
+
+Return ONLY the cleaned-up markdown, no explanations.`,
+        config: {
+          systemInstruction: 'You are a professional document formatter. You fix structure and formatting without changing a single word of the original content. Never rewrite, summarize, or add new content.',
+          temperature: 0.15,
+        },
+      });
+    },
+    apiKeys
+  ).then(r => r.text ?? content);
 }
 
 export async function validateContent(

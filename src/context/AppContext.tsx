@@ -49,6 +49,7 @@ interface AppContextType {
   posts: BlogPost[];
   addPost: (post: BlogPost) => void;
   updatePost: (id: string, updates: Partial<BlogPost>) => void;
+  setPostFields: (id: string, updates: Partial<BlogPost>) => void;
   deletePost: (id: string) => void;
   getPost: (id: string) => BlogPost | undefined;
   likePost: (id: string) => void;
@@ -235,6 +236,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const setPostFields = useCallback((id: string, updates: Partial<BlogPost>) => {
+    setPosts(prev => {
+      const next = prev.map(p => {
+        if (p.id !== id) return p;
+        const updated = { ...p, ...updates };
+        if (updates.content) {
+          updated.wordIndex = buildWordIndex(updates.content);
+          updated.wordCount = updates.content.split(/\s+/).length;
+          updated.readTime = calcReadTime(updates.content);
+        }
+        return updated;
+      });
+      savePosts(next);
+      return next;
+    });
+  }, []);
+
   const deletePost = useCallback((id: string) => {
     if (isApiMode()) {
       api.posts.delete(id).then(() => {
@@ -285,7 +303,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       user, setUser, logout,
       currentPage, setCurrentPage,
       selectedPostId, setSelectedPostId,
-      posts, addPost, updatePost, deletePost, getPost, likePost, incrementViews,
+      posts, addPost, updatePost, setPostFields, deletePost, getPost, likePost, incrementViews,
       geminiKey, setGeminiKey,
       searchQuery, setSearchQuery, searchResults,
       theme, toggleTheme,

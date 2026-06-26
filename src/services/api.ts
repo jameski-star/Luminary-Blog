@@ -139,5 +139,10 @@ export const api = {
         method: 'POST', body: JSON.stringify(body),
       });
     },
+    format(body: { content: string }) {
+      return request<{ content: string }>('/gemini/format', {
+        method: 'POST', body: JSON.stringify(body),
+      });
+    },
   },
 };

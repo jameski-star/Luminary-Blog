@@ -6,7 +6,7 @@ import { api, isApiMode } from '../services/api';
 import type { PipelineStage, PipelineResult } from '../types';
 import { generateSlug, calcReadTime } from '../store/appStore';
 import { detectRogueContent } from '../utils/contentDetection';
-import { friendlyError } from '../utils/errors';
+
 import type { BlogPost } from '../types';
 import {
   Zap, Key, X, CheckCircle, AlertTriangle, Clock, Plus,

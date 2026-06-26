@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import type { AuditResult, PipelineResult, PipelineStage } from '../types';
-import { friendlyError, isQuotaError, isCongestionError } from '../utils/errors';
+import { friendlyError } from '../utils/errors';
 
 const MODEL_NAME = 'gemini-2.5-flash';
 
@@ -20,39 +20,49 @@ function isQuotaError(err: unknown): boolean {
   return msg.includes('quota') || msg.includes('please wait') || msg.includes('retry after');
 }
 
+const MIN_KEY_INTERVAL = 60_000;
+let lastKeyUsedAt = 0;
+
 async function withRetry<T>(fn: () => Promise<T>, onRetry?: (attempt: number, delay: number, message: string) => void): Promise<T> {
-  const maxAttempts = 20;
+  const maxAttempts = 25;
   let lastError: unknown;
-  let sameKeyStrikes = 0;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    // Enforce 60s minimum between retries on the same key
+    const now = Date.now();
+    const elapsed = now - lastKeyUsedAt;
+    if (elapsed < MIN_KEY_INTERVAL && attempt > 0) {
+      const wait = MIN_KEY_INTERVAL - elapsed;
+      onRetry?.(attempt + 1, Math.round(wait), `Key cooldown — waiting ${(wait / 1000).toFixed(0)}s before retry…`);
+      await new Promise(resolve => setTimeout(resolve, wait));
+    }
+    lastKeyUsedAt = Date.now();
+
     try {
       return await fn();
     } catch (err) {
       lastError = err;
+      const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
       const isQuota = isQuotaError(err);
       const isTransient = isTransientError(err);
 
-      if (!isTransient) {
-        const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
-        if (msg.includes('api key') || msg.includes('not found') || msg.includes('safety')
-            || msg.includes('permission') || msg.includes('access')) {
-          throw err;
-        }
+      if (msg.includes('api key') || msg.includes('not found') || msg.includes('safety')
+          || msg.includes('permission') || msg.includes('access')) {
+        throw err;
       }
 
+      const expBase = Math.min(attempt, 8);
       let delay: number;
       let message: string;
 
       if (isQuota) {
-        sameKeyStrikes++;
-        delay = sameKeyStrikes > 2 ? 120000 + Math.random() * 30000 : 60000 + Math.random() * 10000;
+        delay = 60000 + Math.random() * 5000;
         message = `Quota hit — waiting ${(delay / 1000).toFixed(0)}s (attempt ${attempt + 1})…`;
       } else if (isTransient) {
-        delay = 10000 + Math.random() * 5000;
+        delay = Math.min(1000 * Math.pow(2, expBase) + Math.random() * 1000, 30000);
         message = `Model busy — retrying in ${(delay / 1000).toFixed(0)}s (attempt ${attempt + 1})…`;
       } else {
-        delay = 5000 + Math.random() * 3000;
+        delay = 2000 + Math.random() * 2000;
         message = `Retrying in ${(delay / 1000).toFixed(0)}s (attempt ${attempt + 1})…`;
       }
 
@@ -323,6 +333,27 @@ export async function executeAutopostPipeline(
 
     throw new Error(errMsg);
   }
+}
+
+export async function formatManualContent(
+  content: string,
+  apiKey: string
+): Promise<string> {
+  const ai = createAI(apiKey);
+  const response = await ai.models.generateContent({
+    model: MODEL_NAME,
+    contents: `Clean up and enhance the formatting of this document. Fix inconsistent heading levels, organize loose paragraphs under appropriate headings, normalize list formatting, fix broken markdown, and improve overall readability. Preserve ALL original content and meaning — do not rewrite or summarize. Only fix structure and formatting.
+
+DOCUMENT:
+${content.slice(0, 12000)}
+
+Return ONLY the cleaned-up markdown, no explanations.`,
+    config: {
+      systemInstruction: 'You are a professional document formatter. You fix structure and formatting without changing a single word of the original content. Never rewrite, summarize, or add new content.',
+      temperature: 0.15,
+    },
+  });
+  return response.text ?? content;
 }
 
 export async function validateManualPost(
