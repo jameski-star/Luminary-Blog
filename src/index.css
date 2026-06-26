@@ -73,8 +73,8 @@
   }
 
   [contenteditable]::selection {
-    background-color: Highlight;
-    color: HighlightText;
+    background-color: var(--fg-primary);
+    color: var(--bg-canvas);
   }
 }
 
