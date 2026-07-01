@@ -140,7 +140,7 @@ CRITICAL WRITING INSTRUCTIONS:
 - Include specific numbers, percentages, and named case studies where appropriate
 - Format in standard Markdown: ## headings, **bold** for key terms, bullet lists, blockquotes for notable quotes
 - Write like a senior expert speaking to a respected peer over coffee — confident, slightly opinionated, allergic to corporate fluff
-- Minimum 1,500 words. Aim for 2,000-2,500 words for maximum depth.
+- Write 1,200–1,500 words. Do NOT exceed 1,500 words. Every word must earn its place.
 - Vary paragraph lengths: mix one-sentence punch paragraphs with developed multi-sentence paragraphs
 - Use conversational transitions occasionally: "Look,", "Here's the thing:", "Honestly,", "The reality is,"
 - Include occasional sentence fragments for emphasis. Like this one.
@@ -316,9 +316,10 @@ export async function executeAutopostPipeline(
   topic: string,
   keywords: string[],
   apiKey: string,
-  onStageUpdate: (stages: PipelineStage[]) => void,
-  tone: WritingTone = 'professional',
-): Promise<PipelineResult & { excerpt?: string; tags?: string[]; keywords?: string[] }> {
+      onStageUpdate: (stages: PipelineStage[]) => void,
+      tone: WritingTone = 'professional',
+      maxWords: number = 1500,
+    ): Promise<PipelineResult & { excerpt?: string; tags?: string[]; keywords?: string[] }> {
   const ai = createAI(apiKey);
 
   const stages: PipelineStage[] = [
@@ -348,11 +349,29 @@ export async function executeAutopostPipeline(
 
     // Stage 1 — draft
     update(1, 'running');
-    const rawDraft = await withRetry(
+    let rawDraft = await withRetry(
       () => draftArticleContent(ai, topic, effectiveKeywords, tone),
       (_attempt, _delay, msg) => update(1, 'running', msg)
     );
-    update(1, 'done', `${rawDraft.split(/\s+/).length.toLocaleString()} words drafted`);
+    const wc = rawDraft.split(/\s+/).length;
+    if (wc > maxWords) {
+      const paragraphs = rawDraft.split(/\n\s*\n/);
+      const keep: string[] = [];
+      let total = 0;
+      for (const p of paragraphs) {
+        const pw = p.split(/\s+/).length;
+        if (total + pw > maxWords) {
+          if (keep.length === 0) {
+            keep.push(p.split(/\s+/).slice(0, maxWords).join(' '));
+          }
+          break;
+        }
+        keep.push(p);
+        total += pw;
+      }
+      rawDraft = keep.join('\n\n');
+    }
+    update(1, 'done', `${Math.min(wc, maxWords).toLocaleString()} words drafted`);
 
     // Stage 2 — audit
     update(2, 'running');

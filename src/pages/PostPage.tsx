@@ -25,6 +25,12 @@ function renderMarkdown(content: string): string {
   );
 }
 
+function estimateWordCount(html: string): number {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  return (div.innerText || '').split(/\s+/).filter(Boolean).length;
+}
+
 export default function PostPage() {
   const { selectedPostId, getPost, incrementViews, likePost, setCurrentPage, posts } = useApp();
   const [copied, setCopied] = useState(false);
@@ -84,6 +90,9 @@ export default function PostPage() {
   useEffect(() => {
     if (post) setHtmlContent(renderMarkdown(post.content || ''));
   }, [post?.content]);
+
+  const contentWordCount = htmlContent ? estimateWordCount(htmlContent) : 0;
+  const isLongContent = contentWordCount > 800;
 
   const handleScroll = useCallback(() => {
     const article = articleRef.current;
@@ -198,7 +207,7 @@ export default function PostPage() {
           )}
 
           {/* Article Header */}
-          <header className="max-w-5xl mx-auto px-4 mb-10 md:mb-16">
+          <header className="max-w-5xl mx-auto px-4 mb-10 md:mb-12">
             <div className="flex flex-wrap gap-1.5 md:gap-2 mb-5">
               {post.tags.map(tag => (
                 <span key={tag} className="text-xs px-3 py-1 rounded-full bg-surface text-secondary border border-border">
@@ -252,10 +261,12 @@ export default function PostPage() {
                 {post.readTime}m
               </span>
 
-              <span className="tabular-nums flex items-center gap-1 hidden sm:flex">
-                <BookOpen size={12} />
-                {post.wordCount?.toLocaleString()} words
-              </span>
+              {isLongContent && (
+                <span className="tabular-nums text-accent small-caps tracking-wider text-[11px] hidden md:flex items-center gap-1">
+                  <BookOpen size={11} />
+                  {contentWordCount.toLocaleString()} words &middot; column layout
+                </span>
+              )}
 
               <div className="ml-auto flex items-center gap-3">
                 <button
@@ -276,29 +287,15 @@ export default function PostPage() {
             </div>
           </header>
 
-          {/* Article Body */}
-          <div className="max-w-4xl mx-auto px-4 pb-12 md:pb-20">
+          {/* Article Body — multi-column for long reads */}
+          <div className={`mx-auto px-4 pb-12 md:pb-20 ${isLongContent ? 'max-w-6xl' : 'max-w-4xl'}`}>
             <div
-              className="prose-premium prose-premium-mobile"
+              className={`prose-premium ${isLongContent ? 'prose-columns' : ''} ${isLongContent ? '' : 'prose-premium-mobile'}`}
               dangerouslySetInnerHTML={{ __html: htmlContent }}
             />
 
-            {/* Topics */}
-            {post.keywords.length > 0 && (
-              <div className="mt-14 md:mt-20 pt-6 md:pt-8 border-t border-border">
-                <p className="text-xs text-secondary small-caps tracking-widest mb-4">Topics</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {post.keywords.map(kw => (
-                    <span key={kw} className="text-xs px-3 py-1 rounded-full bg-surface text-secondary border border-border">
-                      {kw}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Footer nav */}
-            <div className="mt-14 md:mt-20 pt-6 md:pt-8 border-t border-border flex items-center justify-between">
+            {/* Footer nav — concise, no heavy dividers */}
+            <div className={`flex items-center justify-between ${isLongContent ? 'mt-10 pt-6 border-t border-border max-w-4xl mx-auto' : 'mt-14 md:mt-20 pt-6 md:pt-8 border-t border-border'}`}>
               <button
                 onClick={() => setCurrentPage('blog')}
                 className="flex items-center gap-1.5 text-xs small-caps text-secondary hover:text-accent transition-colors tracking-wider min-h-11"

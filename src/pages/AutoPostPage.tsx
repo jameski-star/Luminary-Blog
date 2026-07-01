@@ -119,6 +119,7 @@ export default function AutoPostPage() {
             geminiKey,
             (updatedStages) => setStages(updatedStages),
             writingTone,
+            1500,
           );
         }
 

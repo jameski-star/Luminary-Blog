@@ -454,6 +454,73 @@
   transition: width 0.1s linear;
 }
 
+/* ── Multi-column magazine layout for long articles ── */
+.prose-columns {
+  column-count: 2;
+  column-gap: 3rem;
+  column-rule: 1px solid var(--clr-border);
+  max-width: none;
+  orphans: 3;
+  widows: 3;
+}
+.prose-columns p,
+.prose-columns li,
+.prose-columns blockquote,
+.prose-columns .pull-quote,
+.prose-columns figure,
+.prose-columns pre,
+.prose-columns table,
+.prose-columns ul,
+.prose-columns ol,
+.prose-columns div {
+  break-inside: avoid;
+}
+.prose-columns h1,
+.prose-columns h2,
+.prose-columns h3,
+.prose-columns h4 {
+  break-inside: avoid;
+  column-span: none;
+}
+.prose-columns h1 { column-span: all; margin-top: 1.5em; }
+.prose-columns h2 { margin-top: 2em; break-after: avoid; }
+.prose-columns h3 { break-after: avoid; }
+.prose-columns h4 { break-after: avoid; }
+.prose-columns blockquote,
+.prose-columns .pull-quote,
+.prose-columns figure,
+.prose-columns pre,
+.prose-columns table {
+  column-span: all;
+  margin-left: 0;
+  margin-right: 0;
+}
+.prose-columns .pull-quote {
+  max-width: none;
+}
+.prose-columns ul,
+.prose-columns ol {
+  break-inside: avoid;
+}
+.prose-columns > h1 + p:first-of-type::first-letter,
+.prose-columns > h1 + * + p:first-of-type::first-letter {
+  float: none;
+  font-size: inherit;
+  line-height: inherit;
+  padding: 0;
+  color: inherit;
+}
+.prose-columns p:last-child {
+  margin-bottom: 0;
+}
+@media (max-width: 1023px) {
+  .prose-columns {
+    column-count: 1;
+    column-rule: none;
+    max-width: 65ch;
+  }
+}
+
 /* ── Container query for reusable components ── */
 @container (max-width: 480px) {
   .cq-stack { flex-direction: column; }
