@@ -17,7 +17,8 @@ import {
   Save, Send, Eye, EyeOff, Plus, X, Shield,
   AlertTriangle, CheckCircle, Info, ArrowLeft,
   Bold, Italic, Link2, Heading1, Heading2, Heading3, Image, Upload,
-  Quote, List, ListOrdered, LayoutTemplate, TrendingUp, MessageSquare, Feather
+  Quote, List, ListOrdered, LayoutTemplate, TrendingUp, MessageSquare, Feather,
+  Palette, Type
 } from 'lucide-react';
 
 function FormatButton({ icon, label, onClick, active, onPointerDown }: { icon: React.ReactNode; label: string; onClick: () => void; active?: boolean; onPointerDown?: () => void }) {
@@ -121,7 +122,26 @@ export default function EditorPage() {
   const [humanizing, setHumanizing] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
-  const [activeFormats, setActiveFormats] = useState<{ bold: boolean; italic: boolean }>({ bold: false, italic: false });
+  const [activeFormats, setActiveFormats] = useState<{ bold: boolean; italic: boolean; h1: boolean; h2: boolean; h3: boolean }>({ bold: false, italic: false, h1: false, h2: false, h3: false });
+
+  const FONT_SIZES = [
+    { label: '8', value: '1' },
+    { label: '10', value: '2' },
+    { label: '12', value: '3' },
+    { label: '14', value: '4' },
+    { label: '18', value: '5' },
+    { label: '24', value: '6' },
+    { label: '36', value: '7' },
+  ];
+  const [fontSize, setFontSize] = useState('4');
+
+  const COLOR_SWATCHES = [
+    '#F0EDEA', '#D4A373', '#E8A87C', '#F4A261', '#E76F51',
+    '#2A9D8F', '#264653', '#457B9D', '#1D3557', '#6B4F3C',
+    '#E63946', '#8338EC', '#FF006E', '#3A86FF', '#000000',
+  ];
+  const [textColor, setTextColor] = useState('');
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -218,13 +238,36 @@ export default function EditorPage() {
 
   const execFormat = useCallback((cmd: string, value?: string) => {
     restoreSelection();
-    document.execCommand(cmd, false, value);
+    if (cmd === 'fontSize') {
+      document.execCommand(cmd, false, value);
+      // fontSize inserts a <font size="x">, fix for modern use
+      const editor = editorRef.current;
+      if (editor) {
+        const fontTags = editor.querySelectorAll('font[size]');
+        fontTags.forEach(f => {
+          const span = document.createElement('span');
+          const sizeMap: Record<string, string> = { '1': '0.5rem', '2': '0.625rem', '3': '0.8rem', '4': '1rem', '5': '1.125rem', '6': '1.5rem', '7': '2rem' };
+          span.style.fontSize = sizeMap[value || '4'] || '1rem';
+          while (f.firstChild) span.appendChild(f.firstChild);
+          f.replaceWith(span);
+        });
+      }
+    } else if (cmd === 'foreColor') {
+      document.execCommand('foreColor', false, value);
+    } else if (cmd === 'backColor') {
+      document.execCommand('backColor', false, value);
+    } else {
+      document.execCommand(cmd, false, value);
+    }
     editorRef.current?.focus();
     // Update active formats after command
     setTimeout(() => {
       setActiveFormats({
         bold: document.queryCommandState('bold'),
         italic: document.queryCommandState('italic'),
+        h1: document.queryCommandValue('formatBlock') === 'h1',
+        h2: document.queryCommandValue('formatBlock') === 'h2',
+        h3: document.queryCommandValue('formatBlock') === 'h3',
       });
     }, 0);
   }, [restoreSelection]);
@@ -236,9 +279,13 @@ export default function EditorPage() {
   }, [getContentText]);
 
   const trackFormats = useCallback(() => {
+    const block = document.queryCommandValue('formatBlock');
     setActiveFormats({
       bold: document.queryCommandState('bold'),
       italic: document.queryCommandState('italic'),
+      h1: block === 'h1',
+      h2: block === 'h2',
+      h3: block === 'h3',
     });
   }, []);
 
@@ -527,6 +574,65 @@ export default function EditorPage() {
                 ))}
               </select>
               <span className="w-px h-4 bg-border mx-0.5 md:mx-1" />
+              {/* Font Size */}
+              <select
+                value={fontSize}
+                onChange={e => { setFontSize(e.target.value); execFormat('fontSize', e.target.value); }}
+                className="text-[10px] md:text-xs bg-canvas border border-border rounded-lg px-1 md:px-2 py-1 md:py-1.5 text-primary outline-none focus:border-primary/40 cursor-pointer min-h-11"
+              >
+                {FONT_SIZES.map(fs => (
+                  <option key={fs.value} value={fs.value}>{fs.label}</option>
+                ))}
+              </select>
+
+              {/* Text Color */}
+              <div className="relative">
+                <FormatButton
+                  icon={<span style={{ color: textColor || 'currentColor' }}><Palette size={13} /></span>}
+                  label="Text Color"
+                  onClick={() => setShowColorPicker(!showColorPicker)}
+                  onPointerDown={saveSelection}
+                />
+                {showColorPicker && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowColorPicker(false)} />
+                    <div className="absolute top-full left-0 mt-1 z-50 rounded-xl border border-border bg-surface shadow-2xl p-2.5 w-52">
+                      <div className="grid grid-cols-5 gap-1.5 mb-2">
+                        {COLOR_SWATCHES.map(c => (
+                          <button
+                            key={c}
+                            onClick={() => { setTextColor(c); execFormat('foreColor', c); setShowColorPicker(false); }}
+                            className={`w-7 h-7 rounded-lg border-2 transition-all ${
+                              textColor === c ? 'border-accent scale-110' : 'border-transparent hover:scale-110'
+                            }`}
+                            style={{ backgroundColor: c }}
+                            title={c}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={textColor || '#F0EDEA'}
+                          onChange={e => { setTextColor(e.target.value); execFormat('foreColor', e.target.value); }}
+                          className="w-8 h-8 rounded cursor-pointer border-0 p-0 bg-transparent"
+                        />
+                        <span className="text-[10px] text-secondary">Custom</span>
+                        {textColor && (
+                          <button
+                            onClick={() => { setTextColor(''); execFormat('foreColor', ''); setShowColorPicker(false); }}
+                            className="ml-auto text-[10px] text-secondary hover:text-primary px-2 py-1 rounded"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <span className="w-px h-4 bg-border mx-0.5 md:mx-1" />
               <FormatButton
                 icon={<Bold size={13} />}
                 label="Bold"
@@ -547,6 +653,7 @@ export default function EditorPage() {
                   key={btn.label}
                   icon={btn.icon}
                   label={btn.label}
+                  active={btn.label === 'H1' ? activeFormats.h1 : btn.label === 'H2' ? activeFormats.h2 : btn.label === 'H3' ? activeFormats.h3 : undefined}
                   onPointerDown={saveSelection}
                   onClick={() => execFormat(btn.cmd, btn.val)}
                 />
@@ -701,6 +808,27 @@ export default function EditorPage() {
                   >
                     <Link2 size={14} /> Hyperlink
                   </button>
+                  <div className="h-px bg-border mx-2 my-1" />
+                  <div className="px-3 py-1.5">
+                    <div className="text-[10px] small-caps tracking-wider text-secondary mb-1.5">Text Color</div>
+                    <div className="flex gap-1 flex-wrap">
+                      {COLOR_SWATCHES.slice(0, 8).map(c => (
+                        <button
+                          key={c}
+                          onClick={() => { restoreSelection(); execFormat('foreColor', c); setContextMenu(null); }}
+                          className="w-6 h-6 rounded-md border border-border hover:scale-110 transition-transform"
+                          style={{ backgroundColor: c }}
+                        />
+                      ))}
+                      <button
+                        onClick={() => { restoreSelection(); execFormat('foreColor', '#F0EDEA'); setContextMenu(null); }}
+                        className="w-6 h-6 rounded-md border border-border flex items-center justify-center text-[8px] text-secondary hover:bg-raised"
+                        title="Default"
+                      >
+                        A
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </>
             )}
