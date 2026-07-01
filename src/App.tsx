@@ -111,24 +111,24 @@ function Footer() {
   const { user, setCurrentPage } = useApp();
 
   return (
-    <footer className="border-t border-border bg-surface/50 px-4 py-16 md:py-20 mt-8">
+    <footer className="border-t border-border px-4 py-16 md:py-20 mt-8">
       <div className="max-w-6xl mx-auto">
         <div className="grid md:grid-cols-4 gap-10 mb-12">
           <div className="md:col-span-2">
             <button onClick={() => setCurrentPage('home')} className="flex items-center gap-2.5 mb-4 group">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-accent to-pink-500 flex items-center justify-center shadow-lg shadow-accent-glow/20">
-                <span className="text-white font-bold text-sm">L</span>
+              <div className="w-8 h-8 rounded bg-accent flex items-center justify-center">
+                <span className="text-canvas font-bold text-sm font-heading">L</span>
               </div>
               <span className="font-heading text-xl font-bold text-primary group-hover:text-accent transition-colors">Luminary</span>
             </button>
             <p className="text-sm text-secondary leading-relaxed max-w-sm">
-              The premium blogging platform where every article passes a 4-stage AI validation pipeline.
+              Every article passes a 4-stage authenticity pipeline&mdash;outline, draft, fact-check, and polish.
               No filler. No fluff.
             </p>
           </div>
 
           <div>
-            <h4 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-5">Platform</h4>
+            <h4 className="small-caps text-xs tracking-widest text-secondary mb-5">Platform</h4>
             <ul className="space-y-3">
               {[
                 { label: 'Blog', page: 'blog' as const },
@@ -149,7 +149,7 @@ function Footer() {
           </div>
 
           <div>
-            <h4 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-5">Account</h4>
+            <h4 className="small-caps text-xs tracking-widest text-secondary mb-5">Account</h4>
             <ul className="space-y-3">
               {user ? (
                 <>
@@ -177,7 +177,7 @@ function Footer() {
                       onClick={() => setCurrentPage('login')}
                       className="text-sm text-secondary hover:text-accent transition-colors"
                     >
-                      Sign In
+                      Sign in
                     </button>
                   </li>
                   <li>
@@ -185,7 +185,7 @@ function Footer() {
                       onClick={() => setCurrentPage('signup')}
                       className="text-sm text-secondary hover:text-accent transition-colors"
                     >
-                      Create Account
+                      Create account
                     </button>
                   </li>
                 </>

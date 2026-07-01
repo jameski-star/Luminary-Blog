@@ -1,6 +1,6 @@
 import { useApp } from '../context/AppContext';
 import SEO, { OrganizationSchema } from '../components/SEO';
-import { ArrowRight, Zap, TrendingUp, Clock, Eye, Heart, Sparkles, Shield, Check } from 'lucide-react';
+import { ArrowRight, Clock, Eye, Heart, TrendingUp, Shield, Zap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { BlogPost } from '../types';
 
@@ -20,131 +20,119 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-canvas">
       <SEO
-        title="Premium AI-Powered Blog"
-        description="Every article passes a 4-stage authenticity pipeline. Premium prose. No filler. No AI clichés."
+        title="Luminary &mdash; Premium AI-Powered Publishing"
+        description="Every article passes a 4-stage authenticity pipeline. Premium prose. No filler. No AI clich&eacute;s."
         canonical="https://luminary.blog"
       />
       <OrganizationSchema />
 
-      {/* Hero — Bento Grid */}
-      <section className="pt-28 md:pt-36 pb-16 md:pb-24 px-4">
+      {/* Hero — Asymmetric magazine-style */}
+      <section className="pt-28 md:pt-36 pb-14 md:pb-20 px-4">
         <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-12 gap-3 md:gap-4">
-            <div className="md:col-span-7 rounded-3xl border border-border bg-gradient-to-br from-surface to-canvas p-8 md:p-12 flex flex-col justify-center">
-              <div className="inline-flex items-center gap-1.5 text-xs font-medium text-accent bg-accent-soft px-3 py-1.5 rounded-full mb-5 w-fit">
-                <Sparkles size={12} />
+          <div className="md:grid md:grid-cols-12 md:gap-10 items-end">
+            <div className="md:col-span-7">
+              <div className="small-caps text-xs tracking-widest text-accent mb-4">
                 AI-Powered Publishing
               </div>
-              <h1 className="font-heading text-3xl md:text-6xl font-bold text-primary leading-none tracking-tight mb-4">
-                The Blog That{' '}
-                <span className="text-accent">
-                  Outranks
-                </span>
+              <h1 className="font-heading text-4xl md:text-6xl lg:text-7xl font-bold text-primary leading-none tracking-tight mb-5">
+                The Blog That
+                <br />
+                <span className="italic text-accent">Outranks</span>
               </h1>
-              <p className="text-sm md:text-lg text-secondary max-w-xl leading-relaxed mb-8">
-                Every article passes a 4-stage authenticity pipeline — outline, draft, fact-check, and polish —
-                before a single word reaches the index.
+              <p className="text-base md:text-lg text-secondary max-w-xl leading-relaxed">
+                Every article passes a 4-stage authenticity pipeline&mdash;outline, draft,
+                fact-check, and polish&mdash;before a single word reaches the index.
               </p>
-              <div className="flex flex-col sm:flex-row items-start gap-3">
+              <div className="flex flex-col sm:flex-row items-start gap-3 mt-8">
                 <button
                   onClick={() => navTo('blog')}
-                  className="flex items-center gap-2 bg-accent hover:bg-pink-500 text-white font-semibold px-6 py-3 rounded-2xl transition-all duration-200 cursor-pointer text-sm hover:shadow-lg hover:shadow-accent-glow/30"
+                  className="inline-flex items-center gap-2 border-b-2 border-accent text-primary hover:text-accent transition-colors text-sm font-medium pb-0.5 min-h-11"
                 >
                   Explore Articles
-                  <ArrowRight size={16} />
+                  <ArrowRight size={14} />
                 </button>
                 {!geminiKey && (
                   <button
                     onClick={() => navTo('autopost')}
-                    className="flex items-center gap-2 border border-border hover:border-secondary/50 text-primary px-6 py-3 rounded-2xl transition-all duration-200 hover:bg-surface cursor-pointer text-sm"
+                    className="inline-flex items-center gap-2 text-secondary hover:text-accent transition-colors text-sm border-b border-transparent hover:border-accent/50 pb-0.5 min-h-11"
                   >
-                    <Zap size={16} className="text-secondary" />
+                    <Zap size={13} />
                     Try AutoPost AI
                   </button>
                 )}
               </div>
             </div>
 
-            <div className="md:col-span-5 grid grid-cols-2 gap-3 md:gap-4">
-              {[
-                { value: '4-Stage', label: 'AI Pipeline', desc: 'Outline → Draft →\nFact-check → Polish' },
-                { value: '100%', label: 'Fact-Checked', desc: 'Every claim verified\nbefore publish' },
-                { value: '0', label: 'AI Clichés', desc: 'No filler. No fluff.\nNo hallucinations.' },
-                { value: '∞', label: 'Indexable', desc: 'Every word searchable,\nevery concept linked' },
-              ].map((s, i) => (
-                <div key={i} className="rounded-2xl border border-border bg-surface p-5 md:p-6 flex flex-col justify-center hover:border-accent/30 transition-all duration-300 group">
-                  <span className="font-heading text-2xl md:text-4xl font-bold text-primary tracking-tight group-hover:text-accent transition-colors">{s.value}</span>
-                  <span className="text-xs font-semibold text-primary mt-1">{s.label}</span>
-                  <span className="text-xs text-secondary mt-1 whitespace-pre-line leading-relaxed">{s.desc}</span>
-                </div>
-              ))}
+            <div className="md:col-span-5 mt-10 md:mt-0">
+              <div className="border-l border-accent/30 pl-5 md:pl-8 space-y-6">
+                {[
+                  { value: '4-Stage', label: 'AI Pipeline', desc: 'Outline &rarr; Draft &rarr; Fact-check &rarr; Polish' },
+                  { value: '100%', label: 'Fact-Checked', desc: 'Every claim verified before publish' },
+                  { value: '0', label: 'AI Clich&eacute;s', desc: 'No filler. No fluff. No hallucinations.' },
+                  { value: '&infin;', label: 'Indexable', desc: 'Every word searchable, every concept linked' },
+                ].map((s, i) => (
+                  <div key={i} className="group">
+                    <span
+                      className="font-heading text-2xl md:text-3xl font-bold text-primary group-hover:text-accent transition-colors"
+                      dangerouslySetInnerHTML={{ __html: s.value }}
+                    />
+                    <span className="small-caps text-xs tracking-wider text-secondary ml-2">{s.label}</span>
+                    <p className="text-xs text-secondary/70 mt-0.5" dangerouslySetInnerHTML={{ __html: s.desc }} />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Featured Post */}
+      {/* Featured Article — magazine lead story */}
       {featured && (
-        <section className="px-4 pb-16 md:pb-24">
+        <section className="px-4 pb-14 md:pb-20">
           <div className="max-w-6xl mx-auto">
-            <div className="flex items-center justify-between mb-6 md:mb-8">
-              <h2 className="font-heading text-xl md:text-2xl font-bold text-primary tracking-tight flex items-center gap-2.5">
-                <span className="w-1.5 h-5 md:h-6 rounded-full bg-accent" />
-                Featured Article
-              </h2>
+            <div className="small-caps text-xs tracking-widest text-accent mb-5">
+              Lead Story
             </div>
             <button
               onClick={() => openPost(featured)}
-              className="w-full text-left group rounded-3xl border border-border bg-surface overflow-hidden hover:border-accent/30 transition-all duration-500 cursor-pointer"
+              className="w-full text-left group cursor-pointer"
             >
-              <div className="grid md:grid-cols-5">
-                {featured.coverImage && (
-                  <div className="md:col-span-2 h-48 md:h-full overflow-hidden">
-                    <img src={featured.coverImage} alt="" loading="lazy" className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700" />
-                  </div>
-                )}
-                <div className={`p-6 md:p-10 ${featured.coverImage ? 'md:col-span-3' : 'md:col-span-5'} flex flex-col justify-center`}>
-                  <div className="flex flex-wrap items-center gap-2 mb-3 md:mb-4">
-                    {featured.tags.slice(0, 2).map(tag => (
-                      <span key={tag} className="text-xs px-2.5 py-0.5 rounded-full bg-raised text-secondary border border-border">
-                        {tag}
-                      </span>
-                    ))}
-                    {featured.auditScore && (
-                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-accent-soft text-accent border border-accent/20 tabular-nums flex items-center gap-1">
-                        <Shield size={10} />
-                        Quality {featured.auditScore}
-                      </span>
-                    )}
-                  </div>
-
-                  <h2 className="font-heading text-xl md:text-4xl font-bold text-primary mb-2 md:mb-3 leading-tight tracking-tight group-hover:text-accent transition-colors duration-300">
-                    {featured.title}
-                  </h2>
-
-                  <p className="text-sm md:text-base text-secondary max-w-2xl leading-relaxed line-clamp-2 md:line-clamp-3">
-                    {featured.excerpt}
-                  </p>
-
-                  <div className="flex flex-wrap items-center gap-3 md:gap-5 text-xs text-secondary mt-4 md:mt-6 pt-4 md:pt-6 border-t border-border">
-                    <span className="flex items-center gap-1.5 font-medium text-primary">
-                      {featured.authorAvatar ? (
-                        <img src={featured.authorAvatar} alt="" loading="lazy" className="w-5 h-5 rounded-full object-cover" />
-                      ) : (
-                        <span className="w-5 h-5 rounded-full bg-gradient-to-br from-accent to-pink-500 flex items-center justify-center text-[8px] font-bold text-white">
-                          {featured.authorName.charAt(0)}
-                        </span>
-                      )}
-                      {featured.authorName}
+              {featured.coverImage && (
+                <div className="w-full rounded-lg overflow-hidden mb-6 bg-surface aspect-[16/9]">
+                  <img src={featured.coverImage} alt="" loading="lazy" className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-700" />
+                </div>
+              )}
+              <div className="max-w-4xl">
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  {featured.tags.slice(0, 2).map(tag => (
+                    <span key={tag} className="text-xs px-2.5 py-0.5 rounded bg-surface text-secondary border border-border">
+                      {tag}
                     </span>
-                    <span className="flex items-center gap-1 tabular-nums"><Clock size={12} />{featured.readTime}m</span>
-                    <span className="flex items-center gap-1 tabular-nums"><Eye size={12} />{featured.views.toLocaleString()}</span>
-                    <span className="flex items-center gap-1 tabular-nums"><Heart size={12} />{featured.likes}</span>
-                    <span className="hidden md:inline text-secondary">{formatDistanceToNow(new Date(featured.publishedAt), { addSuffix: true })}</span>
-                    <span className="ml-auto flex items-center gap-1.5 text-accent font-medium group-hover:gap-3 transition-all text-sm">
-                      Read Article <ArrowRight size={14} />
+                  ))}
+                  {featured.auditScore && (
+                    <span className="text-xs px-2.5 py-0.5 rounded bg-accent-soft text-accent border border-accent/20 flex items-center gap-1">
+                      <Shield size={9} />
+                      Quality {featured.auditScore}
                     </span>
-                  </div>
+                  )}
+                </div>
+
+                <h2 className="font-heading text-2xl md:text-4xl lg:text-5xl font-bold text-primary leading-tight mb-3 group-hover:text-accent transition-colors tracking-tight">
+                  {featured.title}
+                </h2>
+
+                <p className="text-sm md:text-base text-secondary max-w-3xl leading-relaxed mb-4">
+                  {featured.excerpt}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-3 text-xs text-secondary small-caps tracking-wider">
+                  <span className="font-medium text-primary not-small-caps tracking-normal">
+                    {featured.authorName}
+                  </span>
+                  <span className="text-secondary/40">&middot;</span>
+                  <span className="flex items-center gap-1"><Clock size={10} />{featured.readTime}m</span>
+                  <span className="text-secondary/40">&middot;</span>
+                  <span className="tabular-nums">{formatDistanceToNow(new Date(featured.publishedAt), { addSuffix: true })}</span>
                 </div>
               </div>
             </button>
@@ -152,63 +140,96 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* Recent Posts */}
+      {/* Recent Articles — magazine stacked list */}
       {recent.length > 0 && (
-        <section className="px-4 pb-16 md:pb-24">
+        <section className="px-4 pb-14 md:pb-20">
           <div className="max-w-6xl mx-auto">
-            <div className="flex items-center justify-between mb-6 md:mb-8">
-              <h2 className="font-heading text-xl md:text-2xl font-bold text-primary tracking-tight flex items-center gap-2.5">
-                <span className="w-1.5 h-5 md:h-6 rounded-full bg-accent" />
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-heading text-xl md:text-2xl font-bold text-primary tracking-tight">
                 Recent Articles
               </h2>
               <button
                 onClick={() => navTo('blog')}
-                className="text-sm text-secondary hover:text-accent flex items-center gap-1.5 transition-colors cursor-pointer font-medium"
+                className="text-xs small-caps text-secondary hover:text-accent transition-colors tracking-wider"
               >
-                View all <ArrowRight size={14} />
+                View all &rarr;
               </button>
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {recent.map(post => (
-                <PostCard key={post.id} post={post} onClick={() => openPost(post)} onLike={() => likePost(post.id)} />
+            <div className="divide-y divide-border">
+              {recent.map((post, i) => (
+                <button
+                  key={post.id}
+                  onClick={() => openPost(post)}
+                  className="w-full text-left group cursor-pointer py-5 md:py-6 first:pt-0"
+                >
+                  <div className="md:grid md:grid-cols-12 md:gap-6 items-center">
+                    {post.coverImage && (
+                      <div className="md:col-span-4 mb-3 md:mb-0">
+                        <div className="w-full rounded-lg overflow-hidden bg-surface aspect-[4/3] md:aspect-[16/9]">
+                          <img src={post.coverImage} alt="" loading="lazy" className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500" />
+                        </div>
+                      </div>
+                    )}
+                    <div className={`${post.coverImage ? 'md:col-span-8' : 'md:col-span-12'}`}>
+                      <div className="flex flex-wrap gap-1.5 mb-1.5">
+                        {post.tags.slice(0, 1).map(tag => (
+                          <span key={tag} className="text-xs px-2 py-0.5 rounded bg-surface text-secondary border border-border">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                      <h3 className="font-heading text-base md:text-lg font-semibold text-primary group-hover:text-accent transition-colors leading-snug mb-1 line-clamp-2">
+                        {post.title}
+                      </h3>
+                      <p className="text-xs md:text-sm text-secondary line-clamp-2 leading-relaxed mb-2">
+                        {post.excerpt}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-secondary small-caps tracking-wider">
+                        <span>{post.authorName}</span>
+                        <span className="text-secondary/40">&middot;</span>
+                        <span className="tabular-nums flex items-center gap-1"><Clock size={9} />{post.readTime}m</span>
+                        <span className="text-secondary/40">&middot;</span>
+                        <span className="tabular-nums">{formatDistanceToNow(new Date(post.publishedAt), { addSuffix: true })}</span>
+                      </div>
+                    </div>
+                  </div>
+                </button>
               ))}
             </div>
           </div>
         </section>
       )}
 
-      {/* Trending */}
+      {/* Trending — sidebar in magazine style */}
       {topPosts.length > 0 && (
-        <section className="px-4 pb-16 md:pb-28">
+        <section className="px-4 pb-16 md:pb-24">
           <div className="max-w-6xl mx-auto">
-            <div className="rounded-3xl border border-border bg-gradient-to-br from-surface to-canvas p-6 md:p-10">
-              <h2 className="font-heading text-xl md:text-2xl font-bold text-primary mb-6 md:mb-8 flex items-center gap-2.5 tracking-tight">
-                <span className="w-1.5 h-5 md:h-6 rounded-full bg-accent" />
-                <TrendingUp size={18} className="text-accent" />
-                Most Read This Month
+            <div className="border-t border-accent/30 pt-8">
+              <h2 className="font-heading text-xl md:text-2xl font-bold text-primary mb-6 tracking-tight flex items-center gap-2">
+                <TrendingUp size={16} className="text-accent" />
+                Most Read
               </h2>
-              <div className="grid md:grid-cols-3 gap-4 md:gap-6">
+              <div className="grid md:grid-cols-3 gap-6 md:gap-8">
                 {topPosts.map((post, i) => (
                   <button
                     key={post.id}
                     onClick={() => openPost(post)}
-                    className="w-full text-left group cursor-pointer"
+                    className="text-left group cursor-pointer"
                   >
-                    <div className="rounded-2xl border border-border bg-surface p-5 md:p-6 hover:border-accent/30 transition-all duration-300 h-full">
-                      <span className="text-3xl md:text-4xl font-bold text-primary/10 leading-none block mb-3 md:mb-4 group-hover:text-accent/20 transition-colors tabular-nums">
-                        {String(i + 1).padStart(2, '0')}
-                      </span>
-                      <h3 className="font-heading text-base md:text-lg font-bold text-primary group-hover:text-accent transition-colors leading-snug mb-2 tracking-tight line-clamp-2">
-                        {post.title}
-                      </h3>
-                      <p className="text-xs text-secondary line-clamp-2 leading-relaxed mb-3">
-                        {post.excerpt}
-                      </p>
-                      <div className="flex items-center gap-3 text-xs text-secondary tabular-nums">
-                        <span className="flex items-center gap-1"><Eye size={11} /> {post.views.toLocaleString()}</span>
-                        <span className="flex items-center gap-1"><Clock size={11} /> {post.readTime}m</span>
-                      </div>
+                    <span className="font-heading text-5xl md:text-6xl font-bold text-primary/5 block leading-none mb-2 group-hover:text-accent/10 transition-colors">
+                      {String(i + 1).padStart(2, '0')}
+                    </span>
+                    <h3 className="font-heading text-sm md:text-base font-semibold text-primary group-hover:text-accent transition-colors leading-snug mb-1 line-clamp-2">
+                      {post.title}
+                    </h3>
+                    <p className="text-xs text-secondary line-clamp-2 leading-relaxed mb-2">
+                      {post.excerpt}
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-secondary small-caps tracking-wider">
+                      <span className="tabular-nums"><Eye size={10} className="inline mr-0.5" />{post.views.toLocaleString()}</span>
+                      <span className="text-secondary/40">&middot;</span>
+                      <span className="tabular-nums">{post.readTime}m</span>
                     </div>
                   </button>
                 ))}
@@ -217,60 +238,6 @@ export default function HomePage() {
           </div>
         </section>
       )}
-    </div>
-  );
-}
-
-function PostCard({ post, onClick, onLike }: { post: BlogPost; onClick: () => void; onLike: (e: React.MouseEvent) => void }) {
-  return (
-    <div className="group rounded-2xl border border-border bg-surface overflow-hidden hover:border-accent/30 transition-all duration-300 flex flex-col hover:shadow-lg hover:shadow-accent-glow/5">
-      {post.coverImage && (
-        <div className="w-full h-44 overflow-hidden">
-          <img src={post.coverImage} alt="" loading="lazy" className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700" />
-        </div>
-      )}
-      <button onClick={onClick} className="flex-1 text-left p-5 cursor-pointer">
-        {post.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
-            {post.tags.slice(0, 2).map(tag => (
-              <span key={tag} className="text-xs px-2 py-0.5 rounded-full bg-raised text-secondary border border-border">
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
-
-        <h3 className="font-heading text-base md:text-lg font-bold text-primary mb-2 leading-snug group-hover:text-accent transition-colors line-clamp-2 tracking-tight">
-          {post.title}
-        </h3>
-
-        <p className="text-sm text-secondary leading-relaxed line-clamp-3">
-          {post.excerpt}
-        </p>
-      </button>
-
-      <div className="px-5 pb-4 flex items-center justify-between border-t border-border pt-4 mt-auto">
-        <div className="flex items-center gap-3 text-xs text-secondary tabular-nums">
-          <span className="flex items-center gap-1.5">
-            {post.authorAvatar ? (
-              <img src={post.authorAvatar} alt="" loading="lazy" className="w-4 h-4 rounded-full object-cover" />
-            ) : (
-              <span className="w-4 h-4 rounded-full bg-gradient-to-br from-accent to-pink-500 flex items-center justify-center text-[7px] font-bold text-white">
-                {post.authorName.charAt(0)}
-              </span>
-            )}
-            <span className="not-tabular-nums">{post.authorName}</span>
-          </span>
-          <span className="flex items-center gap-1"><Clock size={11} /> {post.readTime}m</span>
-          <span className="flex items-center gap-1"><Eye size={11} /> {post.views.toLocaleString()}</span>
-        </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); onLike(e); }}
-          className="flex items-center gap-1 text-xs text-secondary hover:text-accent transition-colors cursor-pointer tabular-nums"
-        >
-          <Heart size={12} /> {post.likes}
-        </button>
-      </div>
     </div>
   );
 }

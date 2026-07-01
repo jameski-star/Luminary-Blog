@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import SEO from '../components/SEO';
 import { Modal, usePrompt, useConfirm } from '../components/Modal';
-import { validateManualPost, formatManualContent } from '../services/geminiPipeline';
+import { validateManualPost, formatManualContent, humanizeExistingContent } from '../services/geminiPipeline';
 import { generateSlug, calcReadTime } from '../store/appStore';
 import { api, isApiMode } from '../services/api';
 import { detectRogueContent } from '../utils/contentDetection';
@@ -10,13 +10,14 @@ import { friendlyError } from '../utils/errors';
 import { marked } from 'marked';
 import { getTemplates, getTemplateCategories } from '../utils/templates';
 import type { PostTemplate } from '../utils/templates';
-import type { BlogPost, AuditResult } from '../types';
+import type { BlogPost, AuditResult, WritingTone } from '../types';
+import { TONE_LABELS } from '../types';
 import SeoInsights from '../components/SeoInsights';
 import {
   Save, Send, Eye, EyeOff, Plus, X, Shield,
   AlertTriangle, CheckCircle, Info, ArrowLeft,
   Bold, Italic, Link2, Heading1, Heading2, Heading3, Image, Upload,
-  Quote, List, ListOrdered, LayoutTemplate, TrendingUp
+  Quote, List, ListOrdered, LayoutTemplate, TrendingUp, MessageSquare, Feather
 } from 'lucide-react';
 
 function FormatButton({ icon, label, onClick, active, onPointerDown }: { icon: React.ReactNode; label: string; onClick: () => void; active?: boolean; onPointerDown?: () => void }) {
@@ -25,7 +26,7 @@ function FormatButton({ icon, label, onClick, active, onPointerDown }: { icon: R
       onPointerDown={onPointerDown}
       onClick={onClick}
       title={label}
-      className={`p-1 md:p-1.5 rounded-lg transition-colors ${
+      className={`p-2.5 min-h-11 min-w-11 md:p-1.5 md:min-h-[unset] md:min-w-[unset] rounded-lg transition-colors ${
         active ? 'bg-primary/20 text-primary ring-1 ring-primary/30' : 'text-secondary hover:text-primary hover:bg-raised'
       }`}
     >
@@ -110,12 +111,14 @@ export default function EditorPage() {
   const [tags, setTags] = useState<string[]>([]);
   const [coverImage, setCoverImage] = useState('');
   const [preview, setPreview] = useState(false);
+  const [writingTone, setWritingTone] = useState<WritingTone>('professional');
 
   const [validating, setValidating] = useState(false);
   const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
   const [validationError, setValidationError] = useState('');
   const [rogueWarning, setRogueWarning] = useState<string | null>(null);
   const [formatting, setFormatting] = useState(false);
+  const [humanizing, setHumanizing] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
   const [activeFormats, setActiveFormats] = useState<{ bold: boolean; italic: boolean }>({ bold: false, italic: false });
@@ -339,6 +342,33 @@ export default function EditorPage() {
     }
   };
 
+  const humanizeContent = async () => {
+    const md = getContentMarkdown();
+    if (md.split(/\s+/).length < 50) {
+      setValidationError('Write at least 50 words before humanizing.');
+      return;
+    }
+    setHumanizing(true);
+    setValidationError('');
+    try {
+      const hasAi = isApiMode() || !!geminiKey;
+      if (hasAi) {
+        const result = isApiMode()
+          ? await api.gemini.format({ content: md })
+          : { content: await humanizeExistingContent(md, geminiKey, writingTone) };
+        if (editorRef.current) {
+          editorRef.current.innerHTML = marked.parse(result.content, { async: false }) as string;
+        }
+      } else {
+        setValidationError('Gemini API key required for AI humanization.');
+      }
+    } catch (err: unknown) {
+      setValidationError('Humanization failed: ' + friendlyError(err));
+    } finally {
+      setHumanizing(false);
+    }
+  };
+
   const canPublish = title.trim() && wordCount >= 50;
 
   const publishPost = async (intendedStatus: 'published' | 'draft') => {
@@ -460,7 +490,7 @@ export default function EditorPage() {
           <div className="flex items-center gap-1.5 md:gap-2">
             <button
               onClick={() => setPreview(!preview)}
-              className="flex items-center gap-1 md:gap-2 text-xs md:text-sm text-secondary hover:text-primary transition-colors px-2 md:px-3 py-1.5 rounded-lg border border-border hover:border-primary/30"
+              className="flex items-center gap-1 md:gap-2 text-xs md:text-sm text-secondary hover:text-primary transition-colors px-2 md:px-3 py-1.5 rounded-lg border border-border hover:border-primary/30 min-h-11"
             >
               {preview ? <EyeOff size={13} /> : <Eye size={13} />}
               <span className="hidden md:inline">{preview ? 'Edit' : 'Preview'}</span>
@@ -487,7 +517,7 @@ export default function EditorPage() {
               <select
                 value={writingFont}
                 onChange={e => setWritingFont(e.target.value)}
-                className="text-[10px] md:text-xs bg-canvas border border-border rounded-lg px-1 md:px-2 py-1 md:py-1.5 text-primary outline-none focus:border-primary/40 cursor-pointer max-w-[80px] md:max-w-[120px]"
+                className="text-[10px] md:text-xs bg-canvas border border-border rounded-lg px-1 md:px-2 py-1 md:py-1.5 text-primary outline-none focus:border-primary/40 cursor-pointer max-w-[80px] md:max-w-[120px] min-h-11"
                 style={{ fontFamily: writingFont }}
               >
                 {PREMIUM_FONTS.map(f => (
@@ -605,52 +635,52 @@ export default function EditorPage() {
                   style={{ left: contextMenu.x, top: contextMenu.y }}
                 >
                   <button
-                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2 min-h-11"
                     onClick={() => { restoreSelection(); execFormat('bold'); setContextMenu(null); }}
                   >
                     <Bold size={14} /> Bold
                   </button>
                   <button
-                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2 min-h-11"
                     onClick={() => { restoreSelection(); execFormat('italic'); setContextMenu(null); }}
                   >
                     <Italic size={14} /> Italic
                   </button>
                   <div className="h-px bg-border mx-2 my-1" />
                   <button
-                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2 min-h-11"
                     onClick={() => { restoreSelection(); execFormat('formatBlock', 'h1'); setContextMenu(null); }}
                   >
                     <Heading1 size={14} /> Heading 1
                   </button>
                   <button
-                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2 min-h-11"
                     onClick={() => { restoreSelection(); execFormat('formatBlock', 'h2'); setContextMenu(null); }}
                   >
                     <Heading2 size={14} /> Heading 2
                   </button>
                   <button
-                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2 min-h-11"
                     onClick={() => { restoreSelection(); execFormat('formatBlock', 'h3'); setContextMenu(null); }}
                   >
                     <Heading3 size={14} /> Heading 3
                   </button>
                   <div className="h-px bg-border mx-2 my-1" />
                   <button
-                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2 min-h-11"
                     onClick={() => { restoreSelection(); execFormat('insertUnorderedList'); setContextMenu(null); }}
                   >
                     <List size={14} /> Bullet List
                   </button>
                   <button
-                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2 min-h-11"
                     onClick={() => { restoreSelection(); execFormat('formatBlock', 'blockquote'); setContextMenu(null); }}
                   >
                     <Quote size={14} /> Blockquote
                   </button>
                   <div className="h-px bg-border mx-2 my-1" />
                   <button
-                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-raised rounded-lg transition-colors flex items-center gap-2 min-h-11"
                     onClick={async () => {
                       setContextMenu(null);
                       const editor = editorRef.current;
@@ -691,7 +721,7 @@ export default function EditorPage() {
                   placeholder="Add tag…"
                   className="flex-1 bg-canvas border border-border rounded-lg px-2 md:px-3 py-1.5 md:py-2 text-primary text-[10px] md:text-xs outline-none focus:border-primary/60"
                 />
-                <button onClick={addTag} className="px-2 md:px-2.5 bg-raised rounded-lg hover:bg-muted transition-colors">
+                <button onClick={addTag} className="px-2.5 min-h-11 min-w-11 md:px-2.5 md:min-h-[unset] md:min-w-[unset] bg-raised rounded-lg hover:bg-muted transition-colors">
                   <Plus size={12} className="text-primary" />
                 </button>
               </div>
@@ -713,10 +743,10 @@ export default function EditorPage() {
               </h3>
               {coverImage ? (
                 <div className="relative mb-2 md:mb-3">
-                  <img src={coverImage} alt="Cover" className="w-full h-24 md:h-32 object-cover rounded-xl" />
+                  <img src={coverImage} alt="Cover" className="w-full h-24 md:h-32 aspect-[16/9] object-cover rounded-xl" />
                   <button
                     onClick={() => setCoverImage('')}
-                    className="absolute top-1.5 right-1.5 bg-black/60 text-white p-0.5 md:p-1 rounded-lg hover:bg-black/80 transition-colors"
+                    className="absolute top-1.5 right-1.5 bg-black/60 text-white p-2.5 min-h-11 min-w-11 md:p-1 md:min-h-[unset] md:min-w-[unset] rounded-lg hover:bg-black/80 transition-colors"
                   >
                     <X size={12} />
                   </button>
@@ -763,7 +793,7 @@ export default function EditorPage() {
                   placeholder="Add keyword…"
                   className="flex-1 bg-canvas border border-border rounded-lg px-2 md:px-3 py-1.5 md:py-2 text-primary text-[10px] md:text-xs outline-none focus:border-primary/60"
                 />
-                <button onClick={addKeyword} className="px-2 md:px-2.5 bg-raised rounded-lg hover:bg-muted transition-colors">
+                <button onClick={addKeyword} className="px-2.5 min-h-11 min-w-11 md:px-2.5 md:min-h-[unset] md:min-w-[unset] bg-raised rounded-lg hover:bg-muted transition-colors">
                   <Plus size={12} className="text-primary" />
                 </button>
               </div>
@@ -791,6 +821,30 @@ export default function EditorPage() {
               />
             </div>
 
+            {/* Writing Tone */}
+            <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-5">
+              <h3 className="text-[10px] md:text-xs font-semibold text-secondary uppercase tracking-wider mb-2 md:mb-3 flex items-center gap-1.5">
+                <MessageSquare size={10} className="text-secondary" />
+                Writing Tone
+              </h3>
+              <div className="space-y-1">
+                {(Object.entries(TONE_LABELS) as [WritingTone, typeof TONE_LABELS[WritingTone]][]).map(([key, val]) => (
+                  <button
+                    key={key}
+                    onClick={() => setWritingTone(key)}
+                    className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-all min-h-11 ${
+                      writingTone === key
+                        ? 'bg-accent/10 text-accent border border-accent/20'
+                        : 'text-secondary hover:text-primary hover:bg-raised border border-transparent'
+                    }`}
+                  >
+                    <div className="font-medium">{val.label}</div>
+                    <div className="text-[10px] opacity-70 mt-0.5">{val.description}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Smart Format */}
             <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-5">
               <h3 className="text-[10px] md:text-xs font-semibold text-secondary uppercase tracking-wider mb-2 md:mb-3 flex items-center gap-1.5">
@@ -803,12 +857,34 @@ export default function EditorPage() {
               <button
                 onClick={runFormat}
                 disabled={formatting || wordCount < 20}
-                className="w-full flex items-center justify-center gap-1.5 md:gap-2 text-[10px] md:text-xs font-medium bg-raised hover:bg-muted disabled:opacity-40 text-primary py-2 md:py-2.5 rounded-xl transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 md:gap-2 text-[10px] md:text-xs font-medium bg-raised hover:bg-muted disabled:opacity-40 text-primary py-2 md:py-2.5 rounded-xl transition-colors min-h-11"
               >
                 {formatting ? (
                   <><div className="w-2.5 h-2.5 md:w-3 md:h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />Formatting…</>
                 ) : (
                   <><Image size={11} />Auto-Enhance Formatting</>
+                )}
+              </button>
+            </div>
+
+            {/* Humanize Content */}
+            <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-5">
+              <h3 className="text-[10px] md:text-xs font-semibold text-secondary uppercase tracking-wider mb-2 md:mb-3 flex items-center gap-1.5">
+                <Feather size={10} className="text-secondary" />
+                Humanize
+              </h3>
+              <p className="text-[9px] md:text-xs text-secondary mb-2 md:mb-3">
+                Rewrite content to read naturally human — removes AI patterns, varies rhythm, and adjusts to your selected tone.
+              </p>
+              <button
+                onClick={humanizeContent}
+                disabled={humanizing || wordCount < 50}
+                className="w-full flex items-center justify-center gap-1.5 md:gap-2 text-[10px] md:text-xs font-medium bg-raised hover:bg-muted disabled:opacity-40 text-primary py-2 md:py-2.5 rounded-xl transition-colors min-h-11"
+              >
+                {humanizing ? (
+                  <><div className="w-2.5 h-2.5 md:w-3 md:h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />Humanizing…</>
+                ) : (
+                  <><Feather size={11} />Humanize Content</>
                 )}
               </button>
             </div>
@@ -904,7 +980,7 @@ export default function EditorPage() {
                 <button
                   onClick={() => publishPost('published')}
                   disabled={!canPublish || publishing || validating}
-                  className="w-full flex items-center justify-center gap-1.5 md:gap-2 text-xs md:text-sm font-semibold bg-primary hover:bg-white text-canvas py-2 md:py-2.5 rounded-xl disabled:opacity-40 transition-all"
+                  className="w-full flex items-center justify-center gap-1.5 md:gap-2 text-xs md:text-sm font-semibold bg-primary hover:bg-white text-canvas py-2 md:py-2.5 rounded-xl disabled:opacity-40 transition-all min-h-11"
                 >
                   {publishing || validating ? (
                     <><div className="w-3 h-3 border-2 border-canvas border-t-transparent rounded-full animate-spin" />Processing…</>
@@ -915,7 +991,7 @@ export default function EditorPage() {
                 <button
                   onClick={() => publishPost('draft')}
                   disabled={!canPublish || publishing || validating}
-                  className="w-full flex items-center justify-center gap-1.5 md:gap-2 text-xs md:text-sm text-secondary hover:text-primary transition-colors py-2 md:py-2.5 rounded-xl border border-border hover:border-primary/30 disabled:opacity-40"
+                  className="w-full flex items-center justify-center gap-1.5 md:gap-2 text-xs md:text-sm text-secondary hover:text-primary transition-colors py-2 md:py-2.5 rounded-xl border border-border hover:border-primary/30 disabled:opacity-40 min-h-11"
                 >
                   <Save size={12} />
                   Save as Draft
@@ -933,7 +1009,7 @@ export default function EditorPage() {
           <div className="relative w-full max-w-3xl max-h-[80vh] rounded-2xl border border-border bg-surface shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border">
               <h2 className="text-lg font-semibold text-primary">Choose a Template</h2>
-              <button onClick={() => setShowTemplates(false)} className="text-secondary hover:text-primary transition-colors p-1 rounded-lg hover:bg-raised">
+              <button onClick={() => setShowTemplates(false)} className="text-secondary hover:text-primary transition-colors p-2.5 min-h-11 min-w-11 rounded-lg hover:bg-raised">
                 <X size={18} />
               </button>
             </div>
@@ -944,7 +1020,7 @@ export default function EditorPage() {
                 <button
                   key={cat}
                   onClick={() => setTemplateCategory(cat)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all min-h-11 ${
                     templateCategory === cat
                       ? 'bg-primary text-canvas'
                       : 'bg-raised text-secondary hover:text-primary'

@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import type { AuditResult, PipelineResult, PipelineStage } from '../types';
+import type { AuditResult, PipelineResult, PipelineStage, WritingTone } from '../types';
 import { friendlyError } from '../utils/errors';
+import { stripAIPatterns, getAIDetectionScore, getToneInstruction, getToneDraftPrompt, injectHumanVariation } from '../utils/humanize';
 
 const MODEL_NAME = 'gemini-2.5-flash';
 
@@ -28,7 +29,6 @@ async function withRetry<T>(fn: () => Promise<T>, onRetry?: (attempt: number, de
   let lastError: unknown;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    // Enforce 60s minimum between retries on the same key
     const now = Date.now();
     const elapsed = now - lastKeyUsedAt;
     if (elapsed < MIN_KEY_INTERVAL && attempt > 0) {
@@ -43,8 +43,6 @@ async function withRetry<T>(fn: () => Promise<T>, onRetry?: (attempt: number, de
     } catch (err) {
       lastError = err;
       const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
-      const isQuota = isQuotaError(err);
-      const isTransient = isTransientError(err);
 
       if (msg.includes('api key') || msg.includes('not found') || msg.includes('safety')
           || msg.includes('permission') || msg.includes('access')) {
@@ -55,10 +53,10 @@ async function withRetry<T>(fn: () => Promise<T>, onRetry?: (attempt: number, de
       let delay: number;
       let message: string;
 
-      if (isQuota) {
+      if (isQuotaError(err)) {
         delay = 60000 + Math.random() * 5000;
         message = `Quota hit — waiting ${(delay / 1000).toFixed(0)}s (attempt ${attempt + 1})…`;
-      } else if (isTransient) {
+      } else if (isTransientError(err)) {
         delay = Math.min(1000 * Math.pow(2, expBase) + Math.random() * 1000, 30000);
         message = `Model busy — retrying in ${(delay / 1000).toFixed(0)}s (attempt ${attempt + 1})…`;
       } else {
@@ -77,17 +75,60 @@ function createAI(apiKey: string) {
   return new GoogleGenAI({ apiKey });
 }
 
+async function generateSEOKeywords(ai: GoogleGenAI, topic: string): Promise<string[]> {
+  const response = await ai.models.generateContent({
+    model: MODEL_NAME,
+    contents: `Generate 6-8 high-value SEO keywords for a blog article about this topic:
+
+Topic: "${topic}"
+
+Requirements:
+- Each keyword should be a phrase that real people search for (2-4 words each)
+- Include a mix of head terms and long-tail keywords
+- Focus on commercial and informational intent
+- Return ONLY a JSON array of strings, no other text or formatting`,
+    config: {
+      systemInstruction: 'You are an SEO strategist. Return only valid JSON.',
+      temperature: 0.3,
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          keywords: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+          },
+        },
+      },
+    },
+  });
+  const text = response.text ?? '{"keywords":[]}';
+  try {
+    const parsed = JSON.parse(text);
+    return (parsed.keywords || []).slice(0, 8);
+  } catch {
+    return [];
+  }
+}
+
 async function draftArticleContent(
   ai: GoogleGenAI,
   topic: string,
-  keywords: string[]
+  keywords: string[],
+  tone: WritingTone,
 ): Promise<string> {
+  const tonePrompt = getToneDraftPrompt(tone);
+  const toneSystem = getToneInstruction(tone);
+
   const response = await ai.models.generateContent({
     model: MODEL_NAME,
     contents: `Write a comprehensive, exhaustive long-form essay on this topic:
 
 Topic: "${topic}"
 Target Keywords to distribute organically (do not force or stuff): ${keywords.join(', ')}
+
+WRITING STYLE:
+${tonePrompt}
 
 CRITICAL WRITING INSTRUCTIONS:
 - Write with extreme depth and specificity. No fluff, no meta-commentary, no introductory filler phrases.
@@ -99,10 +140,25 @@ CRITICAL WRITING INSTRUCTIONS:
 - Include specific numbers, percentages, and named case studies where appropriate
 - Format in standard Markdown: ## headings, **bold** for key terms, bullet lists, blockquotes for notable quotes
 - Write like a senior expert speaking to a respected peer over coffee — confident, slightly opinionated, allergic to corporate fluff
-- Minimum 1,500 words. Aim for 2,000-2,500 words for maximum depth.`,
+- Minimum 1,500 words. Aim for 2,000-2,500 words for maximum depth.
+- Vary paragraph lengths: mix one-sentence punch paragraphs with developed multi-sentence paragraphs
+- Use conversational transitions occasionally: "Look,", "Here's the thing:", "Honestly,", "The reality is,"
+- Include occasional sentence fragments for emphasis. Like this one.
+- Use parentheses for asides (the way humans actually write)
+- End some sections without a summary — let the last point land and move on`,
     config: {
-      systemInstruction: `You are an elite subject-matter expert, technical journalist, and former editor at a major technology publication. Your writing is authoritative, precise, and direct. You prioritize verified data, logical mechanics, and actionable insights. You have a distinctive voice — thoughtful, occasionally dry in its wit, never condescending. You write for readers who are intelligent and time-poor, and who will immediately close a tab at the first sign of padding or cliché.`,
-      temperature: 0.75,
+      systemInstruction: `You are an elite subject-matter expert, technical journalist, and former editor at a major technology publication. Your writing is authoritative, precise, and direct. You prioritize verified data, logical mechanics, and actionable insights. You have a distinctive voice — thoughtful, occasionally dry in its wit, never condescending. You write for readers who are intelligent and time-poor, and who will immediately close a tab at the first sign of padding or cliché.
+
+${toneSystem}
+
+CRITICAL: Your writing must not trigger AI detection. Avoid:
+- Perfectly balanced sentence structures
+- Overuse of transition words (however, therefore, moreover)
+- Starting every paragraph with a topic sentence
+- Ending every section with a summary or conclusion
+- Uniform paragraph lengths
+- Predictable "first X, second Y, finally Z" structures`,
+      temperature: 0.85,
     },
   });
   return response.text ?? '';
@@ -173,11 +229,14 @@ Evaluate rigorously for:
 async function optimizeAndPolish(
   ai: GoogleGenAI,
   draft: string,
-  auditResults: AuditResult
+  auditResults: AuditResult,
+  tone: WritingTone,
 ): Promise<string> {
   const suggestionsText = auditResults.suggestions.length > 0
     ? `Address these specific issues:\n${auditResults.suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n')}`
     : 'Refine for maximum clarity and human cadence.';
+
+  const tonePrompt = getToneDraftPrompt(tone);
 
   const response = await ai.models.generateContent({
     model: MODEL_NAME,
@@ -185,67 +244,80 @@ async function optimizeAndPolish(
 
 ${suggestionsText}
 
+TONE:
+${tonePrompt}
+
 ORIGINAL DRAFT:
 ${draft}
 
-REVISION MANDATE:
+REVISION MANDATE — THIS IS CRITICAL:
 1. Vary sentence lengths aggressively — mix 40-word compound sentences with three-word punches
-2. Remove ALL banned words: delve, testament, digital landscape, paramount, crucial, multifaceted, tapestry, in conclusion, furthermore, it is worth noting
+2. Remove ALL banned words: delve, testament, digital landscape, paramount, crucial, multifaceted, tapestry, in conclusion, furthermore, it is worth noting, paradigm, synergy, leverage, utilize
 3. Replace vague statistics with hedged, honest language: instead of "studies show 80% of companies...", write "most engineering teams that have measured this..."
 4. Inject micro-imperfections: conversational asides, the occasional em-dash thought, sentences that start with And or But
 5. Every paragraph should advance the reader's understanding — delete anything that merely restates what was just said
 6. Maintain all Markdown formatting (##, ###, **bold**, lists, blockquotes)
 7. Preserve all specific examples, named companies, and concrete data points — only improve the framing
-8. The final article should read like it was written by a human expert who has genuine opinions on this topic`,
+8. The final article should read like it was written by a human expert who has genuine opinions on this topic
+9. Vary paragraph lengths dramatically — alternate between short punch paragraphs (1-2 sentences) and developed paragraphs (5-7 sentences)
+10. Use occasional sentence fragments for rhetorical effect
+11. Do not end every section with a tidy summary — let ideas breathe
+12. Avoid perfectly parallel structures — humans don't write in threes`,
     config: {
       systemInstruction: `You are a master copyeditor and essayist who specializes in humanizing and elevating technical prose. You have an exceptional ear for rhythm and cadence. You strip away corporate jargon, eliminate robotic sentence structures, and inject clarity, personality, and precision into every paragraph. Your edited work consistently passes AI-detection systems not by gaming them, but because the underlying prose is genuinely human in its construction — varied, opinionated, and specific. You never make the content shorter; you make every word earn its place.`,
-      temperature: 0.55,
+      temperature: 0.65,
     },
   });
   return response.text ?? draft;
 }
 
-async function generateSEOKeywords(ai: GoogleGenAI, topic: string): Promise<string[]> {
+async function antiDetectionPass(
+  ai: GoogleGenAI,
+  draft: string,
+  detectionScore: number,
+): Promise<string> {
+  if (detectionScore >= 80) return draft;
+
   const response = await ai.models.generateContent({
     model: MODEL_NAME,
-    contents: `Generate 6-8 high-value SEO keywords for a blog article about this topic:
+    contents: `Rewrite this article to eliminate AI-detection markers while preserving ALL facts, arguments, structure, and length.
 
-Topic: "${topic}"
+AI Detection Score: ${detectionScore}/100 (below 80 needs work)
 
-Requirements:
-- Each keyword should be a phrase that real people search for (2-4 words each)
-- Include a mix of head terms and long-tail keywords
-- Focus on commercial and informational intent
-- Return ONLY a JSON array of strings, no other text or formatting`,
+ARTICLE:
+${draft.slice(0, 10000)}
+
+ANTI-DETECTION MANDATE:
+1. Break up any perfectly-balanced sentence structures
+2. Vary paragraph lengths — some single sentences, some long developed paragraphs
+3. Replace AI-typical transitions (however, therefore, furthermore) with natural ones (but, so, plus, look)
+4. Add occasional conversational asides and micro-opinions
+5. Introduce sentence fragments for emphasis
+6. Remove any "first, second, third" or "there are X reasons" structures
+7. Use contractions freely
+8. Make it read like a knowledgeable human wrote it in one focused sitting — not like a machine optimized for perfection
+
+Return ONLY the revised article, no explanations.`,
     config: {
-      systemInstruction: 'You are an SEO strategist. Return only valid JSON.',
-      temperature: 0.3,
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          keywords: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
-          },
-        },
-      },
+      systemInstruction: `You are a text humanization specialist. Your only job is to make AI-generated text read as naturally human written. You do not change facts, arguments, examples, or structure. You only change the texture of the prose — sentence rhythm, transitions, variation, and natural imperfection. You know that human writing is uneven, occasionally asymmetrical, and that's what makes it credible.`,
+      temperature: 0.7,
     },
   });
-  const text = response.text ?? '{"keywords":[]}';
-  try {
-    const parsed = JSON.parse(text);
-    return (parsed.keywords || []).slice(0, 8);
-  } catch {
-    return [];
-  }
+  return response.text ?? draft;
+}
+
+function fallbackHumanize(text: string, tone: WritingTone): string {
+  let result = stripAIPatterns(text);
+  result = injectHumanVariation(result);
+  return result;
 }
 
 export async function executeAutopostPipeline(
   topic: string,
   keywords: string[],
   apiKey: string,
-  onStageUpdate: (stages: PipelineStage[]) => void
+  onStageUpdate: (stages: PipelineStage[]) => void,
+  tone: WritingTone = 'professional',
 ): Promise<PipelineResult & { excerpt?: string; tags?: string[]; keywords?: string[] }> {
   const ai = createAI(apiKey);
 
@@ -254,6 +326,7 @@ export async function executeAutopostPipeline(
     { name: 'Drafting Deep-Dive Content', status: 'pending' },
     { name: 'Authenticity & Fact-Check Audit', status: 'pending' },
     { name: 'Polishing for Human Cadence', status: 'pending' },
+    { name: 'Anti-Detection Pass', status: 'pending' },
   ];
 
   const update = (idx: number, status: PipelineStage['status'], message?: string) => {
@@ -273,15 +346,15 @@ export async function executeAutopostPipeline(
     }
     update(0, 'done', `${effectiveKeywords.length} keywords generated`);
 
-    // Stage 1
+    // Stage 1 — draft
     update(1, 'running');
     const rawDraft = await withRetry(
-      () => draftArticleContent(ai, topic, effectiveKeywords),
+      () => draftArticleContent(ai, topic, effectiveKeywords, tone),
       (_attempt, _delay, msg) => update(1, 'running', msg)
     );
     update(1, 'done', `${rawDraft.split(/\s+/).length.toLocaleString()} words drafted`);
 
-    // Stage 2
+    // Stage 2 — audit
     update(2, 'running');
     const auditResults = await withRetry(
       () => runAuthenticityCheck(ai, rawDraft),
@@ -293,6 +366,7 @@ export async function executeAutopostPipeline(
       `Score: ${auditResults.score}/100 — ${auditResults.vulnerabilities.length} issues flagged`
     );
 
+    // Check for quarantine — but still try to return usable content
     if (auditResults.score < 65) {
       return {
         status: 'quarantined',
@@ -307,20 +381,46 @@ export async function executeAutopostPipeline(
       };
     }
 
-    // Stage 3
-    update(3, 'running');
-    const polishedContent = await withRetry(
-      () => optimizeAndPolish(ai, rawDraft, auditResults),
-      (_attempt, _delay, msg) => update(3, 'running', msg)
-    );
-    update(3, 'done', 'Prose humanized and polished');
+    // Stage 3 — polish & humanize
+    let polishedContent: string;
+    try {
+      update(3, 'running');
+      polishedContent = await withRetry(
+        () => optimizeAndPolish(ai, rawDraft, auditResults, tone),
+        (_attempt, _delay, msg) => update(3, 'running', msg)
+      );
+      update(3, 'done', 'Prose humanized and polished');
+    } catch {
+      update(3, 'error', 'AI polish failed — applying local humanization');
+      polishedContent = fallbackHumanize(rawDraft, tone);
+    }
+
+    // Stage 4 — anti-detection pass
+    const { score: detectionScore, flags } = getAIDetectionScore(polishedContent);
+    let finalContent = polishedContent;
+
+    if (detectionScore < 80 && flags.length > 1) {
+      try {
+        update(4, 'running');
+        finalContent = await withRetry(
+          () => antiDetectionPass(ai, polishedContent, detectionScore),
+          (_attempt, _delay, msg) => update(4, 'running', msg)
+        );
+        update(4, 'done', `AI detection risk lowered (score: ${getAIDetectionScore(finalContent).score}/100)`);
+      } catch {
+        update(4, 'done', 'Local humanization applied');
+        finalContent = fallbackHumanize(polishedContent, tone);
+      }
+    } else {
+      update(4, 'done', `No anti-detection pass needed (score: ${detectionScore}/100)`);
+    }
 
     return {
       status: 'ready_to_publish',
       title: topic,
-      content: polishedContent,
+      content: finalContent,
       audit: auditResults,
-      excerpt: polishedContent.slice(0, 160).replace(/[#*]/g, '').trim(),
+      excerpt: finalContent.slice(0, 160).replace(/[#*]/g, '').trim(),
       tags: effectiveKeywords.slice(0, 4),
       keywords: effectiveKeywords,
       isApproved: true,
@@ -332,6 +432,44 @@ export async function executeAutopostPipeline(
     if (failedIdx >= 0) update(failedIdx, 'error', errMsg);
 
     throw new Error(errMsg);
+  }
+}
+
+export async function humanizeExistingContent(
+  content: string,
+  apiKey: string,
+  tone: WritingTone = 'professional',
+): Promise<string> {
+  const ai = createAI(apiKey);
+
+  const tonePrompt = getToneDraftPrompt(tone);
+
+  try {
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: `Humanize this article. Make it read like a skilled human writer wrote it, not an AI.
+
+TONE: ${tonePrompt}
+
+ARTICLE:
+${content.slice(0, 12000)}
+
+MANDATE:
+1. Vary sentence lengths and structures
+2. Remove AI-typical transitions and formulaic patterns
+3. Add natural variation in paragraph lengths
+4. Use contractions and conversational phrasing
+5. Keep all facts, examples, data, and arguments intact
+6. Preserve all Markdown formatting
+7. Return ONLY the revised article, no explanations`,
+      config: {
+        systemInstruction: 'You are a text humanization specialist. You rewrite AI-generated text to read as naturally human.',
+        temperature: 0.6,
+      },
+    });
+    return response.text ?? content;
+  } catch {
+    return fallbackHumanize(content, tone);
   }
 }
 

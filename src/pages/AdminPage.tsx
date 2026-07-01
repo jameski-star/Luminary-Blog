@@ -5,20 +5,24 @@ import { Modal, useConfirm } from '../components/Modal';
 import { getStoredUsers } from '../store/appStore';
 import { api, isApiMode } from '../services/api';
 import {
-  Shield, Users, FileText, Eye, Heart, TrendingUp,
-  Trash2, Send, Clock, AlertTriangle, Ban, User as UserIcon,
-  ArrowUpDown, Crown, Key, CheckCircle, XCircle, AlertOctagon
+  Shield, Users, FileText, Eye, Heart,
+  Trash2, Send, Clock, Ban, User as UserIcon,
+  Crown, CheckCircle, XCircle, AlertTriangle, TrendingUp
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { BlogPost, User as UserType } from '../types';
 
 type AdminTab = 'review' | 'pending' | 'posts' | 'users';
 
-
 export default function AdminPage() {
   const { user: currentUser, posts: contextPosts, updatePost, deletePost, setCurrentPage, setSelectedPostId } = useApp();
   const [users, setUsers] = useState<UserType[]>([]);
   const [adminPosts, setAdminPosts] = useState<BlogPost[]>([]);
+  const [activeTab, setActiveTab] = useState<AdminTab>('pending');
+  const [sortBy, setSortBy] = useState<'views' | 'likes' | 'date'>('date');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [promoteTarget, setPromoteTarget] = useState<UserType | null>(null);
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const refreshPosts = useCallback(() => {
     if (isApiMode()) {
@@ -39,35 +43,25 @@ export default function AdminPage() {
 
   const posts = isApiMode() ? adminPosts : contextPosts;
 
-  const user = currentUser;
-
-  if (!user || user.role !== 'admin') {
-    return (
-      <div className="min-h-screen bg-canvas flex items-center justify-center pt-16">
-        <div className="text-center max-w-md mx-auto px-4">
-          <Shield size={48} className="text-red-400 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-primary mb-3">Access Denied</h2>
-          <p className="text-secondary mb-6">Only administrators can access this panel.</p>
-          <button onClick={() => setCurrentPage('dashboard')} className="bg-primary text-canvas font-semibold px-6 py-3 rounded-xl">Go to Dashboard</button>
-        </div>
-      </div>
-    );
-  }
-
-  const [activeTab, setActiveTab] = useState<AdminTab>('pending');
-  const [sortBy, setSortBy] = useState<'views' | 'likes' | 'date'>('date');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [promoteTarget, setPromoteTarget] = useState<UserType | null>(null);
-  const { confirm, ConfirmDialog } = useConfirm();
-
   const totalPosts = posts.length;
   const totalPublished = posts.filter(p => p.status === 'published').length;
-  const totalDrafts = posts.filter(p => p.status === 'draft').length;
   const totalInReview = posts.filter(p => p.status === 'review' || p.status === 'quarantined').length;
   const totalPending = posts.filter(p => p.status === 'published' && p.isApproved !== true).length;
   const totalViews = posts.reduce((s, p) => s + p.views, 0);
   const totalLikes = posts.reduce((s, p) => s + p.likes, 0);
   const totalUsers = users.length;
+
+  const reviewPosts = posts
+    .filter(p => p.status === 'review' || p.status === 'quarantined')
+    .sort((a, b) => {
+      if (a.status === 'quarantined' && b.status !== 'quarantined') return -1;
+      if (a.status !== 'quarantined' && b.status === 'quarantined') return 1;
+      return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+    });
+
+  const pendingPosts = posts
+    .filter(p => p.status === 'published' && p.isApproved !== true)
+    .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
   const filteredPosts = posts
     .filter(p => statusFilter === 'all' || p.status === statusFilter)
@@ -76,6 +70,19 @@ export default function AdminPage() {
       if (sortBy === 'likes') return b.likes - a.likes;
       return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
     });
+
+  if (!currentUser || currentUser.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-canvas flex items-center justify-center pt-16">
+        <div className="text-center max-w-md mx-auto px-4">
+          <Shield size={48} className="text-red-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-primary mb-3">Access Denied</h2>
+          <p className="text-secondary mb-6">Only administrators can access this panel.</p>
+          <button onClick={() => setCurrentPage('dashboard')} className="bg-accent text-canvas font-semibold px-6 py-3 rounded-xl">Go to Dashboard</button>
+        </div>
+      </div>
+    );
+  }
 
   const approvePost = async (id: string) => {
     if (isApiMode()) {
@@ -163,249 +170,246 @@ export default function AdminPage() {
     }
   };
 
+  const getUserName = (id: string) => users.find(u => u.id === id)?.name || 'Unknown';
+
   return (
-    <div className="min-h-screen bg-canvas pt-20">
+    <div className="min-h-screen bg-canvas pt-16">
       <SEO title="Admin Panel" description="Platform administration and content management." noindex />
-      <div className="max-w-6xl mx-auto px-4 py-6 md:py-10">
+      <div className="max-w-7xl mx-auto px-6 py-8">
 
         {/* Header */}
-        <div className="flex items-start justify-between mb-6 md:mb-10">
-          <div>
-            <h1 className="font-heading text-2xl md:text-4xl font-bold text-primary mb-1 md:mb-2 flex items-center gap-2 md:gap-3">
-              <Shield size={20} className="text-amber-400" />
-              Admin Panel
-            </h1>
-            <p className="text-[10px] md:text-sm text-secondary">
-              Manage all posts, users, and platform content from one place
-            </p>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-accent/15 flex items-center justify-center">
+              <Shield size={18} className="text-accent" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold text-primary">Admin Panel</h1>
+              <p className="text-xs text-secondary">Manage posts, users, and platform content</p>
+            </div>
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-6 md:mb-10">
-          <StatCard icon={<FileText size={14} />} label="Total Posts" value={totalPosts} />
-          <StatCard icon={<TrendingUp size={14} />} label="Published" value={totalPublished} highlighted />
-          <StatCard icon={<Eye size={14} />} label="Total Views" value={totalViews.toLocaleString()} />
-          <StatCard icon={<Heart size={14} />} label="Total Likes" value={totalLikes.toLocaleString()} />
-          <StatCard icon={<FileText size={14} />} label="Drafts" value={totalDrafts} />
+        {/* Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+          <div className="stat-hero rounded-xl p-4">
+            <FileText size={14} className="stat-icon mb-2" />
+            <p className="text-2xl font-bold stat-value tabular-nums">{totalPosts}</p>
+            <p className="text-xs text-secondary mt-0.5">Total Posts</p>
+          </div>
+          <StatCard icon={<TrendingUp size={14} />} label="Published" value={totalPublished} />
           <StatCard icon={<AlertTriangle size={14} />} label="In Review" value={totalInReview} />
-          <StatCard icon={<Users size={14} />} label="Total Users" value={totalUsers} />
-          <StatCard icon={<TrendingUp size={14} />} label="Avg. Views/Post" value={totalPosts > 0 ? Math.round(totalViews / totalPosts).toLocaleString() : '0'} />
+          <StatCard icon={<Users size={14} />} label="Users" value={totalUsers} />
+          <StatCard icon={<Eye size={14} />} label="Total Views" value={totalViews.toLocaleString()} />
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-4 md:mb-6 bg-surface p-1 rounded-xl md:rounded-2xl border border-border w-fit overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('pending')}
-            className={`flex items-center gap-1 md:gap-2 px-2.5 md:px-5 py-1.5 md:py-2.5 rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium transition-all whitespace-nowrap ${
-              activeTab === 'pending'
-                ? 'bg-primary text-canvas'
-                : 'text-secondary hover:text-primary'
-            }`}
-          >
-            <CheckCircle size={12} />
-            <span className="hidden md:inline">Pending Approval</span>
-            <span className="md:hidden">Pending</span>
-            <span className={`text-[9px] md:text-xs rounded-full px-1.5 md:px-2 py-0.5 ${
-              activeTab === 'pending' ? 'bg-canvas/20 text-canvas' : 'bg-raised text-secondary'
-            }`}>{totalPending}</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('review')}
-            className={`flex items-center gap-1 md:gap-2 px-2.5 md:px-5 py-1.5 md:py-2.5 rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium transition-all whitespace-nowrap ${
-              activeTab === 'review'
-                ? 'bg-primary text-canvas'
-                : 'text-secondary hover:text-primary'
-            }`}
-          >
-            <AlertTriangle size={12} />
-            <span className="hidden md:inline">Review Queue</span>
-            <span className="md:hidden">Review</span>
-            <span className={`text-[9px] md:text-xs rounded-full px-1.5 md:px-2 py-0.5 ${
-              activeTab === 'review' ? 'bg-canvas/20 text-canvas' : 'bg-raised text-secondary'
-            }`}>{totalInReview}</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('posts')}
-            className={`flex items-center gap-1 md:gap-2 px-2.5 md:px-5 py-1.5 md:py-2.5 rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium transition-all whitespace-nowrap ${
-              activeTab === 'posts'
-                ? 'bg-primary text-canvas'
-                : 'text-secondary hover:text-primary'
-            }`}
-          >
-            <FileText size={12} />
-            Posts
-            <span className={`text-[9px] md:text-xs rounded-full px-1.5 md:px-2 py-0.5 ${
-              activeTab === 'posts' ? 'bg-canvas/20 text-canvas' : 'bg-raised text-secondary'
-            }`}>{totalPosts}</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`flex items-center gap-1 md:gap-2 px-2.5 md:px-5 py-1.5 md:py-2.5 rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium transition-all whitespace-nowrap ${
-              activeTab === 'users'
-                ? 'bg-primary text-canvas'
-                : 'text-secondary hover:text-primary'
-            }`}
-          >
-            <Users size={12} />
-            Users
-            <span className={`text-[9px] md:text-xs rounded-full px-1.5 md:px-2 py-0.5 ${
-              activeTab === 'users' ? 'bg-canvas/20 text-canvas' : 'bg-raised text-secondary'
-            }`}>{totalUsers}</span>
-          </button>
+        <div className="flex gap-1 mb-4 bg-surface p-1 rounded-lg border border-border w-fit">
+          {([
+            { key: 'pending' as const, label: 'Pending Approval', count: totalPending, icon: CheckCircle },
+            { key: 'review' as const, label: 'Review Queue', count: totalInReview, icon: AlertTriangle },
+            { key: 'posts' as const, label: 'Posts', count: totalPosts, icon: FileText },
+            { key: 'users' as const, label: 'Users', count: totalUsers, icon: Users },
+          ]).map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap min-h-11 ${
+                activeTab === tab.key
+                  ? 'bg-accent text-[#0F0E0D] shadow-sm'
+                  : 'text-secondary hover:text-primary hover:bg-raised'
+              }`}
+            >
+              <tab.icon size={14} />
+              <span className="hidden sm:inline">{tab.label}</span>
+              <span className="sm:hidden">{tab.key === 'pending' ? 'Pending' : tab.key === 'review' ? 'Review' : tab.key === 'posts' ? 'Posts' : 'Users'}</span>
+              <span className={`tabular-nums text-[11px] px-1.5 py-0.5 rounded-full ${
+                activeTab === tab.key ? 'bg-black/20 text-[#0F0E0D]' : 'bg-raised text-secondary'
+              }`}>{tab.count}</span>
+            </button>
+          ))}
         </div>
 
-        {/* Review Queue Tab */}
+        {/* ── Review Queue Tab ── */}
         {activeTab === 'review' && (
-          <>
-            <div className="flex items-center gap-1.5 md:gap-2 mb-4 md:mb-6 p-2.5 md:p-4 rounded-xl md:rounded-2xl border border-amber-500/30 bg-amber-500/10">
-              <AlertOctagon size={13} className="text-amber-400 shrink-0" />
-              <p className="text-[9px] md:text-xs text-amber-400">
-                Posts flagged for review. Approve to publish, reject to disapprove.
-              </p>
+          <div className="bg-surface rounded-xl border border-border overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-amber-500/5">
+              <AlertTriangle size={14} className="text-amber-400 shrink-0" />
+              <p className="text-xs text-amber-400">Posts flagged for review. Approve to publish, reject to disapprove.</p>
             </div>
-
-            {totalInReview === 0 ? (
-              <div className="text-center py-12 md:py-20 rounded-2xl md:rounded-3xl border border-border bg-surface">
-                <CheckCircle size={28} className="text-emerald-400 mx-auto mb-2 md:mb-3" />
-                <h3 className="text-sm md:text-lg font-semibold text-primary mb-1 md:mb-2">All clear</h3>
-                <p className="text-[10px] md:text-sm text-secondary">No posts currently pending review.</p>
+            {reviewPosts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <CheckCircle size={32} className="text-emerald-400 mb-3" />
+                <h3 className="text-sm font-semibold text-primary mb-1">All clear</h3>
+                <p className="text-xs text-secondary">No posts currently pending review.</p>
               </div>
             ) : (
-              <div className="space-y-2 md:space-y-3">
-                {posts
-                  .filter(p => p.status === 'review' || p.status === 'quarantined')
-                  .sort((a, b) => {
-                    if (a.status === 'quarantined' && b.status !== 'quarantined') return -1;
-                    if (a.status !== 'quarantined' && b.status === 'quarantined') return 1;
-                    return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
-                  })
-                  .map(post => (
-                    <ReviewPostCard
-                      key={post.id}
-                      post={post}
-                      authorName={users.find(u => u.id === post.authorId)?.name || post.authorName}
-                      onApprove={() => publishPost(post.id)}
-                      onReject={() => setPostStatus(post.id, 'disapproved')}
-                      onDelete={() => deletePostById(post.id, post.title)}
-                    />
-                  ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Pending Approval Tab */}
-        {activeTab === 'pending' && (
-          <>
-            <div className="flex items-center gap-1.5 md:gap-2 mb-4 md:mb-6 p-2.5 md:p-4 rounded-xl md:rounded-2xl border border-primary/30 bg-primary/10">
-              <CheckCircle size={13} className="text-primary shrink-0" />
-              <p className="text-[9px] md:text-xs text-primary">
-                Posts published manually or without passing the AI audit need admin approval before they appear publicly.
-              </p>
-            </div>
-
-            {totalPending === 0 ? (
-              <div className="text-center py-12 md:py-20 rounded-2xl md:rounded-3xl border border-border bg-surface">
-                <CheckCircle size={28} className="text-emerald-400 mx-auto mb-2 md:mb-3" />
-                <h3 className="text-sm md:text-lg font-semibold text-primary mb-1 md:mb-2">All approved</h3>
-                <p className="text-[10px] md:text-sm text-secondary">No posts currently pending approval.</p>
-              </div>
-            ) : (
-              <div className="space-y-2 md:space-y-3">
-                {posts
-                  .filter(p => p.status === 'published' && p.isApproved !== true)
-                  .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
-                  .map(post => (
-                    <div key={post.id} className="rounded-xl md:rounded-2xl border border-border bg-surface overflow-hidden hover:border-primary/40 transition-all group">
-                      <div className="p-3 md:p-4">
-                        <div className="flex items-start gap-2 md:gap-4">
-                          <div className="w-8 md:w-10 h-8 md:h-10 rounded-lg md:rounded-xl bg-primary/20 text-primary flex items-center justify-center shrink-0">
-                            <CheckCircle size={14} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 md:gap-2 mb-0.5 md:mb-1 flex-wrap">
-                              <h3 className="text-[10px] md:text-sm font-semibold text-primary truncate">{post.title}</h3>
-                              <span className="px-1.5 md:px-2 py-0.5 rounded-full text-[9px] md:text-xs font-medium shrink-0 bg-amber-500/10 text-amber-400">
-                                Pending
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-1.5 md:gap-3 text-[9px] md:text-xs text-secondary mb-1 md:mb-2">
-                              <span className="flex items-center gap-0.5 md:gap-1"><Users size={8} /> {users.find(u => u.id === post.authorId)?.name || post.authorName}</span>
-                              <span className="flex items-center gap-0.5 md:gap-1"><Clock size={8} /> {post.readTime}m</span>
-                              <span>{formatDistanceToNow(new Date(post.publishedAt), { addSuffix: true })}</span>
-                              {post.auditScore !== undefined && (
-                                <span className={`flex items-center gap-0.5 md:gap-1 ${post.auditScore < 65 ? 'text-red-400' : 'text-emerald-400'}`}>
-                                  <TrendingUp size={8} />
-                                  {post.auditScore}/100
-                                </span>
-                              )}
-                            </div>
-                            {post.excerpt && (
-                              <p className="text-[9px] md:text-xs text-secondary/70 line-clamp-1 md:line-clamp-2 mb-2 md:mb-3 leading-relaxed">{post.excerpt}</p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 md:gap-2 mt-2 md:mt-3 pt-2 md:pt-3 border-t border-border">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 20 }}></th>
+                    <th>Title</th>
+                    <th>Author</th>
+                    <th style={{ width: 80 }}>Audit</th>
+                    <th style={{ width: 140 }}>Submitted</th>
+                    <th style={{ width: 200 }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reviewPosts.map(post => (
+                    <tr key={post.id}>
+                      <td>
+                        <span className={`status-dot ${post.status === 'quarantined' ? 'status-dot--quarantined' : 'status-dot--review'}`} />
+                      </td>
+                      <td className="max-w-[240px] truncate font-medium">{post.title}</td>
+                      <td className="text-secondary">{getUserName(post.authorId)}</td>
+                      <td>
+                        {post.auditScore !== undefined ? (
+                          <span className={`tabular-nums font-medium ${
+                            post.auditScore < 50 ? 'text-red-400' : 'text-amber-400'
+                          }`}>{post.auditScore}</span>
+                        ) : (
+                          <span className="text-muted">&mdash;</span>
+                        )}
+                      </td>
+                      <td className="text-secondary text-xs">
+                        {formatDistanceToNow(new Date(post.publishedAt), { addSuffix: true })}
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-1.5">
                           <button
-                            onClick={() => approvePost(post.id)}
-                            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50 font-medium"
+                                                        onClick={() => publishPost(post.id)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all min-h-11"
                           >
-                            <CheckCircle size={10} />
+                            <CheckCircle size={12} />
                             Approve
                           </button>
                           <button
                             onClick={() => setPostStatus(post.id, 'disapproved')}
-                            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-secondary hover:text-primary transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-border hover:border-primary/30"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-surface text-secondary hover:text-primary border border-border hover:border-primary/30 transition-all min-h-11"
                           >
-                            <XCircle size={10} />
-                            <span className="hidden md:inline">Reject</span>
-                            <span className="md:hidden">Reject</span>
+                            <XCircle size={12} />
+                            Reject
                           </button>
                           <button
                             onClick={() => deletePostById(post.id, post.title)}
-                            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-red-400 hover:text-red-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-red-500/30 hover:border-red-400/50 ml-auto"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md text-secondary hover:text-red-400 hover:bg-red-500/10 transition-all min-h-11 min-w-11"
                           >
-                            <Trash2 size={10} />
-                            Delete
+                            <Trash2 size={12} />
                           </button>
                         </div>
-                      </div>
-                    </div>
+                      </td>
+                    </tr>
                   ))}
-              </div>
+                </tbody>
+              </table>
             )}
-          </>
+          </div>
         )}
 
-        {/* Posts Tab */}
+        {/* ── Pending Approval Tab ── */
+}
+        {activeTab === 'pending' && (
+          <div className="bg-surface rounded-xl border border-border overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-accent/5">
+              <CheckCircle size={14} className="text-accent shrink-0" />
+              <p className="text-xs text-accent">Posts published without passing AI audit need admin approval before appearing publicly.</p>
+            </div>
+            {pendingPosts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <CheckCircle size={32} className="text-emerald-400 mb-3" />
+                <h3 className="text-sm font-semibold text-primary mb-1">All approved</h3>
+                <p className="text-xs text-secondary">No posts currently pending approval.</p>
+              </div>
+            ) : (
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 20 }}></th>
+                    <th>Title</th>
+                    <th>Author</th>
+                    <th style={{ width: 80 }}>Audit</th>
+                    <th style={{ width: 140 }}>Submitted</th>
+                    <th style={{ width: 200 }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingPosts.map(post => (
+                    <tr key={post.id}>
+                      <td><span className="status-dot status-dot--review" /></td>
+                      <td className="max-w-[240px] truncate font-medium">{post.title}</td>
+                      <td className="text-secondary">{getUserName(post.authorId)}</td>
+                      <td>
+                        {post.auditScore !== undefined ? (
+                          <span className={`tabular-nums font-medium ${
+                            post.auditScore < 65 ? 'text-red-400' : 'text-emerald-400'
+                          }`}>{post.auditScore}</span>
+                        ) : (
+                          <span className="text-muted">&mdash;</span>
+                        )}
+                      </td>
+                      <td className="text-secondary text-xs">
+                        {formatDistanceToNow(new Date(post.publishedAt), { addSuffix: true })}
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => approvePost(post.id)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all min-h-11"
+                          >
+                            <CheckCircle size={12} />
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => setPostStatus(post.id, 'disapproved')}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-surface text-secondary hover:text-primary border border-border hover:border-primary/30 transition-all min-h-11"
+                          >
+                            <XCircle size={12} />
+                            Reject
+                          </button>
+                          <button
+                            onClick={() => deletePostById(post.id, post.title)}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md text-secondary hover:text-red-400 hover:bg-red-500/10 transition-all min-h-11 min-w-11"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* ── Posts Tab ── */}
         {activeTab === 'posts' && (
           <>
-            {/* Filters */}
-            <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-4 md:mb-6">
-              <div className="flex gap-1 bg-surface p-0.5 md:p-1 rounded-lg md:rounded-xl border border-border overflow-x-auto">
+            {/* Filter bar */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex gap-1 bg-surface p-0.5 rounded-md border border-border">
                 {['all', 'published', 'draft', 'review', 'quarantined'].map(s => (
                   <button
                     key={s}
                     onClick={() => setStatusFilter(s)}
-                    className={`px-1.5 md:px-3 py-1 md:py-1.5 rounded-md md:rounded-lg text-[9px] md:text-xs font-medium transition-all whitespace-nowrap ${
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-all min-h-11 ${
                       statusFilter === s
-                        ? 'bg-primary text-canvas'
-                        : 'text-secondary hover:text-primary'
+                        ? 'bg-accent text-[#0F0E0D] shadow-sm'
+                        : 'text-secondary hover:text-primary hover:bg-raised'
                     }`}
                   >
                     {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-1 md:gap-2 text-[9px] md:text-xs text-secondary">
-                <ArrowUpDown size={10} />
-                <span className="text-secondary hidden md:inline">Sort:</span>
+              <div className="flex items-center gap-1.5 text-xs text-secondary ml-auto">
+                <span className="text-muted">Sort:</span>
                 {(['date', 'views', 'likes'] as const).map(s => (
                   <button
                     key={s}
                     onClick={() => setSortBy(s)}
-                    className={`px-1.5 md:px-2 py-1 rounded-md transition-all ${
+                    className={`px-2 py-0.5 rounded transition-all min-h-11 ${
                       sortBy === s ? 'bg-raised text-primary font-medium' : 'hover:text-primary'
                     }`}
                   >
@@ -415,66 +419,221 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Posts Table */}
-            {filteredPosts.length === 0 ? (
-              <div className="text-center py-20 rounded-3xl border border-border bg-surface">
-                <FileText size={32} className="text-secondary mx-auto mb-3" />
-                <h3 className="text-lg font-semibold text-primary mb-2">No posts found</h3>
-                <p className="text-secondary text-sm">No posts match the current filter.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {filteredPosts.map(post => (
-                  <AdminPostRow
-                    key={post.id}
-                    post={post}
-                    authorName={users.find(u => u.id === post.authorId)?.name || post.authorName}
-                    onOpen={() => { setSelectedPostId(post.id); setCurrentPage('post'); }}
-                    onPublish={() => publishPost(post.id)}
-                    onDelete={() => deletePostById(post.id, post.title)}
-                    onStatusChange={(status) => setPostStatus(post.id, status)}
-                  />
-                ))}
-              </div>
-            )}
+            {/* Posts table */}
+            <div className="bg-surface rounded-xl border border-border overflow-hidden">
+              {filteredPosts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <FileText size={32} className="text-secondary mb-3" />
+                  <h3 className="text-sm font-semibold text-primary mb-1">No posts found</h3>
+                  <p className="text-xs text-secondary">No posts match the current filter.</p>
+                </div>
+              ) : (
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 20 }}></th>
+                      <th>Title</th>
+                      <th>Author</th>
+                      <th style={{ width: 80 }} className="tabular-nums">Views</th>
+                      <th style={{ width: 80 }} className="tabular-nums">Likes</th>
+                      <th style={{ width: 80 }}>Status</th>
+                      <th style={{ width: 120 }}>Date</th>
+                      <th style={{ width: 140 }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPosts.map(post => (
+                      <tr key={post.id}>
+                        <td>
+                          <span className={`status-dot status-dot--${post.status === 'review' || post.status === 'quarantined' ? post.status === 'quarantined' ? 'quarantined' : 'review' : post.status === 'disapproved' ? 'disapproved' : post.status}`} />
+                        </td>
+                        <td className="max-w-[200px] truncate">
+                          <button
+                            onClick={() => { setSelectedPostId(post.id); setCurrentPage('post'); }}
+                            className="font-medium hover:text-accent transition-colors text-left min-h-11"
+                          >
+                            {post.title}
+                          </button>
+                        </td>
+                        <td className="text-secondary text-xs">{getUserName(post.authorId)}</td>
+                        <td className="tabular-nums text-secondary text-xs">{post.views.toLocaleString()}</td>
+                        <td className="tabular-nums text-secondary text-xs">{post.likes}</td>
+                        <td>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${
+                            post.status === 'published' ? 'bg-emerald-500/10 text-emerald-400'
+                            : post.status === 'draft' ? 'bg-secondary/10 text-secondary'
+                            : post.status === 'review' ? 'bg-amber-500/10 text-amber-400'
+                            : post.status === 'quarantined' ? 'bg-red-500/10 text-red-400'
+                            : 'bg-red-500/10 text-red-400'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              post.status === 'published' ? 'bg-emerald-400'
+                              : post.status === 'draft' ? 'bg-secondary'
+                              : post.status === 'review' ? 'bg-amber-400'
+                              : 'bg-red-400'
+                            }`} />
+                            {post.status === 'review' ? 'Review' : post.status.charAt(0).toUpperCase() + post.status.slice(1)}
+                          </span>
+                        </td>
+                        <td className="text-secondary text-xs tabular-nums">
+                          {formatDistanceToNow(new Date(post.publishedAt), { addSuffix: true })}
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-1">
+                            {post.status !== 'published' && (
+                              <button
+                                onClick={() => publishPost(post.id)}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all min-h-11"
+                              >
+                                <Send size={12} />
+                                <span className="hidden sm:inline">Publish</span>
+                              </button>
+                            )}
+                            <div className="relative group">
+                              <button className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-surface text-secondary hover:text-primary border border-border hover:border-primary/30 transition-all min-h-11">
+                                <Ban size={12} />
+                                <span className="hidden sm:inline">Status</span>
+                              </button>
+                              <div className="absolute right-0 top-full mt-1 w-28 rounded-lg border border-border bg-surface shadow-lg overflow-hidden z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all origin-top-right">
+                                {(['published', 'draft', 'review', 'quarantined'] as const).map(s => (
+                                  <button
+                                    key={s}
+                                    onClick={() => setPostStatus(post.id, s)}
+                                    className={`w-full text-left px-3 py-1.5 text-xs transition-colors hover:bg-raised min-h-11 ${
+                                      post.status === s ? 'text-accent font-medium' : 'text-secondary'
+                                    }`}
+                                  >
+                                    {s.charAt(0).toUpperCase() + s.slice(1)}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => deletePostById(post.id, post.title)}
+                              className="p-1.5 text-secondary hover:text-red-400 hover:bg-red-500/10 rounded-md transition-all min-h-11 min-w-11"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </>
         )}
 
-        {/* Users Tab */}
+        {/* ── Users Tab ── */}
         {activeTab === 'users' && (
-          <>
-            <div className="flex items-center gap-2 mb-6 p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10">
-              <Key size={16} className="text-amber-400 shrink-0" />
+          <div className="bg-surface rounded-xl border border-border overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-amber-500/5">
+              <Crown size={14} className="text-amber-400 shrink-0" />
               <p className="text-xs text-amber-400">
-                <strong>Admin Recovery:</strong> If you lost your admin account, sign up a new account first, then come here and promote it using the "Make Admin" button.
+                <strong>Admin Recovery:</strong> Sign up a new account, then promote it here using "Make Admin".
               </p>
             </div>
-
             {users.length === 0 ? (
-              <div className="text-center py-20 rounded-3xl border border-border bg-surface">
-                <Users size={32} className="text-secondary mx-auto mb-3" />
-                <h3 className="text-lg font-semibold text-primary mb-2">No users yet</h3>
-                <p className="text-secondary text-sm">Users will appear here once they sign up.</p>
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Users size={32} className="text-secondary mb-3" />
+                <h3 className="text-sm font-semibold text-primary mb-1">No users yet</h3>
+                <p className="text-xs text-secondary">Users will appear here once they sign up.</p>
               </div>
             ) : (
-              <div className="space-y-2">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 24 }}></th>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th style={{ width: 80 }} className="tabular-nums">Posts</th>
+                    <th style={{ width: 120 }}>Joined</th>
+                    <th style={{ width: 180 }}></th>
+                  </tr>
+                </thead>
+                <tbody>
                   {users.map(u => (
-                   <AdminUserRow
-                     key={u.id}
-                     user={u}
-                     postsCount={posts.filter(p => p.authorId === u.id).length}
-                     onPromote={() => setPromoteTarget(u)}
-                     onBan={() => banUser(u.id)}
-                     onUnban={() => unbanUser(u.id)}
-                     isCurrentUser={u.id === user.id}
-                   />
-                 ))}
-              </div>
+                    <tr key={u.id}>
+                      <td>
+                        <div className="w-7 h-7 rounded-full bg-accent/15 flex items-center justify-center text-xs font-bold text-accent tabular-nums">
+                          {u.name.charAt(0).toUpperCase()}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-primary flex items-center gap-1.5">
+                            {u.name}
+                            {u.id === currentUser.id && (
+                              <span className="text-[10px] text-accent bg-accent/10 px-1.5 py-0.5 rounded font-medium">You</span>
+                            )}
+                          </span>
+                          <span className="text-xs text-secondary truncate max-w-[200px]">{u.email}</span>
+                        </div>
+                      </td>
+                      <td>
+                        {u.role === 'admin' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-accent/10 text-accent">
+                            <Crown size={10} />
+                            Admin
+                          </span>
+                        ) : u.banned ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-red-500/10 text-red-400">
+                            <Ban size={10} />
+                            Banned
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-secondary/10 text-secondary">
+                            <UserIcon size={10} />
+                            User
+                          </span>
+                        )}
+                      </td>
+                      <td className="tabular-nums text-secondary text-xs">
+                        {posts.filter(p => p.authorId === u.id).length}
+                      </td>
+                      <td className="text-secondary text-xs tabular-nums">
+                        {formatDistanceToNow(new Date(u.joinedAt), { addSuffix: true })}
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-1.5">
+                          {u.banned ? (
+                            <button
+                              onClick={() => unbanUser(u.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all min-h-11"
+                            >
+                              <CheckCircle size={12} />
+                              Unban
+                            </button>
+                          ) : u.id !== currentUser.id && (
+                            <button
+                              onClick={() => banUser(u.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all min-h-11"
+                            >
+                              <Ban size={12} />
+                              Ban
+                            </button>
+                          )}
+                          {u.role !== 'admin' && !u.banned && (
+                            <button
+                              onClick={() => setPromoteTarget(u)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-all min-h-11"
+                            >
+                              <Crown size={12} />
+                              Make Admin
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
-          </>
+          </div>
         )}
 
-        {/* Promote Confirmation Modal */}
+        {/* Promote Modal */}
         <Modal
           open={!!promoteTarget}
           onClose={() => setPromoteTarget(null)}
@@ -483,7 +642,7 @@ export default function AdminPage() {
             <>
               <button
                 onClick={() => setPromoteTarget(null)}
-                className="px-4 py-2 text-sm text-secondary hover:text-primary border border-border rounded-xl hover:bg-raised transition-colors"
+                className="px-4 py-2 text-sm text-secondary hover:text-primary border border-border rounded-xl hover:bg-raised transition-colors min-h-11"
               >
                 Cancel
               </button>
@@ -505,7 +664,7 @@ export default function AdminPage() {
                     console.error('Promote failed:', err);
                   }
                 }}
-                className="px-4 py-2 text-sm bg-amber-500/20 text-amber-400 border border-amber-500/30 font-semibold rounded-xl hover:bg-amber-500/30 transition-colors"
+                className="px-4 py-2 text-sm bg-accent/15 text-accent border border-accent/30 font-semibold rounded-xl hover:bg-accent/25 transition-colors min-h-11"
               >
                 <Crown size={14} className="inline mr-1.5" />
                 Make Admin
@@ -524,243 +683,14 @@ export default function AdminPage() {
   );
 }
 
-function StatCard({ icon, label, value, highlighted }: {
-  icon: React.ReactNode; label: string; value: string | number; highlighted?: boolean;
+function StatCard({ icon, label, value }: {
+  icon: React.ReactNode; label: string; value: string | number;
 }) {
   return (
-    <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-5">
-      <div className={`mb-1 md:mb-3 ${highlighted ? 'text-primary' : 'text-secondary'}`}>{icon}</div>
-      <p className="text-base md:text-2xl font-bold text-primary mb-0.5 md:mb-1">{value}</p>
-      <p className="text-[10px] md:text-xs text-secondary">{label}</p>
-    </div>
-  );
-}
-
-function AdminPostRow({ post, authorName, onOpen, onPublish, onDelete, onStatusChange }: {
-  post: BlogPost;
-  authorName: string;
-  onOpen: () => void;
-  onPublish: () => void;
-  onDelete: () => void;
-  onStatusChange: (status: BlogPost['status']) => void;
-}) {
-  const statusColors: Record<string, string> = {
-    published: 'bg-emerald-500/10 text-emerald-400',
-    draft: 'bg-secondary/10 text-secondary',
-    review: 'bg-amber-500/10 text-amber-400',
-    quarantined: 'bg-red-500/10 text-red-400',
-  };
-
-  return (
-    <div className="rounded-xl md:rounded-2xl border border-border bg-surface overflow-hidden hover:border-primary/20 transition-all group">
-      <div className="flex items-center gap-2 md:gap-4 p-3 md:p-4">
-        <div className={`w-1.5 md:w-2 h-1.5 md:h-2 rounded-full shrink-0 ${
-          post.status === 'published' ? 'bg-emerald-400'
-          : post.status === 'draft' ? 'bg-secondary'
-          : post.status === 'review' ? 'bg-amber-400'
-          : 'bg-red-400'
-        }`} />
-
-        <button onClick={onOpen} className="flex-1 text-left min-w-0 max-w-[45%] md:max-w-none">
-          <h3 className="text-[10px] md:text-sm font-semibold text-primary group-hover:text-primary/80 transition-colors truncate mb-0.5 md:mb-1">
-            {post.title}
-          </h3>
-          <div className="flex flex-wrap items-center gap-1.5 md:gap-3 text-[9px] md:text-xs text-secondary">
-            <span className={`px-1 md:px-2 py-0.5 rounded-full text-[9px] md:text-xs ${statusColors[post.status] || ''}`}>
-              {post.status === 'review' ? 'In Review' : post.status.charAt(0).toUpperCase() + post.status.slice(1)}
-            </span>
-            <span className="flex items-center gap-0.5 md:gap-1"><UserIcon size={8} /> {authorName}</span>
-            <span className="flex items-center gap-0.5 md:gap-1"><Clock size={8} /> {post.readTime}m</span>
-            <span className="hidden md:flex items-center gap-1"><Eye size={10} /> {post.views.toLocaleString()}</span>
-            <span className="hidden md:flex items-center gap-1"><Heart size={10} /> {post.likes}</span>
-            {post.auditScore !== undefined && (
-              <span className="flex items-center gap-0.5 md:gap-1">
-                <TrendingUp size={8} />
-                {post.auditScore}/100
-              </span>
-            )}
-            <span className="hidden md:inline">{formatDistanceToNow(new Date(post.publishedAt), { addSuffix: true })}</span>
-          </div>
-        </button>
-
-        <div className="flex items-center gap-1 md:gap-2 shrink-0 ml-auto">
-          {post.status !== 'published' && (
-            <button
-              onClick={onPublish}
-              className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-1 md:px-3 py-1 md:py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50"
-            >
-              <Send size={10} />
-              <span className="hidden md:inline">Publish</span>
-            </button>
-          )}
-          <div className="relative group/status">
-            <button className="flex items-center gap-0.5 md:gap-1 text-[9px] md:text-xs text-secondary hover:text-primary transition-colors px-1 md:px-2 py-1 md:py-1.5 rounded-lg border border-border hover:border-primary/30">
-              <Ban size={10} />
-              <span className="hidden md:inline">Status</span>
-            </button>
-            <div className="absolute right-0 top-8 w-28 md:w-36 rounded-xl border border-border bg-surface shadow-2xl overflow-hidden z-50 opacity-0 invisible group-hover/status:opacity-100 group-hover/status:visible transition-all">
-              {(['published', 'draft', 'review', 'quarantined'] as const).map(s => (
-                <button
-                  key={s}
-                  onClick={() => onStatusChange(s)}
-                  className={`w-full text-left px-2 md:px-3 py-1.5 md:py-2 text-[10px] md:text-xs transition-colors hover:bg-raised ${
-                    post.status === s ? 'text-primary font-medium' : 'text-secondary'
-                  }`}
-                >
-                  {s.charAt(0).toUpperCase() + s.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <button
-            onClick={onDelete}
-            className="text-secondary hover:text-red-400 transition-colors p-1 md:p-1.5 rounded-lg hover:bg-red-950/30"
-          >
-            <Trash2 size={12} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ReviewPostCard({ post, authorName, onApprove, onReject, onDelete }: {
-  post: BlogPost;
-  authorName: string;
-  onApprove: () => void;
-  onReject: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <div className="rounded-xl md:rounded-2xl border border-border bg-surface overflow-hidden hover:border-amber-400/40 transition-all group">
-      <div className="p-3 md:p-4">
-        <div className="flex items-start gap-2 md:gap-4">
-          <div className={`w-8 md:w-10 h-8 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center shrink-0 ${
-            post.status === 'quarantined'
-              ? 'bg-red-500/20 text-red-400'
-              : 'bg-amber-500/20 text-amber-400'
-          }`}>
-            {post.status === 'quarantined' ? <Ban size={14} /> : <AlertTriangle size={14} />}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 md:gap-2 mb-0.5 md:mb-1">
-              <h3 className="text-[10px] md:text-sm font-semibold text-primary truncate">{post.title}</h3>
-              <span className={`px-1.5 md:px-2 py-0.5 rounded-full text-[9px] md:text-xs font-medium shrink-0 ${
-                post.status === 'quarantined'
-                  ? 'bg-red-500/10 text-red-400'
-                  : 'bg-amber-500/10 text-amber-400'
-              }`}>
-                {post.status === 'quarantined' ? 'Auto-Q' : 'Flagged'}
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5 md:gap-3 text-[9px] md:text-xs text-secondary mb-1 md:mb-2">
-              <span className="flex items-center gap-0.5 md:gap-1"><UserIcon size={8} /> {authorName}</span>
-              <span className="flex items-center gap-0.5 md:gap-1"><Clock size={8} /> {post.readTime}m</span>
-              <span>{formatDistanceToNow(new Date(post.publishedAt), { addSuffix: true })}</span>
-              {post.auditScore !== undefined && (
-                <span className={`flex items-center gap-0.5 md:gap-1 ${
-                  post.auditScore < 50 ? 'text-red-400' : 'text-amber-400'
-                }`}>
-                  <TrendingUp size={8} />
-                  {post.auditScore}/100
-                </span>
-              )}
-            </div>
-            {post.excerpt && (
-              <p className="text-[9px] md:text-xs text-secondary/70 line-clamp-1 md:line-clamp-2 mb-2 md:mb-3 leading-relaxed">
-                {post.excerpt}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5 md:gap-2 mt-2 md:mt-3 pt-2 md:pt-3 border-t border-border flex-wrap">
-          <button
-            onClick={onApprove}
-            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50 font-medium"
-          >
-            <CheckCircle size={10} />
-            <span className="hidden md:inline">Approve & Publish</span>
-            <span className="md:hidden">Approve</span>
-          </button>
-          <button
-            onClick={onReject}
-            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-secondary hover:text-primary transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-border hover:border-primary/30"
-          >
-            <XCircle size={10} />
-            <span className="hidden md:inline">Reject</span>
-            <span className="md:hidden">Reject</span>
-          </button>
-          <button
-            onClick={onDelete}
-            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-red-400 hover:text-red-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-red-500/30 hover:border-red-400/50 ml-auto"
-          >
-            <Trash2 size={10} />
-            Delete
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AdminUserRow({ user, postsCount, onPromote, onBan, onUnban, isCurrentUser }: {
-  user: UserType; postsCount: number; onPromote: () => void; onBan: () => void; onUnban: () => void; isCurrentUser: boolean;
-}) {
-  return (
-    <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-4 hover:border-primary/20 transition-all">
-      <div className="flex items-center gap-2 md:gap-4">
-        <div className="w-8 md:w-10 h-8 md:h-10 rounded-full bg-primary/20 flex items-center justify-center text-[10px] md:text-sm font-bold text-primary shrink-0">
-          {user.name.charAt(0).toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1 md:gap-2 flex-wrap">
-            <span className="text-[10px] md:text-sm font-semibold text-primary truncate">{user.name}</span>
-            {user.role === 'admin' && (
-              <span className="text-[9px] md:text-xs bg-amber-500/10 text-amber-400 px-1.5 md:px-2 py-0.5 rounded-full font-medium">Admin</span>
-            )}
-            {user.banned && (
-              <span className="text-[9px] md:text-xs bg-red-500/10 text-red-400 px-1.5 md:px-2 py-0.5 rounded-full font-medium">Banned</span>
-            )}
-            {isCurrentUser && (
-              <span className="text-[9px] md:text-xs bg-primary/10 text-primary px-1.5 md:px-2 py-0.5 rounded-full font-medium">You</span>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5 md:gap-3 text-[9px] md:text-xs text-secondary mt-0.5">
-            <span className="truncate max-w-[120px] md:max-w-none">{user.email}</span>
-            <span className="hidden md:flex items-center gap-1"><FileText size={10} /> {postsCount} posts</span>
-            <span>Joined {formatDistanceToNow(new Date(user.joinedAt), { addSuffix: true })}</span>
-          </div>
-        </div>
-        {user.banned ? (
-          <button
-            onClick={onUnban}
-            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-emerald-400 hover:text-emerald-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-400/50 whitespace-nowrap"
-          >
-            <CheckCircle size={10} />
-            <span className="hidden md:inline">Unban</span>
-            <span className="md:hidden">Unban</span>
-          </button>
-        ) : !isCurrentUser && (
-          <button
-            onClick={onBan}
-            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-red-400 hover:text-red-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-red-500/30 hover:border-red-400/50 whitespace-nowrap"
-          >
-            <Ban size={10} />
-            <span className="hidden md:inline">Ban</span>
-            <span className="md:hidden">Ban</span>
-          </button>
-        )}
-        {user.role !== 'admin' && !user.banned && (
-          <button
-            onClick={onPromote}
-            className="flex items-center gap-1 md:gap-1.5 text-[9px] md:text-xs text-amber-400 hover:text-amber-300 transition-colors px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg border border-amber-500/30 hover:border-amber-400/50 whitespace-nowrap"
-          >
-            <Crown size={10} />
-            <span className="hidden md:inline">Make Admin</span>
-            <span className="md:hidden">Admin</span>
-          </button>
-        )}
-      </div>
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="text-secondary mb-2">{icon}</div>
+      <p className="text-xl font-bold text-primary tabular-nums">{value}</p>
+      <p className="text-xs text-secondary mt-0.5">{label}</p>
     </div>
   );
 }

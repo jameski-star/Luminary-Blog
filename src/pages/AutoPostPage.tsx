@@ -7,11 +7,12 @@ import type { PipelineStage, PipelineResult } from '../types';
 import { generateSlug, calcReadTime } from '../store/appStore';
 import { detectRogueContent } from '../utils/contentDetection';
 
-import type { BlogPost } from '../types';
+import type { BlogPost, WritingTone } from '../types';
+import { TONE_LABELS } from '../types';
 import SeoInsights from '../components/SeoInsights';
 import {
   Zap, Key, X, CheckCircle, AlertTriangle, Clock, Plus,
-  Eye, Save, Send, ChevronDown, ChevronUp, Info, TrendingUp
+  Eye, Save, Send, ChevronDown, ChevronUp, Info, TrendingUp, MessageSquare
 } from 'lucide-react';
 import { marked } from 'marked';
 
@@ -27,6 +28,7 @@ export default function AutoPostPage() {
   const [topic, setTopic] = useState('');
   const [keywordInput, setKeywordInput] = useState('');
   const [keywords, setKeywords] = useState<string[]>([]);
+  const [writingTone, setWritingTone] = useState<WritingTone>('professional');
 
   // Pipeline state
   const [stages, setStages] = useState<PipelineStage[]>([]);
@@ -84,6 +86,7 @@ export default function AutoPostPage() {
       { name: 'Drafting Deep-Dive Content', status: 'pending' },
       { name: 'Authenticity & Fact-Check Audit', status: 'pending' },
       { name: 'Polishing for Human Cadence', status: 'pending' },
+      { name: 'Anti-Detection Pass', status: 'pending' },
     ]);
 
     const MAX_RETRIES = 10;
@@ -99,6 +102,7 @@ export default function AutoPostPage() {
             { name: attempt > 1 ? `Drafting Deep-Dive Content (retry ${attempt})` : 'Drafting Deep-Dive Content', status: 'running' },
             { name: 'Authenticity & Fact-Check Audit', status: 'pending' },
             { name: 'Polishing for Human Cadence', status: 'pending' },
+            { name: 'Anti-Detection Pass', status: 'pending' },
           ]);
           pipelineResult = await api.gemini.pipeline({ topic: topic.trim(), keywords });
           setStages([
@@ -106,13 +110,15 @@ export default function AutoPostPage() {
             { name: 'Drafting Deep-Dive Content', status: 'done' },
             { name: 'Authenticity & Fact-Check Audit', status: 'done' },
             { name: 'Polishing for Human Cadence', status: 'done' },
+            { name: 'Anti-Detection Pass', status: 'done' },
           ]);
         } else {
           pipelineResult = await executeAutopostPipeline(
             topic.trim(),
             keywords,
             geminiKey,
-            (updatedStages) => setStages(updatedStages)
+            (updatedStages) => setStages(updatedStages),
+            writingTone,
           );
         }
 
@@ -283,20 +289,44 @@ export default function AutoPostPage() {
                 <button
                   type="button"
                   onClick={() => setKeyVisible(!keyVisible)}
-                  className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-primary"
+                  className="absolute right-2 md:right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-primary p-2 min-h-11 min-w-11"
                 >
                   <Eye size={12} />
                 </button>
               </div>
               <button
                 onClick={saveKey}
-                className={`px-3 md:px-5 py-2 md:py-3 rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium transition-all whitespace-nowrap ${keySaved ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-primary text-canvas hover:bg-white'}`}
+                className={`px-3 md:px-5 py-2 md:py-3 rounded-lg md:rounded-xl text-[10px] md:text-sm font-medium transition-all whitespace-nowrap min-h-11 ${keySaved ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-primary text-canvas hover:bg-white'}`}
               >
                 {keySaved ? <><CheckCircle size={12} className="inline mr-1" />Saved</> : 'Save Key'}
               </button>
             </div>
           </div>
         )}
+
+        {/* Writing Tone */}
+        <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-6 mb-4 md:mb-6">
+          <h2 className="text-xs md:text-sm font-semibold text-primary mb-3 md:mb-5 flex items-center gap-1.5 md:gap-2">
+            <MessageSquare size={14} className="text-secondary" />
+            Writing Tone
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 md:gap-2">
+            {(Object.entries(TONE_LABELS) as [WritingTone, typeof TONE_LABELS[WritingTone]][]).map(([key, val]) => (
+              <button
+                key={key}
+                onClick={() => setWritingTone(key)}
+                className={`text-left px-2.5 md:px-3 py-2 md:py-2.5 rounded-lg text-[10px] md:text-xs transition-all min-h-11 ${
+                  writingTone === key
+                    ? 'bg-accent/10 text-accent border border-accent/20'
+                    : 'bg-raised text-secondary hover:text-primary border border-transparent'
+                }`}
+              >
+                <div className="font-medium">{val.label}</div>
+                <div className="text-[9px] md:text-[10px] opacity-70 mt-0.5">{val.description}</div>
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Pipeline Inputs */}
         <div className="rounded-xl md:rounded-2xl border border-border bg-surface p-3 md:p-6 mb-4 md:mb-6">
@@ -332,7 +362,7 @@ export default function AutoPostPage() {
               />
               <button
                 onClick={addKeyword}
-                className="px-3 md:px-4 py-2 md:py-2.5 bg-raised hover:bg-muted rounded-lg md:rounded-xl text-primary transition-colors"
+                className="px-3 md:px-4 py-2 md:py-2.5 bg-raised hover:bg-muted rounded-lg md:rounded-xl text-primary transition-colors min-h-11"
               >
                 <Plus size={14} />
               </button>
@@ -342,7 +372,7 @@ export default function AutoPostPage() {
                 {keywords.map(kw => (
                   <span key={kw} className="flex items-center gap-1 md:gap-1.5 text-[10px] md:text-xs px-1.5 md:px-3 py-0.5 md:py-1.5 rounded-full bg-raised text-secondary">
                     {kw}
-                    <button onClick={() => removeKeyword(kw)} className="hover:text-red-400 transition-colors">
+                    <button onClick={() => removeKeyword(kw)} className="hover:text-red-400 transition-colors p-1.5 min-h-11 min-w-11">
                       <X size={8} />
                     </button>
                   </span>
@@ -386,7 +416,7 @@ export default function AutoPostPage() {
           <button
             onClick={runPipeline}
             disabled={(!isApiMode() && !geminiKey) || !topic || keywords.length === 0}
-            className="w-full flex items-center justify-center gap-2 md:gap-3 bg-primary hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed text-canvas font-bold py-3 md:py-4 rounded-xl md:rounded-2xl transition-all duration-200 text-xs md:text-base"
+            className="w-full flex items-center justify-center gap-2 md:gap-3 bg-primary hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed text-canvas font-bold py-3 md:py-4 rounded-xl md:rounded-2xl transition-all duration-200 text-xs md:text-base min-h-11"
           >
             <Zap size={16} />
             Execute AutoPost Pipeline
@@ -529,7 +559,7 @@ export default function AutoPostPage() {
               <div className="rounded-xl md:rounded-2xl border border-border bg-surface overflow-hidden">
                 <button
                   onClick={() => setAuditOpen(!auditOpen)}
-                  className="w-full flex items-center justify-between p-3 md:p-5 text-left hover:bg-raised/30 transition-colors"
+                  className="w-full flex items-center justify-between p-3 md:p-5 text-left hover:bg-raised/30 transition-colors min-h-11"
                 >
                   <span className="text-[10px] md:text-sm font-semibold text-primary">
                     Audit — {result.audit.vulnerabilities.length} issues
@@ -572,7 +602,7 @@ export default function AutoPostPage() {
               <div className="rounded-xl md:rounded-2xl border border-border bg-surface overflow-hidden">
                 <button
                   onClick={() => setOutlineOpen(!outlineOpen)}
-                  className="w-full flex items-center justify-between p-3 md:p-5 text-left hover:bg-raised/30 transition-colors"
+                  className="w-full flex items-center justify-between p-3 md:p-5 text-left hover:bg-raised/30 transition-colors min-h-11"
                 >
                   <span className="text-[10px] md:text-sm font-semibold text-primary">Article Outline</span>
                   {outlineOpen ? <ChevronUp size={13} className="text-secondary shrink-0" /> : <ChevronDown size={13} className="text-secondary shrink-0" />}
@@ -589,13 +619,13 @@ export default function AutoPostPage() {
 
             {/* Article Preview */}
             <div className="rounded-xl md:rounded-2xl border border-border bg-surface overflow-hidden">
-              <button
-                onClick={() => setPreviewOpen(!previewOpen)}
-                className="w-full flex items-center justify-between p-3 md:p-5 text-left hover:bg-raised/30 transition-colors"
-              >
-                <span className="text-[10px] md:text-sm font-semibold text-primary">
-                  Preview — {result.content.split(/\s+/).length.toLocaleString()} words
-                </span>
+                <button
+                  onClick={() => setPreviewOpen(!previewOpen)}
+                  className="w-full flex items-center justify-between p-3 md:p-5 text-left hover:bg-raised/30 transition-colors min-h-11"
+                >
+                  <span className="text-[10px] md:text-sm font-semibold text-primary">
+                    Preview — {result.content.split(/\s+/).length.toLocaleString()} words
+                  </span>
                 {previewOpen ? <ChevronUp size={13} className="text-secondary shrink-0" /> : <ChevronDown size={13} className="text-secondary shrink-0" />}
               </button>
               {previewOpen && (
@@ -613,7 +643,7 @@ export default function AutoPostPage() {
               {result.status === 'ready_to_publish' && (
                 <button
                   onClick={publishPost}
-                  className="flex-1 flex items-center justify-center gap-1.5 md:gap-2 bg-primary hover:bg-white text-canvas font-bold py-3 md:py-4 rounded-xl md:rounded-2xl transition-all duration-200 text-xs md:text-base"
+                  className="flex-1 flex items-center justify-center gap-1.5 md:gap-2 bg-primary hover:bg-white text-canvas font-bold py-3 md:py-4 rounded-xl md:rounded-2xl transition-all duration-200 text-xs md:text-base min-h-11"
                 >
                   <Send size={15} />
                   {(() => { const r = result as PipelineResult & { excerpt?: string; tags?: string[] }; const rogue = detectRogueContent(r.content); const lowScore = (result.audit?.score ?? 100) < 65; return !rogue.isRogue && !lowScore ? 'Publish Now' : 'Submit for Review'; })()}
@@ -621,14 +651,14 @@ export default function AutoPostPage() {
               )}
               <button
                 onClick={saveDraft}
-                className="flex-1 flex items-center justify-center gap-1.5 md:gap-2 bg-surface border border-border hover:border-primary/50 text-primary font-semibold py-3 md:py-4 rounded-xl md:rounded-2xl transition-all duration-200 text-xs md:text-base"
+                className="flex-1 flex items-center justify-center gap-1.5 md:gap-2 bg-surface border border-border hover:border-primary/50 text-primary font-semibold py-3 md:py-4 rounded-xl md:rounded-2xl transition-all duration-200 text-xs md:text-base min-h-11"
               >
                 <Save size={15} />
                 Save as {result.status === 'quarantined' ? 'Review Draft' : 'Draft'}
               </button>
               <button
                 onClick={() => { setResult(null); setStages([]); }}
-                className="flex items-center justify-center gap-1.5 md:gap-2 bg-surface border border-border hover:border-red-400/50 text-secondary hover:text-red-400 px-4 md:px-6 py-3 md:py-4 rounded-xl md:rounded-2xl transition-all duration-200 text-xs md:text-base"
+                className="flex items-center justify-center gap-1.5 md:gap-2 bg-surface border border-border hover:border-red-400/50 text-secondary hover:text-red-400 px-4 md:px-6 py-3 md:py-4 rounded-xl md:rounded-2xl transition-all duration-200 text-xs md:text-base min-h-11"
               >
                 <X size={15} />
                 Reset

@@ -66,6 +66,17 @@ export interface AuthState {
   isAuthenticated: boolean;
 }
 
+export type WritingTone = 'professional' | 'conversational' | 'persuasive' | 'educational' | 'narrative' | 'technical';
+
+export const TONE_LABELS: Record<WritingTone, { label: string; description: string; icon: string }> = {
+  professional: { label: 'Professional', description: 'Authoritative, polished, data-driven', icon: 'shield' },
+  conversational: { label: 'Conversational', description: 'Friendly, accessible, natural flow', icon: 'message-circle' },
+  persuasive: { label: 'Persuasive', description: 'Opinionated, compelling, conviction-driven', icon: 'zap' },
+  educational: { label: 'Educational', description: 'Explanatory, patient, builds from first principles', icon: 'book-open' },
+  narrative: { label: 'Narrative', description: 'Story-driven, vivid, engaging anecdotes', icon: 'feather' },
+  technical: { label: 'Technical', description: 'Precise, specification-grade, deep-dive', icon: 'code' },
+};
+
 export type NavPage = 'home' | 'blog' | 'post' | 'editor' | 'autopost' | 'login' | 'signup' | 'profile' | 'dashboard' | 'admin' | 'privacy' | 'terms' | 'cookies';
 
 export interface KeywordResearch {

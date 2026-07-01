@@ -18,13 +18,13 @@ export default function Navbar() {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-canvas/80 backdrop-blur-2xl supports-[backdrop-filter]:bg-canvas/60">
+    <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-canvas/80 backdrop-blur-2xl supports-[backdrop-filter]:bg-canvas/60" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
       <div className="max-w-7xl mx-auto px-4 md:px-8">
         <div className="flex items-center justify-between h-16 md:h-18">
 
           <button onClick={() => nav('home')} className="flex items-center gap-2.5 group shrink-0">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-accent to-pink-500 flex items-center justify-center shadow-lg shadow-accent-glow/20 group-hover:shadow-accent-glow/40 transition-shadow duration-300">
-              <span className="text-white font-bold text-sm">L</span>
+            <div className="w-8 h-8 rounded bg-accent flex items-center justify-center">
+              <span className="text-canvas font-bold text-sm font-heading">L</span>
             </div>
             <span className="font-heading text-lg font-bold text-primary group-hover:text-accent transition-colors duration-200">
               Luminary
@@ -49,7 +49,7 @@ export default function Navbar() {
           <div className="flex items-center gap-2">
             <button
               onClick={toggleTheme}
-              className="text-secondary hover:text-primary transition-colors p-2 rounded-xl hover:bg-surface"
+              className="text-secondary hover:text-primary transition-colors p-2.5 md:p-2 rounded-xl hover:bg-surface min-h-11 min-w-11"
               title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
@@ -101,7 +101,7 @@ export default function Navbar() {
                   onClick={() => setProfileOpen(!profileOpen)}
                   className="flex items-center gap-2 rounded-full pl-1 pr-3 py-1 border border-border hover:border-secondary/50 transition-colors bg-surface/80 hover:bg-surface"
                 >
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-accent to-pink-500 flex items-center justify-center text-xs font-bold text-white overflow-hidden shadow-sm">
+                  <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center text-xs font-bold text-canvas overflow-hidden aspect-square">
                     {user.avatar ? (
                       <img src={user.avatar} alt="" loading="lazy" className="w-full h-full object-cover" />
                     ) : (
@@ -133,21 +133,21 @@ export default function Navbar() {
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => nav('login')}
-                  className="hidden sm:block text-sm text-secondary hover:text-primary transition-colors px-3 py-1.5 rounded-xl hover:bg-surface"
+                  className="hidden sm:block text-sm text-secondary hover:text-primary transition-colors px-4 py-2.5 md:py-1.5 rounded-xl hover:bg-surface min-h-11"
                 >
                   Sign In
                 </button>
                 <button
                   onClick={() => nav('signup')}
-                  className="text-sm font-medium bg-accent hover:bg-pink-500 text-white px-4 py-1.5 rounded-full transition-all duration-200 hover:shadow-lg hover:shadow-accent-glow/30"
+                  className="text-sm text-accent hover:text-accent/80 transition-colors border-b border-accent/30 hover:border-accent/60 pb-0.5 min-h-11 flex items-center"
                 >
-                  Get Started
+                  Get started
                 </button>
               </div>
             )}
 
             <button
-              className="md:hidden text-secondary hover:text-primary transition-colors p-1.5"
+              className="md:hidden text-secondary hover:text-primary transition-colors p-3 rounded-xl min-h-11 min-w-11"
               onClick={() => setMenuOpen(!menuOpen)}
             >
               {menuOpen ? <X size={19} /> : <Menu size={19} />}
@@ -197,7 +197,7 @@ function NavBtn({ active, onClick, icon, label }: {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-sm transition-all duration-200 font-medium
+      className={`flex items-center gap-1.5 px-3.5 py-2.5 md:py-1.5 rounded-xl text-sm transition-all duration-200 font-medium min-h-11
         ${active
           ? 'bg-raised text-primary'
           : 'text-secondary hover:text-primary hover:bg-surface'

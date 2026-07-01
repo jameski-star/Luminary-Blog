@@ -93,7 +93,7 @@ export default function ProfilePage() {
           {/* Avatar */}
           <div className="flex items-center gap-3 md:gap-5 mb-4 md:mb-8 pb-4 md:pb-8 border-b border-border">
             <div className="relative group">
-              <div className="w-14 md:w-20 h-14 md:h-20 rounded-xl md:rounded-2xl bg-primary flex items-center justify-center text-xl md:text-3xl font-bold text-canvas overflow-hidden">
+              <div className="w-14 md:w-20 h-14 md:h-20 rounded-xl md:rounded-2xl bg-primary flex items-center justify-center text-xl md:text-3xl font-bold text-canvas overflow-hidden aspect-square">
                 {avatarPreview ? (
                   <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
                 ) : (
