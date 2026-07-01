@@ -99,7 +99,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           });
         Promise.all([
           api.posts.my().catch(() => ({ posts: [] })),
-          api.posts.list({ status: 'published', limit: '100' }).catch(() => ({ posts: [] })),
+          api.posts.list({ status: 'published', limit: '20' }).catch(() => ({ posts: [] })),
         ]).then(([myRes, pubRes]) => {
           const merged = new Map<string, BlogPost>();
           for (const p of [...myRes.posts, ...pubRes.posts]) {
@@ -108,7 +108,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setPosts(Array.from(merged.values()));
         });
       } else {
-        api.posts.list({ status: 'published', limit: '100' })
+        api.posts.list({ status: 'published', limit: '20' })
           .then(res => setPosts(res.posts as BlogPost[]))
           .catch(() => {});
       }
@@ -203,18 +203,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
     if (isApiMode()) {
       api.posts.create(post).then(res => {
-        setPosts(prev => {
-          const next = prev.map(p => p.id === enriched.id ? (res.post as BlogPost) : p);
-          savePosts(next);
-          return next;
-        });
+        setPosts(prev => prev.map(p => p.id === enriched.id ? (res.post as BlogPost) : p));
       }).catch(console.error);
+    } else {
+      setPosts(prev => {
+        const next = [enriched, ...prev];
+        savePosts(next);
+        return next;
+      });
     }
-    setPosts(prev => {
-      const next = [enriched, ...prev];
-      savePosts(next);
-      return next;
-    });
   }, []);
 
   const updatePost = useCallback((id: string, updates: Partial<BlogPost>) => {
@@ -222,22 +219,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       api.posts.update(id, updates).then(res => {
         setPosts(prev => prev.map(p => p.id === id ? (res.post as BlogPost) : p));
       }).catch(console.error);
-    } else {
-      setPosts(prev => {
-        const next = prev.map(p => {
-          if (p.id !== id) return p;
-          const updated = { ...p, ...updates };
-          if (updates.content) {
-            updated.wordIndex = buildWordIndex(updates.content);
-            updated.wordCount = updates.content.split(/\s+/).length;
-            updated.readTime = calcReadTime(updates.content);
-          }
-          return updated;
-        });
-        savePosts(next);
-        return next;
-      });
+      return;
     }
+    setPosts(prev => {
+      const next = prev.map(p => {
+        if (p.id !== id) return p;
+        const updated = { ...p, ...updates };
+        if (updates.content) {
+          updated.wordIndex = buildWordIndex(updates.content);
+          updated.wordCount = updates.content.split(/\s+/).length;
+          updated.readTime = calcReadTime(updates.content);
+        }
+        return updated;
+      });
+      savePosts(next);
+      return next;
+    });
   }, []);
 
   const setPostFields = useCallback((id: string, updates: Partial<BlogPost>) => {
@@ -262,13 +259,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       api.posts.delete(id).then(() => {
         setPosts(prev => prev.filter(p => p.id !== id));
       }).catch(console.error);
-    } else {
-      setPosts(prev => {
-        const next = prev.filter(p => p.id !== id);
-        savePosts(next);
-        return next;
-      });
+      return;
     }
+    setPosts(prev => {
+      const next = prev.filter(p => p.id !== id);
+      savePosts(next);
+      return next;
+    });
   }, []);
 
   const getPost = useCallback((id: string) => {
@@ -278,18 +275,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const likePost = useCallback((id: string) => {
     if (isApiMode()) {
       api.posts.like(id).catch(console.error);
-      setPosts(prev => prev.map(p =>
-        p.id === id ? { ...p, likes: p.likes + 1 } : p
-      ));
-    } else {
-      setPosts(prev => {
-        const next = prev.map(p =>
-          p.id === id ? { ...p, likes: p.likes + 1 } : p
-        );
-        savePosts(next);
-        return next;
-      });
     }
+    setPosts(prev => {
+      const next = prev.map(p =>
+        p.id === id ? { ...p, likes: p.likes + 1 } : p
+      );
+      if (!isApiMode()) savePosts(next);
+      return next;
+    });
   }, []);
 
   const incrementViews = useCallback((id: string) => {

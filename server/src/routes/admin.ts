@@ -54,6 +54,7 @@ router.patch('/posts/:id/status', async (req: Request, res: Response) => {
     const update: Record<string, unknown> = { status, modifiedAt: new Date() };
     if (status === 'published') {
       update.isApproved = true;
+      update.publishedAt = new Date();
     }
 
     const post = await Post.findByIdAndUpdate(

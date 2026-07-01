@@ -120,7 +120,7 @@ router.get('/:slug', async (req: Request, res: Response) => {
 // POST /api/posts — create
 router.post('/', auth, async (req: Request, res: Response) => {
   try {
-    const { title, content, excerpt, tags, keywords, coverImage, status, isApproved, auditScore } = req.body;
+    const { title, content, excerpt, tags, keywords, coverImage, status, isApproved, auditScore, publishedAt } = req.body;
 
     if (!title || !content) {
       return res.status(400).json({ error: 'Title and content are required.' });
@@ -155,6 +155,7 @@ router.post('/', auth, async (req: Request, res: Response) => {
       status: status || 'draft',
       isApproved: status === 'published' ? (isApproved ?? true) : false,
       auditScore,
+      ...(publishedAt ? { publishedAt: new Date(publishedAt) } : {}),
       readTime,
       wordCount,
     });

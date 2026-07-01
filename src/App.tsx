@@ -111,27 +111,25 @@ function Footer() {
   const { user, setCurrentPage } = useApp();
 
   return (
-    <footer className="border-t border-border bg-canvas px-4 py-12 mt-8">
-      <div className="max-w-5xl mx-auto">
-        <div className="grid md:grid-cols-4 gap-8 mb-10">
-          {/* Brand */}
+    <footer className="border-t border-border bg-surface/50 px-4 py-16 md:py-20 mt-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="grid md:grid-cols-4 gap-10 mb-12">
           <div className="md:col-span-2">
             <button onClick={() => setCurrentPage('home')} className="flex items-center gap-2.5 mb-4 group">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-canvas font-bold text-sm">L</span>
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-accent to-pink-500 flex items-center justify-center shadow-lg shadow-accent-glow/20">
+                <span className="text-white font-bold text-sm">L</span>
               </div>
-              <span className="font-heading text-xl font-bold text-primary">Luminary</span>
+              <span className="font-heading text-xl font-bold text-primary group-hover:text-accent transition-colors">Luminary</span>
             </button>
-            <p className="text-sm text-secondary leading-relaxed max-w-xs">
-              The premium blogging platform where every article passes a 3-stage AI validation pipeline.
+            <p className="text-sm text-secondary leading-relaxed max-w-sm">
+              The premium blogging platform where every article passes a 4-stage AI validation pipeline.
               No filler. No fluff.
             </p>
           </div>
 
-          {/* Platform */}
           <div>
-            <h4 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-4">Platform</h4>
-            <ul className="space-y-2.5">
+            <h4 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-5">Platform</h4>
+            <ul className="space-y-3">
               {[
                 { label: 'Blog', page: 'blog' as const },
                 { label: 'Write', page: 'editor' as const },
@@ -141,7 +139,7 @@ function Footer() {
                 <li key={l.label}>
                   <button
                     onClick={() => setCurrentPage(l.page)}
-                    className="text-sm text-secondary hover:text-primary transition-colors"
+                    className="text-sm text-secondary hover:text-accent transition-colors"
                   >
                     {l.label}
                   </button>
@@ -150,16 +148,15 @@ function Footer() {
             </ul>
           </div>
 
-          {/* Account */}
           <div>
-            <h4 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-4">Account</h4>
-            <ul className="space-y-2.5">
+            <h4 className="text-xs font-semibold text-secondary uppercase tracking-wider mb-5">Account</h4>
+            <ul className="space-y-3">
               {user ? (
                 <>
                   <li>
                     <button
                       onClick={() => setCurrentPage('dashboard')}
-                      className="text-sm text-secondary hover:text-primary transition-colors"
+                      className="text-sm text-secondary hover:text-accent transition-colors"
                     >
                       Dashboard
                     </button>
@@ -167,7 +164,7 @@ function Footer() {
                   <li>
                     <button
                       onClick={() => setCurrentPage('profile')}
-                      className="text-sm text-secondary hover:text-primary transition-colors"
+                      className="text-sm text-secondary hover:text-accent transition-colors"
                     >
                       Profile
                     </button>
@@ -178,7 +175,7 @@ function Footer() {
                   <li>
                     <button
                       onClick={() => setCurrentPage('login')}
-                      className="text-sm text-secondary hover:text-primary transition-colors"
+                      className="text-sm text-secondary hover:text-accent transition-colors"
                     >
                       Sign In
                     </button>
@@ -186,7 +183,7 @@ function Footer() {
                   <li>
                     <button
                       onClick={() => setCurrentPage('signup')}
-                      className="text-sm text-secondary hover:text-primary transition-colors"
+                      className="text-sm text-secondary hover:text-accent transition-colors"
                     >
                       Create Account
                     </button>
@@ -197,14 +194,14 @@ function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-border pt-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+        <div className="border-t border-border pt-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <p className="text-xs text-secondary">
             &copy; 2026 Luminary Blog.
           </p>
-          <div className="flex items-center gap-4 text-xs text-secondary">
-            <button onClick={() => setCurrentPage('privacy')} className="hover:text-primary transition-colors">Privacy</button>
-            <button onClick={() => setCurrentPage('terms')} className="hover:text-primary transition-colors">Terms</button>
-            <button onClick={() => setCurrentPage('cookies')} className="hover:text-primary transition-colors">Cookies</button>
+          <div className="flex items-center gap-5 text-xs text-secondary">
+            <button onClick={() => setCurrentPage('privacy')} className="hover:text-accent transition-colors">Privacy</button>
+            <button onClick={() => setCurrentPage('terms')} className="hover:text-accent transition-colors">Terms</button>
+            <button onClick={() => setCurrentPage('cookies')} className="hover:text-accent transition-colors">Cookies</button>
           </div>
         </div>
       </div>
