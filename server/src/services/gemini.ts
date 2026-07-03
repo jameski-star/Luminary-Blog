@@ -27,23 +27,25 @@ function isTransientError(err: unknown): boolean {
 
 async function withRetry<T>(fn: (key: string) => Promise<T>, apiKeys: string[]): Promise<T> {
   const maxAttempts = Math.max(25, apiKeys.length * 6);
-  const MIN_KEY_INTERVAL = 60_000;
+  const MIN_KEY_INTERVAL = 2000;
   let lastError: unknown;
+  const keysTriedInThisRequest = new Set<number>();
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const keyIdx = keyIndex % apiKeys.length;
     const key = apiKeys[keyIdx];
 
-    // Enforce 60s minimum between consecutive uses of the same key
+    // Enforce minimum cooldown only if we are retrying a key we already tried in this request
     const now = Date.now();
     const lastTs = keyLastUsed[keyIdx] ?? 0;
     const elapsed = now - lastTs;
-    if (elapsed < MIN_KEY_INTERVAL && attempt > 0) {
+    if (elapsed < MIN_KEY_INTERVAL && keysTriedInThisRequest.has(keyIdx)) {
       const wait = MIN_KEY_INTERVAL - elapsed;
       console.log(`Key ${keyIdx + 1} used ${(elapsed / 1000).toFixed(0)}s ago — waiting ${(wait / 1000).toFixed(0)}s before reuse (attempt ${attempt + 1})`);
       await new Promise(resolve => setTimeout(resolve, wait));
     }
 
+    keysTriedInThisRequest.add(keyIdx);
     keyLastUsed[keyIdx] = Date.now();
 
     try {

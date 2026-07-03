@@ -32,8 +32,9 @@ async function withRetry<T>(
   onRetry?: (attempt: number, delay: number, message: string) => void
 ): Promise<T> {
   const maxAttempts = Math.max(25, apiKeys.length * 6);
-  const MIN_KEY_INTERVAL = 60_000;
+  const MIN_KEY_INTERVAL = 2000;
   let lastError: unknown;
+  const keysTriedInThisRequest = new Set<number>();
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const keyIdx = keyIndex % apiKeys.length;
@@ -42,11 +43,12 @@ async function withRetry<T>(
     const now = Date.now();
     const lastTs = keyLastUsed[keyIdx] ?? 0;
     const elapsed = now - lastTs;
-    if (elapsed < MIN_KEY_INTERVAL && attempt > 0) {
+    if (elapsed < MIN_KEY_INTERVAL && keysTriedInThisRequest.has(keyIdx)) {
       const wait = MIN_KEY_INTERVAL - elapsed;
       onRetry?.(attempt + 1, Math.round(wait), `Key cooldown — waiting ${(wait / 1000).toFixed(0)}s before retry…`);
       await new Promise(resolve => setTimeout(resolve, wait));
     }
+    keysTriedInThisRequest.add(keyIdx);
     keyLastUsed[keyIdx] = Date.now();
 
     try {
