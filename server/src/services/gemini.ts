@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
+import { config } from '../config.js';
 
 const MODEL_NAME = 'gemini-2.5-flash';
 const MAX_RETRIES = 5;
@@ -110,14 +111,90 @@ function createAI(apiKey: string) {
   return new GoogleGenAI({ apiKey });
 }
 
+function cleanJsonResponse(text: string): string {
+  let cleaned = text.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```[a-zA-Z]*\n/, '').replace(/\n```$/, '').trim();
+  }
+  return cleaned;
+}
+
+async function generateText(
+  key: string,
+  prompt: string,
+  options: {
+    systemInstruction?: string;
+    temperature?: number;
+    responseMimeType?: string;
+    responseSchema?: any;
+  }
+): Promise<string> {
+  const isCloudflare = key === 'CLOUDFLARE_FALLBACK' || key.startsWith('cf-');
+
+  if (isCloudflare) {
+    const token = key === 'CLOUDFLARE_FALLBACK' ? config.cloudflareApiToken : key.replace(/^cf-/, '');
+    if (!token) {
+      throw new Error('Cloudflare API Token not configured.');
+    }
+
+    const accountId = 'e3986e39a05965fb562e64afe3673efc';
+    const model = '@cf/meta/llama-3.3-70b-instruct';
+    const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
+
+    const messages = [];
+    if (options.systemInstruction) {
+      messages.push({ role: 'system', content: options.systemInstruction });
+    }
+    messages.push({ role: 'user', content: prompt });
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messages,
+        temperature: options.temperature ?? 0.6
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Cloudflare AI failed (${response.status}): ${errorText}`);
+    }
+
+    const resJson = await response.json() as any;
+    if (!resJson.success) {
+      throw new Error(`Cloudflare AI returned success=false: ${JSON.stringify(resJson.errors)}`);
+    }
+
+    const text = resJson.result?.response || '';
+    return text;
+  } else {
+    const ai = createAI(key);
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: {
+        systemInstruction: options.systemInstruction,
+        temperature: options.temperature,
+        responseMimeType: options.responseMimeType,
+        responseSchema: options.responseSchema
+      }
+    });
+    return response.text ?? '';
+  }
+}
+
 async function draftArticleContent(
-  ai: GoogleGenAI,
+  key: string,
   topic: string,
   keywords: string[]
 ): Promise<string> {
-  const response = await ai.models.generateContent({
-    model: MODEL_NAME,
-    contents: `Write a comprehensive, authoritative, elite long-form article on this topic:
+  return generateText(
+    key,
+    `Write a comprehensive, authoritative, elite long-form article on this topic:
 
 Topic: "${topic}"
 Target Keywords to distribute organically (do not force or stuff): ${keywords.join(', ')}
@@ -140,21 +217,20 @@ CRITICAL WRITING INSTRUCTIONS:
 - Format in standard Markdown: ## headings, ### subheadings, **bold** for key terms, bullet lists, blockquotes for notable quotes
 - Write like a senior expert speaking to a respected peer over coffee — confident, slightly opinionated, allergic to corporate fluff
 - Minimum 1,500 words. Aim for 2,000-2,500 words for maximum depth.`,
-    config: {
+    {
       systemInstruction: `You are an elite subject-matter expert, technical journalist, and former editor at a major technology publication. Your writing is authoritative, precise, and direct. You prioritize verified data, logical mechanics, and actionable insights. You have a distinctive voice — thoughtful, occasionally dry in its wit, never condescending. You write for readers who are intelligent and time-poor, and who will immediately close a tab at the first sign of padding or cliché.`,
       temperature: 0.75,
-    },
-  });
-  return response.text ?? '';
+    }
+  );
 }
 
 async function runAuthenticityCheck(
-  ai: GoogleGenAI,
+  key: string,
   draft: string
 ): Promise<{ passedCheck: boolean; score: number; vulnerabilities: string[]; suggestions: string[] }> {
-  const response = await ai.models.generateContent({
-    model: MODEL_NAME,
-    contents: `Analyze the following article draft for authenticity, factual vulnerabilities, logical errors, and AI-generated writing patterns:
+  const text = await generateText(
+    key,
+    `Analyze the following article draft for authenticity, factual vulnerabilities, logical errors, and AI-generated writing patterns:
 
 ---
 ${draft.slice(0, 8000)}
@@ -167,7 +243,7 @@ Evaluate rigorously for:
 4. Robotic sentence patterns, repetitive transitions, or AI clichés
 5. Claims that contradict established expert consensus
 6. Missing nuance or oversimplification of complex topics`,
-    config: {
+    {
       systemInstruction: `You are a cynical, meticulous fact-checker and senior editor for a major scientific and technology publication. Your job is to find every weak argument, every logical leap, every unverified absolute statistic, and every statement that sounds like it was generated by an AI without genuine knowledge. You are known for your zero-tolerance policy toward vague generalities and fabricated data. You are not trying to rewrite the article — only to identify every specific flaw so another editor can fix them.`,
       temperature: 0.1,
       responseMimeType: 'application/json',
@@ -195,11 +271,11 @@ Evaluate rigorously for:
         },
         required: ['passedCheck', 'score', 'vulnerabilities', 'suggestions'],
       },
-    },
-  });
-
+    }
+  );
+  const cleaned = cleanJsonResponse(text);
   try {
-    return JSON.parse(response.text ?? '{}');
+    return JSON.parse(cleaned);
   } catch {
     return {
       passedCheck: false,
@@ -211,7 +287,7 @@ Evaluate rigorously for:
 }
 
 async function optimizeAndPolish(
-  ai: GoogleGenAI,
+  key: string,
   draft: string,
   auditResults: { suggestions: string[] }
 ): Promise<string> {
@@ -219,9 +295,9 @@ async function optimizeAndPolish(
     ? `Address these specific issues:\n${auditResults.suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n')}`
     : 'Refine for maximum clarity and human cadence.';
 
-  const response = await ai.models.generateContent({
-    model: MODEL_NAME,
-    contents: `Revise and polish this article to eliminate all AI-generated writing patterns and fix any factual vulnerabilities.
+  return generateText(
+    key,
+    `Revise and polish this article to eliminate all AI-generated writing patterns and fix any factual vulnerabilities.
 
 ${suggestionsText}
 
@@ -237,25 +313,25 @@ REVISION MANDATE:
 6. Maintain all Markdown formatting (##, ###, **bold**, lists, blockquotes)
 7. Preserve all specific examples, named companies, and concrete data points — only improve the framing
 8. The final article should read like it was written by a human expert who has genuine opinions on this topic`,
-    config: {
+    {
       systemInstruction: `You are a master copyeditor and essayist who specializes in humanizing and elevating technical prose. You have an exceptional ear for rhythm and cadence. You strip away corporate jargon, eliminate robotic sentence structures, and inject clarity, personality, and precision into every paragraph. Your edited work consistently passes AI-detection systems not by gaming them, but because the underlying prose is genuinely human in its construction — varied, opinionated, and specific. You never make the content shorter; you make every word earn its place.`,
       temperature: 0.55,
-    },
-  });
-  return response.text ?? draft;
+    }
+  );
 }
 
-function availableKeys(primaryKey: string, key2: string, key3: string): string[] {
+function availableKeys(primaryKey: string, key2: string, key3: string, cloudflareToken = ''): string[] {
   const keys = [primaryKey];
   if (key2) keys.push(key2);
   if (key3) keys.push(key3);
+  if (cloudflareToken) keys.push('CLOUDFLARE_FALLBACK');
   return keys;
 }
 
-async function generateSEOKeywords(ai: GoogleGenAI, topic: string): Promise<string[]> {
-  const response = await ai.models.generateContent({
-    model: MODEL_NAME,
-    contents: `Generate 6-8 high-value SEO keywords for a blog article about this topic:
+async function generateSEOKeywords(key: string, topic: string): Promise<string[]> {
+  const text = await generateText(
+    key,
+    `Generate 6-8 high-value SEO keywords for a blog article about this topic:
 
 Topic: "${topic}"
 
@@ -264,7 +340,7 @@ Requirements:
 - Include a mix of head terms and long-tail keywords
 - Focus on commercial and informational intent
 - Return ONLY a JSON array of strings, no other text or formatting`,
-    config: {
+    {
       systemInstruction: 'You are an SEO strategist. Return only valid JSON.',
       temperature: 0.3,
       responseMimeType: 'application/json',
@@ -277,11 +353,11 @@ Requirements:
           },
         },
       },
-    },
-  });
-  const text = response.text ?? '{"keywords":[]}';
+    }
+  );
+  const cleaned = cleanJsonResponse(text);
   try {
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(cleaned);
     return (parsed.keywords || []).slice(0, 8);
   } catch {
     return [];
@@ -551,7 +627,7 @@ const editorialIntelligenceSchema = {
 };
 
 async function runEditorialIntelligenceAudit(
-  ai: GoogleGenAI,
+  key: string,
   title: string,
   content: string,
   keywords: string[],
@@ -595,19 +671,19 @@ Perform the following 20-Stage evaluation rigorously:
 
 Return your response matching the requested JSON schema. Be highly critical and factual.`;
 
-  const response = await ai.models.generateContent({
-    model: MODEL_NAME,
-    contents: auditPrompt,
-    config: {
+  const text = await generateText(
+    key,
+    auditPrompt,
+    {
       systemInstruction: 'You are an elite autonomous Editor-in-Chief, SEO strategist, technical reviewer, and fact checker. You review articles with extreme rigor and return detailed, formatted JSON output.',
       temperature: 0.1,
       responseMimeType: 'application/json',
       responseSchema: editorialIntelligenceSchema
     }
-  });
-
+  );
+  const cleaned = cleanJsonResponse(text);
   try {
-    return JSON.parse(response.text ?? '{}');
+    return JSON.parse(cleaned);
   } catch (err) {
     console.error('Failed to parse 20-Stage audit response:', err);
     throw new Error('Audit analysis failed to return valid structure.');
@@ -620,6 +696,7 @@ export async function executePipeline(
   primaryKey: string,
   key2 = '',
   key3 = '',
+  cloudflareToken = '',
   existingArticles: { title: string; slug: string; tags: string[] }[] = []
 ): Promise<{
   status: 'ready_to_publish' | 'quarantined' | 'error';
@@ -633,31 +710,31 @@ export async function executePipeline(
   isApproved?: boolean;
   editorialIntelligence?: any;
 }> {
-  const apiKeys = availableKeys(primaryKey, key2, key3);
+  const apiKeys = availableKeys(primaryKey, key2, key3, cloudflareToken);
 
   try {
     let effectiveKeywords = keywords;
     if (effectiveKeywords.length === 0) {
       effectiveKeywords = await withRetry(
-        (k) => generateSEOKeywords(createAI(k), topic),
+        (k) => generateSEOKeywords(k, topic),
         apiKeys
       );
     }
     const rawDraft = await withRetry(
-      (k) => draftArticleContent(createAI(k), topic, effectiveKeywords),
+      (k) => draftArticleContent(k, topic, effectiveKeywords),
       apiKeys
     );
 
     // Polish the drafted article to enhance readability and ensure human voice
     const mockAudit = { suggestions: ['Enhance code examples and readability.'] };
     const polishedContent = await withRetry(
-      (k) => optimizeAndPolish(createAI(k), rawDraft, mockAudit),
+      (k) => optimizeAndPolish(k, rawDraft, mockAudit),
       apiKeys
     );
 
     // Run the 20-Stage Editorial Intelligence Audit
     const editorialIntelligence = await withRetry(
-      (k) => runEditorialIntelligenceAudit(createAI(k), topic, polishedContent, effectiveKeywords, existingArticles),
+      (k) => runEditorialIntelligenceAudit(k, topic, polishedContent, effectiveKeywords, existingArticles),
       apiKeys
     );
 
@@ -711,28 +788,28 @@ export async function formatContent(
   content: string,
   primaryKey: string,
   key2 = '',
-  key3 = ''
+  key3 = '',
+  cloudflareToken = ''
 ): Promise<string> {
-  const apiKeys = availableKeys(primaryKey, key2, key3);
+  const apiKeys = availableKeys(primaryKey, key2, key3, cloudflareToken);
   return withRetry(
     (k) => {
-      const ai = createAI(k);
-      return ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: `Clean up and enhance the formatting of this document. Fix inconsistent heading levels, organize loose paragraphs under appropriate headings, normalize list formatting, fix broken markdown, and improve overall readability. Preserve ALL original content and meaning — do not rewrite or summarize. Only fix structure and formatting.
+      return generateText(
+        k,
+        `Clean up and enhance the formatting of this document. Fix inconsistent heading levels, organize loose paragraphs under appropriate headings, normalize list formatting, fix broken markdown, and improve overall readability. Preserve ALL original content and meaning — do not rewrite or summarize. Only fix structure and formatting.
 
 DOCUMENT:
 ${content.slice(0, 12000)}
 
 Return ONLY the cleaned-up markdown, no explanations.`,
-        config: {
+        {
           systemInstruction: 'You are a professional document formatter. You fix structure and formatting without changing a single word of the original content. Never rewrite, summarize, or add new content.',
           temperature: 0.15,
-        },
-      });
+        }
+      );
     },
     apiKeys
-  ).then(r => r.text ?? content);
+  );
 }
 
 export async function validateContent(
@@ -740,13 +817,14 @@ export async function validateContent(
   primaryKey: string,
   key2 = '',
   key3 = '',
+  cloudflareToken = '',
   existingArticles: any[] = []
 ): Promise<{ passedCheck: boolean; score: number; vulnerabilities: string[]; suggestions: string[]; editorialIntelligence?: any }> {
-  const apiKeys = availableKeys(primaryKey, key2, key3);
+  const apiKeys = availableKeys(primaryKey, key2, key3, cloudflareToken);
 
   // Run the 20-Stage Editorial Intelligence Audit on manual content
   const editorialIntelligence = await withRetry(
-    (k) => runEditorialIntelligenceAudit(createAI(k), "Manual Article Validation", content, [], existingArticles),
+    (k) => runEditorialIntelligenceAudit(k, "Manual Article Validation", content, [], existingArticles),
     apiKeys
   );
 

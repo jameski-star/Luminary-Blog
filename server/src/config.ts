@@ -9,6 +9,7 @@ export const config = {
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   geminiApiKey2: process.env.GEMINI_API_KEY_2 || '',
   geminiApiKey3: process.env.GEMINI_API_KEY_3 || '',
+  cloudflareApiToken: process.env.CLOUDFLARE_API_TOKEN || '',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   appUrl: process.env.APP_URL || 'http://localhost:4000',
   smtpHost: process.env.SMTP_HOST || '',

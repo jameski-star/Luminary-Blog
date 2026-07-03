@@ -34,6 +34,7 @@ router.post('/pipeline', async (req: Request, res: Response) => {
       config.geminiApiKey,
       config.geminiApiKey2,
       config.geminiApiKey3,
+      config.cloudflareApiToken,
       existingArticles
     );
     res.json(result);
@@ -67,6 +68,7 @@ router.post('/audit', async (req: Request, res: Response) => {
       config.geminiApiKey,
       config.geminiApiKey2,
       config.geminiApiKey3,
+      config.cloudflareApiToken,
       existingArticles
     );
     res.json(result);
@@ -87,7 +89,7 @@ router.post('/format', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Gemini API key not configured on the server.' });
     }
 
-    const result = await formatContent(content, config.geminiApiKey, config.geminiApiKey2, config.geminiApiKey3);
+    const result = await formatContent(content, config.geminiApiKey, config.geminiApiKey2, config.geminiApiKey3, config.cloudflareApiToken);
     res.json({ content: result });
   } catch (err) {
     console.error('Gemini format error:', err);
