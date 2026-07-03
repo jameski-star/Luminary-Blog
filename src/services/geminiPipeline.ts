@@ -23,48 +23,68 @@ function isQuotaError(err: unknown): boolean {
   return msgLower.includes('quota') || msgLower.includes('please wait') || msgLower.includes('retry after');
 }
 
-const MIN_KEY_INTERVAL = 60_000;
-let lastKeyUsedAt = 0;
+let keyIndex = 0;
+const keyLastUsed: number[] = [];
 
-async function withRetry<T>(fn: () => Promise<T>, onRetry?: (attempt: number, delay: number, message: string) => void): Promise<T> {
-  const maxAttempts = 25;
+async function withRetry<T>(
+  fn: (key: string) => Promise<T>,
+  apiKeys: string[],
+  onRetry?: (attempt: number, delay: number, message: string) => void
+): Promise<T> {
+  const maxAttempts = Math.max(25, apiKeys.length * 6);
+  const MIN_KEY_INTERVAL = 60_000;
   let lastError: unknown;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const keyIdx = keyIndex % apiKeys.length;
+    const key = apiKeys[keyIdx];
+
     const now = Date.now();
-    const elapsed = now - lastKeyUsedAt;
+    const lastTs = keyLastUsed[keyIdx] ?? 0;
+    const elapsed = now - lastTs;
     if (elapsed < MIN_KEY_INTERVAL && attempt > 0) {
       const wait = MIN_KEY_INTERVAL - elapsed;
       onRetry?.(attempt + 1, Math.round(wait), `Key cooldown — waiting ${(wait / 1000).toFixed(0)}s before retry…`);
       await new Promise(resolve => setTimeout(resolve, wait));
     }
-    lastKeyUsedAt = Date.now();
+    keyLastUsed[keyIdx] = Date.now();
 
     try {
-      return await fn();
+      return await fn(key);
     } catch (err) {
       lastError = err;
       const msg = err instanceof Error ? (err.message || '') : String(err);
       const msgLower = msg.toLowerCase();
+      const isQuota = isQuotaError(err);
+      const isTransient = isTransientError(err);
 
+      // Non-recoverable errors for a single key should rotate if other keys are available
       if (msgLower.includes('api key') || msgLower.includes('not found') || msgLower.includes('safety')
           || msgLower.includes('permission') || msgLower.includes('access')) {
+        if (apiKeys.length > 1 && attempt < maxAttempts - 1) {
+          onRetry?.(attempt + 1, 1000, `Key ${keyIdx + 1} failed: API Key invalid or restricted. Rotating key…`);
+          keyIndex = (keyIndex + 1) % apiKeys.length;
+          continue;
+        }
         throw err;
       }
 
-      const expBase = Math.min(attempt, 8);
-      let delay: number;
+      let delay = 15000;
       let message: string;
 
-      if (isQuotaError(err)) {
-        delay = 60000 + Math.random() * 5000;
-        message = `Quota hit — waiting ${(delay / 1000).toFixed(0)}s (attempt ${attempt + 1})…`;
-      } else if (isTransientError(err)) {
-        delay = Math.min(1000 * Math.pow(2, expBase) + Math.random() * 1000, 30000);
-        message = `Model busy — retrying in ${(delay / 1000).toFixed(0)}s (attempt ${attempt + 1})…`;
+      if (isQuota) {
+        // Quota exceeded: move to next key
+        keyIndex = (keyIndex + 1) % apiKeys.length;
+        delay = 1000; // Small delay before trying next key
+        message = `Quota exceeded on key ${keyIdx + 1} — moving to key ${(keyIndex % apiKeys.length) + 1}…`;
+      } else if (isTransient) {
+        // Model is busy: retry after 15s using same key
+        delay = 15000;
+        message = `Model busy on key ${keyIdx + 1} — retrying after 15s…`;
       } else {
-        delay = 2000 + Math.random() * 2000;
-        message = `Retrying in ${(delay / 1000).toFixed(0)}s (attempt ${attempt + 1})…`;
+        // Other errors: retry after 15s using same key
+        delay = 15000;
+        message = `Error on key ${keyIdx + 1} — retrying after 15s…`;
       }
 
       onRetry?.(attempt + 1, Math.round(delay), message);
@@ -598,7 +618,7 @@ export async function executeAutopostPipeline(
   tone: WritingTone = 'professional',
   maxWords: number = 1500,
 ): Promise<PipelineResult & { excerpt?: string; tags?: string[]; keywords?: string[]; editorialIntelligence?: any }> {
-  const ai = createAI(apiKey);
+  const apiKeys = apiKey.split(',').map(k => k.trim()).filter(Boolean);
 
   const stages: PipelineStage[] = [
     { name: 'Opportunity Discovery & Keywords Research', status: 'pending' },
@@ -619,7 +639,8 @@ export async function executeAutopostPipeline(
     if (effectiveKeywords.length === 0) {
       update(0, 'running');
       effectiveKeywords = await withRetry(
-        () => generateSEOKeywords(ai, topic),
+        (k) => generateSEOKeywords(createAI(k), topic),
+        apiKeys,
         (_attempt, _delay, msg) => update(0, 'running', msg)
       );
     }
@@ -628,7 +649,8 @@ export async function executeAutopostPipeline(
     // Stage 1 — draft
     update(1, 'running');
     let rawDraft = await withRetry(
-      () => draftArticleContent(ai, topic, effectiveKeywords, tone),
+      (k) => draftArticleContent(createAI(k), topic, effectiveKeywords, tone),
+      apiKeys,
       (_attempt, _delay, msg) => update(1, 'running', msg)
     );
     const wc = rawDraft.split(/\s+/).length;
@@ -637,7 +659,8 @@ export async function executeAutopostPipeline(
     // Stage 2 — 20-Stage audit
     update(2, 'running');
     const editorialIntelligence = await withRetry(
-      () => runEditorialIntelligenceAudit(ai, topic, rawDraft, effectiveKeywords),
+      (k) => runEditorialIntelligenceAudit(createAI(k), topic, rawDraft, effectiveKeywords),
+      apiKeys,
       (_attempt, _delay, msg) => update(2, 'running', msg)
     );
     const gate = editorialIntelligence.publishGate || { passed: false, score: 60, failedChecks: [] };
@@ -666,7 +689,8 @@ export async function executeAutopostPipeline(
     update(3, 'running');
     const mockAudit = { passedCheck: gate.passed, score: gate.score, vulnerabilities: gate.failedChecks, suggestions: [] };
     let polishedContent = await withRetry(
-      () => optimizeAndPolish(ai, rawDraft, mockAudit, tone),
+      (k) => optimizeAndPolish(createAI(k), rawDraft, mockAudit, tone),
+      apiKeys,
       (_attempt, _delay, msg) => update(3, 'running', msg)
     );
     update(3, 'done', 'Prose humanized and polished');
@@ -710,13 +734,16 @@ export async function humanizeExistingContent(
   apiKey: string,
   tone: WritingTone = 'professional',
 ): Promise<string> {
-  const ai = createAI(apiKey);
+  const apiKeys = apiKey.split(',').map(k => k.trim()).filter(Boolean);
   const tonePrompt = getToneDraftPrompt(tone);
 
   try {
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: `Humanize this article. Make it read like a skilled human writer wrote it, not an AI.
+    return await withRetry(
+      (k) => {
+        const ai = createAI(k);
+        return ai.models.generateContent({
+          model: MODEL_NAME,
+          contents: `Humanize this article. Make it read like a skilled human writer wrote it, not an AI.
 
 TONE: ${tonePrompt}
 
@@ -731,12 +758,14 @@ MANDATE:
 5. Keep all facts, examples, data, and arguments intact
 6. Preserve all Markdown formatting
 7. Return ONLY the revised article, no explanations`,
-      config: {
-        systemInstruction: 'You are a text humanization specialist. You rewrite AI-generated text to read as naturally human.',
-        temperature: 0.6,
+          config: {
+            systemInstruction: 'You are a text humanization specialist. You rewrite AI-generated text to read as naturally human.',
+            temperature: 0.6,
+          },
+        }).then(r => r.text ?? content);
       },
-    });
-    return response.text ?? content;
+      apiKeys
+    );
   } catch {
     return fallbackHumanize(content, tone);
   }
@@ -746,29 +775,37 @@ export async function formatManualContent(
   content: string,
   apiKey: string
 ): Promise<string> {
-  const ai = createAI(apiKey);
-  const response = await ai.models.generateContent({
-    model: MODEL_NAME,
-    contents: `Clean up and enhance the formatting of this document. Fix inconsistent heading levels, organize loose paragraphs under appropriate headings, normalize list formatting, fix broken markdown, and improve overall readability. Preserve ALL original content and meaning — do not rewrite or summarize. Only fix structure and formatting.
+  const apiKeys = apiKey.split(',').map(k => k.trim()).filter(Boolean);
+  return withRetry(
+    (k) => {
+      const ai = createAI(k);
+      return ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: `Clean up and enhance the formatting of this document. Fix inconsistent heading levels, organize loose paragraphs under appropriate headings, normalize list formatting, fix broken markdown, and improve overall readability. Preserve ALL original content and meaning — do not rewrite or summarize. Only fix structure and formatting.
 
 DOCUMENT:
 ${content.slice(0, 12000)}
 
 Return ONLY the cleaned-up markdown, no explanations.`,
-    config: {
-      systemInstruction: 'You are a professional document formatter. You fix structure and formatting without changing a single word of the original content. Never rewrite, summarize, or add new content.',
-      temperature: 0.15,
+        config: {
+          systemInstruction: 'You are a professional document formatter. You fix structure and formatting without changing a single word of the original content. Never rewrite, summarize, or add new content.',
+          temperature: 0.15,
+        },
+      }).then(r => r.text ?? content);
     },
-  });
-  return response.text ?? content;
+    apiKeys
+  );
 }
 
 export async function validateManualPost(
   content: string,
   apiKey: string
 ): Promise<AuditResult & { editorialIntelligence?: any }> {
-  const ai = createAI(apiKey);
-  const editorialIntelligence = await runEditorialIntelligenceAudit(ai, "Manual Verification", content, []);
+  const apiKeys = apiKey.split(',').map(k => k.trim()).filter(Boolean);
+  const editorialIntelligence = await withRetry(
+    (k) => runEditorialIntelligenceAudit(createAI(k), "Manual Verification", content, []),
+    apiKeys
+  );
   const gate = editorialIntelligence.publishGate || { passed: false, score: 60, failedChecks: [] };
 
   return {

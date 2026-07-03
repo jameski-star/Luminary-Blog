@@ -55,32 +55,35 @@ async function withRetry<T>(fn: (key: string) => Promise<T>, apiKeys: string[]):
       const isQuota = isQuotaError(err);
       const isTransient = isTransientError(err);
 
-      // Non-recoverable errors
+      // Non-recoverable errors for a single key (e.g. invalid API key) should rotate if other keys are available
       if (msgLower.includes('api key') || msgLower.includes('not found') || msgLower.includes('safety')
           || msgLower.includes('permission') || msgLower.includes('access')) {
+        if (apiKeys.length > 1 && attempt < maxAttempts - 1) {
+          console.warn(`Key ${keyIdx + 1} encountered error: ${msgLower}. Rotating to next key...`);
+          keyIndex = (keyIndex + 1) % apiKeys.length;
+          continue;
+        }
         throw err;
       }
 
-      // Rotate to next key
-      keyIndex = (keyIndex + 1) % apiKeys.length;
-
-      const expBase = Math.min(attempt, 10);
-      let delay: number;
+      let delay = 15000;
 
       if (isQuota) {
-        delay = 30000 + Math.random() * 10000;
-        console.log(`Quota on key ${keyIdx + 1} — waiting ${(delay / 1000).toFixed(0)}s before retry (attempt ${attempt + 1})`);
+        // Quota exceeded: move to next key
+        console.log(`Quota exceeded on key ${keyIdx + 1} — moving to the next key`);
+        keyIndex = (keyIndex + 1) % apiKeys.length;
+        delay = 1000; // Small delay before trying next key
       } else if (isTransient) {
-        delay = Math.min(1000 * Math.pow(2, expBase), 30000) + Math.random() * 2000;
-        console.log(`Model busy on key ${keyIdx + 1} — ${apiKeys.length > 1 ? 'trying next key' : `backoff ${(delay / 1000).toFixed(0)}s`} (attempt ${attempt + 1})`);
+        // Model is busy: retry after 15s using same key
+        console.log(`Model is busy on key ${keyIdx + 1} — retrying after 15s`);
+        delay = 15000;
       } else {
-        delay = 2000 + Math.random() * 2000;
-        console.log(`Retry attempt ${attempt + 1} for key ${keyIdx + 1} in ${(delay / 1000).toFixed(0)}s`);
+        // Other errors: retry after 15s using same key
+        console.log(`Error on key ${keyIdx + 1}: ${msgLower} — retrying after 15s`);
+        delay = 15000;
       }
 
-      if (isQuota || !isTransient) {
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
   throw lastError;
