@@ -26,12 +26,18 @@ function isQuotaError(err: unknown): boolean {
 let keyIndex = 0;
 const keyLastUsed: number[] = [];
 
+function maskKey(key: string): string {
+  if (!key) return 'EMPTY_KEY';
+  if (key.length <= 12) return '***...***';
+  return `${key.slice(0, 8)}...${key.slice(-4)}`;
+}
+
 async function withRetry<T>(
   fn: (key: string) => Promise<T>,
   apiKeys: string[],
   onRetry?: (attempt: number, delay: number, message: string) => void
 ): Promise<T> {
-  const maxAttempts = Math.max(25, apiKeys.length * 6);
+  const maxAttempts = 1000;
   const MIN_KEY_INTERVAL = 2000;
   let lastError: unknown;
   const keysTriedInThisRequest = new Set<number>();
@@ -59,12 +65,14 @@ async function withRetry<T>(
       const msgLower = msg.toLowerCase();
       const isQuota = isQuotaError(err);
       const isTransient = isTransientError(err);
+      const masked = maskKey(key);
 
       // Non-recoverable errors for a single key should rotate if other keys are available
       if (msgLower.includes('api key') || msgLower.includes('not found') || msgLower.includes('safety')
           || msgLower.includes('permission') || msgLower.includes('access')) {
         if (apiKeys.length > 1 && attempt < maxAttempts - 1) {
-          onRetry?.(attempt + 1, 1000, `Key ${keyIdx + 1} failed: API Key invalid or restricted. Rotating key…`);
+          console.warn(`[GEMINI] Key ${keyIdx + 1} (${masked}) encountered non-recoverable error. Rotating to next key. Error:`, err);
+          onRetry?.(attempt + 1, 1000, `Key ${keyIdx + 1} (${masked}) failed: invalid or restricted. Rotating key…`);
           keyIndex = (keyIndex + 1) % apiKeys.length;
           continue;
         }
@@ -75,18 +83,30 @@ async function withRetry<T>(
       let message: string;
 
       if (isQuota) {
-        // Quota exceeded: move to next key
-        keyIndex = (keyIndex + 1) % apiKeys.length;
-        delay = 1000; // Small delay before trying next key
-        message = `Quota exceeded on key ${keyIdx + 1} — moving to key ${(keyIndex % apiKeys.length) + 1}…`;
+        if (keysTriedInThisRequest.size >= apiKeys.length) {
+          // All keys in the pool are exhausted
+          delay = 30000;
+          keyIndex = (keyIndex + 1) % apiKeys.length;
+          keysTriedInThisRequest.clear();
+          console.log(`[GEMINI] All ${apiKeys.length} keys in the pool are exhausted (last failed: Key ${keyIdx + 1} [${masked}]) — sleeping 30s. Error details:`, msg);
+          message = `All ${apiKeys.length} keys in the pool are exhausted — sleeping for 30s before retrying…`;
+        } else {
+          // Untried keys remain in pool
+          keyIndex = (keyIndex + 1) % apiKeys.length;
+          delay = 1000; // Small delay before trying next key
+          console.log(`[GEMINI] Quota exceeded on Key ${keyIdx + 1} (${masked}) — moving to Key ${(keyIndex % apiKeys.length) + 1}. Error details:`, msg);
+          message = `Quota exceeded on key ${keyIdx + 1} (${masked}) — moving to key ${(keyIndex % apiKeys.length) + 1}…`;
+        }
       } else if (isTransient) {
         // Model is busy: retry after 15s using same key
         delay = 15000;
-        message = `Model busy on key ${keyIdx + 1} — retrying after 15s…`;
+        console.log(`[GEMINI] Model is busy on Key ${keyIdx + 1} (${masked}) — retrying after 15s. Error details:`, msg);
+        message = `Model busy on key ${keyIdx + 1} (${masked}) — retrying after 15s…`;
       } else {
         // Other errors: retry after 15s using same key
         delay = 15000;
-        message = `Error on key ${keyIdx + 1} — retrying after 15s…`;
+        console.log(`[GEMINI] Error on Key ${keyIdx + 1} (${masked}) — retrying after 15s. Error:`, err);
+        message = `Error on key ${keyIdx + 1} (${masked}) — retrying after 15s…`;
       }
 
       onRetry?.(attempt + 1, Math.round(delay), message);

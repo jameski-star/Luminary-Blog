@@ -7,6 +7,7 @@ import type { PipelineStage, PipelineResult } from '../types';
 import { generateSlug, calcReadTime } from '../store/appStore';
 import { detectRogueContent } from '../utils/contentDetection';
 import EditorialIntelligenceReport from '../components/EditorialIntelligenceReport';
+import { friendlyError } from '../utils/errors';
 
 import type { BlogPost, WritingTone } from '../types';
 import { TONE_LABELS } from '../types';
@@ -90,7 +91,7 @@ export default function AutoPostPage() {
       { name: 'Anti-Detection Pass', status: 'pending' },
     ]);
 
-    const MAX_RETRIES = 10;
+    const MAX_RETRIES = 25;
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -130,10 +131,10 @@ export default function AutoPostPage() {
         if (typed.status === 'error') {
           lastError = new Error(typed.reason || 'Pipeline failed');
           if (attempt < MAX_RETRIES) {
-            const delay = 5000 * attempt;
+            const delay = Math.min(10000 * attempt, 45000);
             setStages([
               { name: 'Generating SEO keywords', status: 'done' },
-              { name: `Retrying (${attempt}/${MAX_RETRIES - 1})…`, status: 'running' },
+              { name: `Retrying (${attempt}/${MAX_RETRIES - 1}) in ${(delay / 1000).toFixed(0)}s…`, status: 'running' },
               { name: '', status: 'pending' },
               { name: '', status: 'pending' },
             ]);
@@ -149,10 +150,10 @@ export default function AutoPostPage() {
       } catch (err: unknown) {
         lastError = err;
         if (attempt < MAX_RETRIES) {
-          const delay = 5000 * attempt;
+          const delay = Math.min(10000 * attempt, 45000);
           setStages([
             { name: 'Generating SEO keywords', status: 'done' },
-            { name: `Retrying (${attempt}/${MAX_RETRIES - 1})…`, status: 'running' },
+            { name: `Retrying (${attempt}/${MAX_RETRIES - 1}) in ${(delay / 1000).toFixed(0)}s…`, status: 'running' },
             { name: '', status: 'pending' },
             { name: '', status: 'pending' },
           ]);
@@ -163,7 +164,7 @@ export default function AutoPostPage() {
       }
     }
 
-    const errMsg = lastError instanceof Error ? lastError.message : String(lastError || 'Unknown error');
+    const errMsg = friendlyError(lastError);
     setError(errMsg);
     setRunning(false);
   };

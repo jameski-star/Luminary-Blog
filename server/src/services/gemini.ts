@@ -25,8 +25,14 @@ function isTransientError(err: unknown): boolean {
     || msgLower.includes('internal server') || msgLower.includes('connection');
 }
 
+function maskKey(key: string): string {
+  if (!key) return 'EMPTY_KEY';
+  if (key.length <= 12) return '***...***';
+  return `${key.slice(0, 8)}...${key.slice(-4)}`;
+}
+
 async function withRetry<T>(fn: (key: string) => Promise<T>, apiKeys: string[]): Promise<T> {
-  const maxAttempts = Math.max(25, apiKeys.length * 6);
+  const maxAttempts = 1000;
   const MIN_KEY_INTERVAL = 2000;
   let lastError: unknown;
   const keysTriedInThisRequest = new Set<number>();
@@ -41,7 +47,7 @@ async function withRetry<T>(fn: (key: string) => Promise<T>, apiKeys: string[]):
     const elapsed = now - lastTs;
     if (elapsed < MIN_KEY_INTERVAL && keysTriedInThisRequest.has(keyIdx)) {
       const wait = MIN_KEY_INTERVAL - elapsed;
-      console.log(`Key ${keyIdx + 1} used ${(elapsed / 1000).toFixed(0)}s ago — waiting ${(wait / 1000).toFixed(0)}s before reuse (attempt ${attempt + 1})`);
+      console.log(`[GEMINI] Key ${keyIdx + 1} used ${(elapsed / 1000).toFixed(0)}s ago — waiting ${(wait / 1000).toFixed(0)}s before reuse (attempt ${attempt + 1})`);
       await new Promise(resolve => setTimeout(resolve, wait));
     }
 
@@ -56,12 +62,13 @@ async function withRetry<T>(fn: (key: string) => Promise<T>, apiKeys: string[]):
       const msgLower = msg.toLowerCase();
       const isQuota = isQuotaError(err);
       const isTransient = isTransientError(err);
+      const masked = maskKey(key);
 
       // Non-recoverable errors for a single key (e.g. invalid API key) should rotate if other keys are available
       if (msgLower.includes('api key') || msgLower.includes('not found') || msgLower.includes('safety')
           || msgLower.includes('permission') || msgLower.includes('access')) {
         if (apiKeys.length > 1 && attempt < maxAttempts - 1) {
-          console.warn(`Key ${keyIdx + 1} encountered error: ${msgLower}. Rotating to next key...`);
+          console.warn(`[GEMINI] Key ${keyIdx + 1} (${masked}) encountered non-recoverable error. Rotating to next key. Error:`, err);
           keyIndex = (keyIndex + 1) % apiKeys.length;
           continue;
         }
@@ -71,17 +78,25 @@ async function withRetry<T>(fn: (key: string) => Promise<T>, apiKeys: string[]):
       let delay = 15000;
 
       if (isQuota) {
-        // Quota exceeded: move to next key
-        console.log(`Quota exceeded on key ${keyIdx + 1} — moving to the next key`);
-        keyIndex = (keyIndex + 1) % apiKeys.length;
-        delay = 1000; // Small delay before trying next key
+        if (keysTriedInThisRequest.size >= apiKeys.length) {
+          // All keys in the pool are exhausted
+          delay = 30000;
+          console.log(`[GEMINI] All ${apiKeys.length} keys in the pool are exhausted (last failed: Key ${keyIdx + 1} [${masked}]) — sleeping for 30s before retrying. Error details:`, msg);
+          keyIndex = (keyIndex + 1) % apiKeys.length;
+          keysTriedInThisRequest.clear();
+        } else {
+          // Untried keys remain in pool
+          console.log(`[GEMINI] Quota exceeded on Key ${keyIdx + 1} (${masked}) — moving to the next key. Error details:`, msg);
+          keyIndex = (keyIndex + 1) % apiKeys.length;
+          delay = 1000; // Small delay before trying next key
+        }
       } else if (isTransient) {
         // Model is busy: retry after 15s using same key
-        console.log(`Model is busy on key ${keyIdx + 1} — retrying after 15s`);
+        console.log(`[GEMINI] Model is busy on Key ${keyIdx + 1} (${masked}) — retrying after 15s. Error details:`, msg);
         delay = 15000;
       } else {
         // Other errors: retry after 15s using same key
-        console.log(`Error on key ${keyIdx + 1}: ${msgLower} — retrying after 15s`);
+        console.log(`[GEMINI] Error on Key ${keyIdx + 1} (${masked}) — retrying after 15s. Error:`, err);
         delay = 15000;
       }
 
