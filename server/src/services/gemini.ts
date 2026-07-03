@@ -137,7 +137,7 @@ async function generateText(
       throw new Error('Cloudflare API Token not configured.');
     }
 
-    const accountId = 'e3986e39a05965fb562e64afe3673efc';
+    const accountId = config.cloudflareAccountId;
     const model = '@cf/meta/llama-3.3-70b-instruct';
     const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
 

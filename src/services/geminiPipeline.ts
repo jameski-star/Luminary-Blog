@@ -137,8 +137,10 @@ async function generateText(
   const isCloudflare = key.startsWith('cf-');
 
   if (isCloudflare) {
-    const token = key.replace(/^cf-/, '');
-    const accountId = 'e3986e39a05965fb562e64afe3673efc';
+    const raw = key.replace(/^cf-/, '');
+    const parts = raw.split(':');
+    const token = parts[0];
+    const accountId = parts[1] || 'e3986e39a05965fb562e64afe3673efc';
     const model = '@cf/meta/llama-3.3-70b-instruct';
     const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
 
