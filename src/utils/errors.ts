@@ -1,19 +1,21 @@
 export function isQuotaError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
-  return msg.includes('quota') || msg.includes('please wait') || msg.includes('retry after');
+  const msg = err instanceof Error ? (err.message || '') : String(err);
+  const msgLower = msg.toLowerCase();
+  return msgLower.includes('quota') || msgLower.includes('please wait') || msgLower.includes('retry after');
 }
 
 export function isCongestionError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
-  return msg.includes('429') || msg.includes('too many requests') || msg.includes('resource exhausted')
-    || msg.includes('rate_limit') || msg.includes('congestion') || msg.includes('overloaded')
-    || msg.includes('unavailable') || msg.includes('quota') || msg.includes('limit')
-    || msg.includes('try again') || msg.includes('model.*busy') || msg.includes('please wait')
-    || msg.includes('retry after');
+  const msg = err instanceof Error ? (err.message || '') : String(err);
+  const msgLower = msg.toLowerCase();
+  return msgLower.includes('429') || msgLower.includes('too many requests') || msgLower.includes('resource exhausted')
+    || msgLower.includes('rate_limit') || msgLower.includes('congestion') || msgLower.includes('overloaded')
+    || msgLower.includes('unavailable') || msgLower.includes('quota') || msgLower.includes('limit')
+    || msgLower.includes('try again') || msgLower.includes('model.*busy') || msgLower.includes('please wait')
+    || msgLower.includes('retry after');
 }
 
 export function friendlyError(err: unknown): string {
-  const msg = err instanceof Error ? err.message : String(err);
+  const msg = err instanceof Error ? (err.message || '') : String(err);
 
   if (isQuotaError(err)) return 'The AI model is busy right now — please try again in about 5 minutes.';
   if (isCongestionError(err)) return 'The AI model is temporarily unavailable. The pipeline will keep retrying automatically.';

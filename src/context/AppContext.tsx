@@ -89,7 +89,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         api.auth.me()
           .then(res => setUserState(res.user))
           .catch(err => {
-            const msg = err instanceof Error ? err.message.toLowerCase() : '';
+            const msg = err instanceof Error ? (err.message || '').toLowerCase() : '';
             if (msg.includes('banned')) {
               setApiToken(null);
               setUserState(null);
@@ -159,11 +159,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         .map(post => {
           let score = 0;
           words.forEach(word => {
-            if (post.title.toLowerCase().includes(word)) score += 10;
-            if (post.excerpt.toLowerCase().includes(word)) score += 5;
+            if ((post.title || '').toLowerCase().includes(word)) score += 10;
+            if ((post.excerpt || '').toLowerCase().includes(word)) score += 5;
             if ((post.content || '').toLowerCase().includes(word)) score += 3;
-            if (post.tags.some(t => t.toLowerCase().includes(word))) score += 8;
-            if (post.keywords.some(k => k.toLowerCase().includes(word))) score += 6;
+            if ((post.tags || []).some(t => t && t.toLowerCase().includes(word))) score += 8;
+            if ((post.keywords || []).some(k => k && k.toLowerCase().includes(word))) score += 6;
             if (post.wordIndex && post.wordIndex[word]) score += post.wordIndex[word].length * 2;
           });
           return { post, score };

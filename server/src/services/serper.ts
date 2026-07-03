@@ -78,29 +78,32 @@ export async function researchKeywords(topic: string, apiKey: string): Promise<K
   const data = await search(topic, apiKey);
   const keywords = new Set<string>();
 
-  const topicWords = topic.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  const topicWords = (topic || '').toLowerCase().split(/\s+/).filter(w => w.length > 2);
 
   const seen = new Set<string>();
   const allTexts: string[] = [];
 
   if (data.organic) {
     for (const r of data.organic) {
-      allTexts.push(r.title, r.snippet);
+      if (r.title) allTexts.push(r.title);
+      if (r.snippet) allTexts.push(r.snippet);
     }
   }
   if (data.peopleAlsoAsk) {
     for (const q of data.peopleAlsoAsk) {
-      allTexts.push(q.question, q.snippet);
+      if (q.question) allTexts.push(q.question);
+      if (q.snippet) allTexts.push(q.snippet);
     }
   }
   if (data.relatedSearches) {
     for (const r of data.relatedSearches) {
-      allTexts.push(r.query);
+      if (r.query) allTexts.push(r.query);
     }
   }
 
   const wordFreq = new Map<string, number>();
   for (const text of allTexts) {
+    if (!text) continue;
     const words = text.toLowerCase().split(/[\s,;.()]+/).filter(w => w.length > 3);
     for (const word of words) {
       wordFreq.set(word, (wordFreq.get(word) || 0) + 1);
@@ -132,13 +135,15 @@ export async function researchKeywords(topic: string, apiKey: string): Promise<K
   return {
     topic,
     keywords: allKeywords,
-    peopleAlsoAsk: (data.peopleAlsoAsk || []).map(q => ({
-      question: q.question,
-      snippet: q.snippet,
-    })),
-    relatedSearches: (data.relatedSearches || []).map(r => r.query),
-    topRankingTitles: (data.organic || []).map(r => r.title),
-    topRankingSnippets: (data.organic || []).map(r => r.snippet),
+    peopleAlsoAsk: (data.peopleAlsoAsk || [])
+      .filter(q => q.question)
+      .map(q => ({
+        question: q.question,
+        snippet: q.snippet || '',
+      })),
+    relatedSearches: (data.relatedSearches || []).map(r => r.query).filter(Boolean),
+    topRankingTitles: (data.organic || []).map(r => r.title).filter(Boolean),
+    topRankingSnippets: (data.organic || []).map(r => r.snippet).filter(Boolean),
     missingKeywords: extractMissingKeywords(topic, allKeywords, data),
   };
 }
@@ -159,19 +164,20 @@ export async function optimizeContent(
   targetKeywords: string[],
   apiKey: string
 ): Promise<ContentOptimization> {
-  const topic = title || content.slice(0, 100);
+  const topic = title || (content || '').slice(0, 100);
   const data = await search(topic, apiKey);
 
-  const titleWords = title.toLowerCase().split(/\s+/);
-  const contentLower = content.toLowerCase();
-  const wordCount = content.split(/\s+/).length;
+  const titleWords = (title || '').toLowerCase().split(/\s+/);
+  const contentLower = (content || '').toLowerCase();
+  const wordCount = (content || '').split(/\s+/).length;
 
-  const topTitles = (data.organic || []).map(r => r.title);
+  const topTitles = (data.organic || []).map(r => r.title).filter(Boolean);
 
   let titleScore = 0;
-  if (title.length >= 30 && title.length <= 60) titleScore += 30;
-  else if (title.length > 20 && title.length < 80) titleScore += 15;
-  if (targetKeywords.some(kw => title.toLowerCase().includes(kw.toLowerCase()))) titleScore += 30;
+  const titleLen = (title || '').length;
+  if (titleLen >= 30 && titleLen <= 60) titleScore += 30;
+  else if (titleLen > 20 && titleLen < 80) titleScore += 15;
+  if (targetKeywords.some(kw => (title || '').toLowerCase().includes((kw || '').toLowerCase()))) titleScore += 30;
   if (titleWords.length >= 4 && titleWords.length <= 10) titleScore += 20;
   const titleWordFreq: Record<string, number> = {};
   for (const t of topTitles) {
@@ -183,7 +189,7 @@ export async function optimizeContent(
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
     .map(e => e[0]);
-  if (commonWords.some(w => title.toLowerCase().includes(w))) titleScore += 20;
+  if (commonWords.some(w => (title || '').toLowerCase().includes(w))) titleScore += 20;
 
   titleScore = Math.min(100, titleScore);
 
@@ -193,19 +199,19 @@ export async function optimizeContent(
   else contentScore += 5;
 
   if (targetKeywords.length > 0) {
-    const matched = targetKeywords.filter(kw => contentLower.includes(kw.toLowerCase())).length;
+    const matched = targetKeywords.filter(kw => kw && contentLower.includes(kw.toLowerCase())).length;
     contentScore += Math.min(25, (matched / targetKeywords.length) * 25);
   }
 
-  const headings = content.match(/#{2,3}\s+.+/g) || [];
+  const headings = (content || '').match(/#{2,3}\s+.+/g) || [];
   if (headings.length >= 3) contentScore += 15;
   else if (headings.length >= 1) contentScore += 5;
 
-  const lists = content.match(/^[\s]*[-*+]\s/gm) || [];
+  const lists = (content || '').match(/^[\s]*[-*+]\s/gm) || [];
   if (lists.length >= 2) contentScore += 10;
 
   if ((data.organic || []).length > 0) {
-    const topSnippets = data.organic!.slice(0, 3).map(r => r.snippet.toLowerCase());
+    const topSnippets = data.organic!.slice(0, 3).map(r => (r.snippet || '').toLowerCase()).filter(Boolean);
     const overlap = topSnippets.filter(s =>
       contentLower.split(/\s+/).some(w => w.length > 4 && s.includes(w))
     ).length;
@@ -215,12 +221,12 @@ export async function optimizeContent(
   contentScore = Math.min(100, contentScore);
 
   const titleSuggestions: string[] = [];
-  if (title.length < 30) titleSuggestions.push('Title is too short (aim for 30–60 characters)');
-  if (title.length > 60) titleSuggestions.push('Title is too long (aim for 30–60 characters)');
-  if (!targetKeywords.some(kw => title.toLowerCase().includes(kw.toLowerCase()))) {
+  if (titleLen < 30) titleSuggestions.push('Title is too short (aim for 30–60 characters)');
+  if (titleLen > 60) titleSuggestions.push('Title is too long (aim for 30–60 characters)');
+  if (!targetKeywords.some(kw => kw && (title || '').toLowerCase().includes(kw.toLowerCase()))) {
     titleSuggestions.push('Include a primary keyword in the title');
   }
-  if (topTitles.length > 0 && !topTitles.some(t => t.toLowerCase().includes(title.toLowerCase().split(/\s+/).slice(0, 3).join(' ')))) {
+  if (topTitles.length > 0 && !topTitles.some(t => t.toLowerCase().includes((title || '').toLowerCase().split(/\s+/).slice(0, 3).join(' ')))) {
     titleSuggestions.push('Consider matching search intent — top results focus on: "' + topTitles[0] + '"');
   }
 
@@ -228,12 +234,12 @@ export async function optimizeContent(
   if (wordCount < 800) contentSuggestions.push('Aim for at least 800 words (ideally 1500+) for better ranking');
   if (headings.length < 3) contentSuggestions.push('Add more H2/H3 subheadings to improve structure and readability');
   if (lists.length < 2) contentSuggestions.push('Include bulleted or numbered lists to improve scannability');
-  const missingKws = targetKeywords.filter(kw => !contentLower.includes(kw.toLowerCase()));
+  const missingKws = targetKeywords.filter(kw => kw && !contentLower.includes(kw.toLowerCase()));
   if (missingKws.length > 0) {
     contentSuggestions.push('Missing target keyword' + (missingKws.length > 1 ? 's' : '') + ': ' + missingKws.join(', '));
   }
   if ((data.peopleAlsoAsk || []).length > 0) {
-    contentSuggestions.push('Answer common questions: ' + data.peopleAlsoAsk!.slice(0, 3).map(q => q.question).join(', '));
+    contentSuggestions.push('Answer common questions: ' + data.peopleAlsoAsk!.slice(0, 3).map(q => q.question).filter(Boolean).join(', '));
   }
 
   const readabilityScore = Math.min(100, Math.round(
@@ -255,13 +261,14 @@ export async function optimizeContent(
 
 function extractMissingKeywords(topic: string, keywords: string[], data: SerperResponse): string[] {
   const missing: string[] = [];
-  const topicLower = topic.toLowerCase();
+  const topicLower = (topic || '').toLowerCase();
 
   if (data.peopleAlsoAsk) {
     for (const q of data.peopleAlsoAsk) {
+      if (!q.question) continue;
       const words = q.question.toLowerCase().split(/\s+/).filter(w => w.length > 4);
       for (const w of words) {
-        if (!topicLower.includes(w) && !keywords.some(k => k.includes(w))) {
+        if (!topicLower.includes(w) && !keywords.some(k => k && k.includes(w))) {
           missing.push(w);
         }
       }
@@ -270,9 +277,10 @@ function extractMissingKeywords(topic: string, keywords: string[], data: SerperR
 
   if (data.relatedSearches) {
     for (const r of data.relatedSearches) {
+      if (!r.query) continue;
       const words = r.query.toLowerCase().split(/\s+/).filter(w => w.length > 4);
       for (const w of words) {
-        if (!topicLower.includes(w) && !keywords.some(k => k.includes(w)) && !missing.includes(w)) {
+        if (!topicLower.includes(w) && !keywords.some(k => k && k.includes(w)) && !missing.includes(w)) {
           missing.push(w);
         }
         if (missing.length >= 5) break;
@@ -284,15 +292,16 @@ function extractMissingKeywords(topic: string, keywords: string[], data: SerperR
 }
 
 function missingKeywords(title: string, keywords: string[], data: SerperResponse): string[] {
-  const titleLower = title.toLowerCase();
-  const contentKeywords = keywords.map(k => k.toLowerCase());
+  const titleLower = (title || '').toLowerCase();
+  const contentKeywords = keywords.map(k => (k || '').toLowerCase());
   const missing: string[] = [];
 
   if (data.organic) {
     for (const r of data.organic.slice(0, 5)) {
+      if (!r.title) continue;
       const words = r.title.toLowerCase().split(/\s+/).filter(w => w.length > 4);
       for (const w of words) {
-        if (!titleLower.includes(w) && !contentKeywords.some(k => k.includes(w))) {
+        if (!titleLower.includes(w) && !contentKeywords.some(k => k && k.includes(w))) {
           missing.push(w);
         }
       }

@@ -6,19 +6,21 @@ import { stripAIPatterns, getAIDetectionScore, getToneInstruction, getToneDraftP
 const MODEL_NAME = 'gemini-2.5-flash';
 
 function isTransientError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
-  return msg.includes('429') || msg.includes('too many requests') || msg.includes('resource exhausted')
-    || msg.includes('rate_limit') || msg.includes('congestion') || msg.includes('overloaded')
-    || msg.includes('unavailable') || msg.includes('quota') || msg.includes('limit')
-    || msg.includes('try again') || msg.includes('please wait') || msg.includes('retry after')
-    || msg.includes('deadline') || msg.includes('timeout') || msg.includes('500')
-    || msg.includes('502') || msg.includes('503') || msg.includes('service unavailable')
-    || msg.includes('internal server') || msg.includes('connection');
+  const msg = err instanceof Error ? (err.message || '') : String(err);
+  const msgLower = msg.toLowerCase();
+  return msgLower.includes('429') || msgLower.includes('too many requests') || msgLower.includes('resource exhausted')
+    || msgLower.includes('rate_limit') || msgLower.includes('congestion') || msgLower.includes('overloaded')
+    || msgLower.includes('unavailable') || msgLower.includes('quota') || msgLower.includes('limit')
+    || msgLower.includes('try again') || msgLower.includes('please wait') || msgLower.includes('retry after')
+    || msgLower.includes('deadline') || msgLower.includes('timeout') || msgLower.includes('500')
+    || msgLower.includes('502') || msgLower.includes('503') || msgLower.includes('service unavailable')
+    || msgLower.includes('internal server') || msgLower.includes('connection');
 }
 
 function isQuotaError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
-  return msg.includes('quota') || msg.includes('please wait') || msg.includes('retry after');
+  const msg = err instanceof Error ? (err.message || '') : String(err);
+  const msgLower = msg.toLowerCase();
+  return msgLower.includes('quota') || msgLower.includes('please wait') || msgLower.includes('retry after');
 }
 
 const MIN_KEY_INTERVAL = 60_000;
@@ -42,10 +44,11 @@ async function withRetry<T>(fn: () => Promise<T>, onRetry?: (attempt: number, de
       return await fn();
     } catch (err) {
       lastError = err;
-      const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+      const msg = err instanceof Error ? (err.message || '') : String(err);
+      const msgLower = msg.toLowerCase();
 
-      if (msg.includes('api key') || msg.includes('not found') || msg.includes('safety')
-          || msg.includes('permission') || msg.includes('access')) {
+      if (msgLower.includes('api key') || msgLower.includes('not found') || msgLower.includes('safety')
+          || msgLower.includes('permission') || msgLower.includes('access')) {
         throw err;
       }
 

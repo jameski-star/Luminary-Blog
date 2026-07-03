@@ -71,7 +71,7 @@ export function saveGeminiKey(key: string) {
 // Word Indexer — indexes every word in a post
 // ──────────────────────────────────────────────
 export function buildWordIndex(content: string): Record<string, number[]> {
-  const paragraphs = content.split('\n').filter(Boolean);
+  const paragraphs = (content || '').split('\n').filter(Boolean);
   const index: Record<string, number[]> = {};
 
   paragraphs.forEach((para, idx) => {
@@ -94,7 +94,7 @@ export function buildWordIndex(content: string): Record<string, number[]> {
 // Slug generator
 // ──────────────────────────────────────────────
 export function generateSlug(title: string): string {
-  return title
+  return (title || '')
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, '-')
@@ -115,14 +115,15 @@ export function calcReadTime(content: string): number {
 // Auth helpers
 // ──────────────────────────────────────────────
 function isValidEmail(email: string): boolean {
-  const match = email.toLowerCase().trim().match(/^[^\s@]+@([^\s@]+)$/);
+  const match = (email || '').toLowerCase().trim().match(/^[^\s@]+@([^\s@]+)$/);
   if (!match) return false;
   return ['gmail.com', 'outlook.com', 'hotmail.com'].includes(match[1]);
 }
 
 export function signUp(name: string, email: string, password: string): { success: boolean; error?: string; user?: User } {
   const users = getStoredUsers();
-  if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
+  const normalizedEmail = (email || '').toLowerCase();
+  if (users.find(u => (u.email || '').toLowerCase() === normalizedEmail)) {
     return { success: false, error: 'Email already registered.' };
   }
   if (!isValidEmail(email)) {
@@ -144,7 +145,7 @@ export function signUp(name: string, email: string, password: string): { success
   };
   // Store credentials separately
   const creds = JSON.parse(localStorage.getItem('luminary_creds') || '{}');
-  creds[email.toLowerCase()] = btoa(password);
+  creds[normalizedEmail] = btoa(password);
   localStorage.setItem('luminary_creds', JSON.stringify(creds));
   users.push(user);
   saveUsers(users);
@@ -154,7 +155,8 @@ export function signUp(name: string, email: string, password: string): { success
 
 export function signIn(email: string, password: string): { success: boolean; error?: string; user?: User } {
   const users = getStoredUsers();
-  const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  const normalizedEmail = (email || '').toLowerCase();
+  const user = users.find(u => (u.email || '').toLowerCase() === normalizedEmail);
   if (!user) return { success: false, error: 'No account found with that email.' };
 
   if (user.banned) {
@@ -162,7 +164,7 @@ export function signIn(email: string, password: string): { success: boolean; err
   }
 
   const creds = JSON.parse(localStorage.getItem('luminary_creds') || '{}');
-  if (creds[email.toLowerCase()] !== btoa(password)) {
+  if (creds[normalizedEmail] !== btoa(password)) {
     return { success: false, error: 'Incorrect password.' };
   }
   setCurrentUser(user);
