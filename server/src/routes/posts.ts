@@ -120,7 +120,7 @@ router.get('/:slug', async (req: Request, res: Response) => {
 // POST /api/posts — create
 router.post('/', auth, async (req: Request, res: Response) => {
   try {
-    const { title, content, excerpt, tags, keywords, coverImage, status, isApproved, auditScore, publishedAt } = req.body;
+    const { title, content, excerpt, tags, keywords, coverImage, status, isApproved, auditScore, publishedAt, editorialIntelligence } = req.body;
 
     if (!title || !content) {
       return res.status(400).json({ error: 'Title and content are required.' });
@@ -158,6 +158,7 @@ router.post('/', auth, async (req: Request, res: Response) => {
       ...(publishedAt ? { publishedAt: new Date(publishedAt) } : {}),
       readTime,
       wordCount,
+      editorialIntelligence,
     });
 
     // Update user's post count
@@ -183,7 +184,7 @@ router.put('/:id', auth, async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'You can only edit your own posts.' });
     }
 
-    const allowed = ['title', 'content', 'excerpt', 'tags', 'keywords', 'coverImage', 'status', 'isApproved', 'auditScore', 'publishedAt'] as const;
+    const allowed = ['title', 'content', 'excerpt', 'tags', 'keywords', 'coverImage', 'status', 'isApproved', 'auditScore', 'publishedAt', 'editorialIntelligence'] as const;
     for (const field of allowed) {
       if (req.body[field] !== undefined) {
         (post as unknown as Record<string, unknown>)[field] = req.body[field];
@@ -261,6 +262,39 @@ router.post('/:id/like', auth, async (req: Request, res: Response) => {
   } catch (err) {
     console.error('Like post error:', err);
     res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// POST /api/posts/:id/maintenance — run a fresh editorial intelligence check for maintenance
+router.post('/:id/maintenance', auth, async (req: Request, res: Response) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found.' });
+    }
+
+    const { validateContent } = await import('../services/gemini.js');
+    const { config } = await import('../config.js');
+
+    const posts = await Post.find({ status: 'published', _id: { $ne: post._id } }).select('title slug tags').lean() as any;
+    const existingArticles = (posts || []).map((p: any) => ({
+      title: p.title,
+      slug: p.slug,
+      tags: p.tags || []
+    }));
+
+    const auditResult = await validateContent(post.content, config.geminiApiKey, config.geminiApiKey2, config.geminiApiKey3, existingArticles);
+
+    if (auditResult.editorialIntelligence) {
+      post.editorialIntelligence = auditResult.editorialIntelligence;
+      post.markModified('editorialIntelligence');
+      await post.save();
+    }
+
+    res.json({ post });
+  } catch (err) {
+    console.error('Post maintenance audit error:', err);
+    res.status(500).json({ error: 'Maintenance audit failed.' });
   }
 });
 

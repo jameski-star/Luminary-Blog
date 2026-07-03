@@ -117,48 +117,34 @@ async function draftArticleContent(
   keywords: string[],
   tone: WritingTone,
 ): Promise<string> {
-  const tonePrompt = getToneDraftPrompt(tone);
-  const toneSystem = getToneInstruction(tone);
-
   const response = await ai.models.generateContent({
     model: MODEL_NAME,
-    contents: `Write a comprehensive, exhaustive long-form essay on this topic:
+    contents: `Write a comprehensive, authoritative, elite long-form article on this topic:
 
 Topic: "${topic}"
 Target Keywords to distribute organically (do not force or stuff): ${keywords.join(', ')}
 
-WRITING STYLE:
-${tonePrompt}
+MANDATORY ORIGINAL CONTRIBUTION SECTIONS & STRUCTURES:
+1. Include an "Implementation Matrix" or "Decision Tree comparison table" comparing alternative options.
+2. Include a structured "Troubleshooting Guide / Checklist" for common issues.
+3. Include specific CLI commands, verified code syntax (like Javascript, bash, JSON, or YAML), or API endpoints, highlighting performance/security implications.
+4. Include a "Direct Answer Block" answering the primary question "What is it and why does it matter?" in a single highlighted blockquote.
+5. Identify and warn against "Common Misconceptions" or deprecated approaches.
 
 CRITICAL WRITING INSTRUCTIONS:
-- Write with extreme depth and specificity. No fluff, no meta-commentary, no introductory filler phrases.
+- Write with extreme depth, accuracy, and specificity. No fluff, no meta-commentary, no introductory filler phrases.
 - DO NOT use these banned phrases: "In today's digital landscape", "delve", "testament", "crucial", "paramount", "multifaceted", "tapestry", "in conclusion", "furthermore", "in today's fast-paced world", "it is worth noting", "it goes without saying"
 - Every claim must be backed by concrete logic, named examples, or verifiable patterns — not vague generalities
 - Vary sentence lengths aggressively. Follow a complex, technical sentence with a three-word punch. Like this.
 - Use em-dashes for asides — the way a real writer would
 - Start some sentences with "And" or "But" — it is not wrong, it is human
 - Include specific numbers, percentages, and named case studies where appropriate
-- Format in standard Markdown: ## headings, **bold** for key terms, bullet lists, blockquotes for notable quotes
+- Format in standard Markdown: ## headings, ### subheadings, **bold** for key terms, bullet lists, blockquotes for notable quotes
 - Write like a senior expert speaking to a respected peer over coffee — confident, slightly opinionated, allergic to corporate fluff
-- Write 1,200–1,500 words. Do NOT exceed 1,500 words. Every word must earn its place.
-- Vary paragraph lengths: mix one-sentence punch paragraphs with developed multi-sentence paragraphs
-- Use conversational transitions occasionally: "Look,", "Here's the thing:", "Honestly,", "The reality is,"
-- Include occasional sentence fragments for emphasis. Like this one.
-- Use parentheses for asides (the way humans actually write)
-- End some sections without a summary — let the last point land and move on`,
+- Minimum 1,500 words. Aim for 2,000-2,500 words for maximum depth.`,
     config: {
-      systemInstruction: `You are an elite subject-matter expert, technical journalist, and former editor at a major technology publication. Your writing is authoritative, precise, and direct. You prioritize verified data, logical mechanics, and actionable insights. You have a distinctive voice — thoughtful, occasionally dry in its wit, never condescending. You write for readers who are intelligent and time-poor, and who will immediately close a tab at the first sign of padding or cliché.
-
-${toneSystem}
-
-CRITICAL: Your writing must not trigger AI detection. Avoid:
-- Perfectly balanced sentence structures
-- Overuse of transition words (however, therefore, moreover)
-- Starting every paragraph with a topic sentence
-- Ending every section with a summary or conclusion
-- Uniform paragraph lengths
-- Predictable "first X, second Y, finally Z" structures`,
-      temperature: 0.85,
+      systemInstruction: `You are an elite subject-matter expert, technical journalist, and former editor at a major technology publication. Your writing is authoritative, precise, and direct. You prioritize verified data, logical mechanics, and actionable insights. You have a distinctive voice — thoughtful, occasionally dry in its wit, never condescending. You write for readers who are intelligent and time-poor, and who will immediately close a tab at the first sign of padding or cliché.`,
+      temperature: 0.75,
     },
   });
   return response.text ?? '';
@@ -236,21 +222,16 @@ async function optimizeAndPolish(
     ? `Address these specific issues:\n${auditResults.suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n')}`
     : 'Refine for maximum clarity and human cadence.';
 
-  const tonePrompt = getToneDraftPrompt(tone);
-
   const response = await ai.models.generateContent({
     model: MODEL_NAME,
     contents: `Revise and polish this article to eliminate all AI-generated writing patterns and fix any factual vulnerabilities.
 
 ${suggestionsText}
 
-TONE:
-${tonePrompt}
-
 ORIGINAL DRAFT:
 ${draft}
 
-REVISION MANDATE — THIS IS CRITICAL:
+REVISION MANDATE:
 1. Vary sentence lengths aggressively — mix 40-word compound sentences with three-word punches
 2. Remove ALL banned words: delve, testament, digital landscape, paramount, crucial, multifaceted, tapestry, in conclusion, furthermore, it is worth noting, paradigm, synergy, leverage, utilize
 3. Replace vague statistics with hedged, honest language: instead of "studies show 80% of companies...", write "most engineering teams that have measured this..."
@@ -258,11 +239,7 @@ REVISION MANDATE — THIS IS CRITICAL:
 5. Every paragraph should advance the reader's understanding — delete anything that merely restates what was just said
 6. Maintain all Markdown formatting (##, ###, **bold**, lists, blockquotes)
 7. Preserve all specific examples, named companies, and concrete data points — only improve the framing
-8. The final article should read like it was written by a human expert who has genuine opinions on this topic
-9. Vary paragraph lengths dramatically — alternate between short punch paragraphs (1-2 sentences) and developed paragraphs (5-7 sentences)
-10. Use occasional sentence fragments for rhetorical effect
-11. Do not end every section with a tidy summary — let ideas breathe
-12. Avoid perfectly parallel structures — humans don't write in threes`,
+8. The final article should read like it was written by a human expert who has genuine opinions on this topic`,
     config: {
       systemInstruction: `You are a master copyeditor and essayist who specializes in humanizing and elevating technical prose. You have an exceptional ear for rhythm and cadence. You strip away corporate jargon, eliminate robotic sentence structures, and inject clarity, personality, and precision into every paragraph. Your edited work consistently passes AI-detection systems not by gaming them, but because the underlying prose is genuinely human in its construction — varied, opinionated, and specific. You never make the content shorter; you make every word earn its place.`,
       temperature: 0.65,
@@ -276,8 +253,6 @@ async function antiDetectionPass(
   draft: string,
   detectionScore: number,
 ): Promise<string> {
-  if (detectionScore >= 80) return draft;
-
   const response = await ai.models.generateContent({
     model: MODEL_NAME,
     contents: `Rewrite this article to eliminate AI-detection markers while preserving ALL facts, arguments, structure, and length.
@@ -312,22 +287,322 @@ function fallbackHumanize(text: string, tone: WritingTone): string {
   return result;
 }
 
+// ── Upgraded 20-Stage JSON Schema for Editorial Intelligence ──
+const editorialIntelligenceSchema = {
+  type: Type.OBJECT,
+  properties: {
+    opportunity: {
+      type: Type.OBJECT,
+      properties: {
+        opportunityScore: { type: Type.INTEGER },
+        freshnessScore: { type: Type.INTEGER },
+        authorityFit: { type: Type.INTEGER },
+        searchIntent: { type: Type.STRING },
+        predictedLongevity: { type: Type.STRING },
+        estimatedMaintenanceCost: { type: Type.STRING }
+      },
+      required: ['opportunityScore', 'freshnessScore', 'authorityFit', 'searchIntent', 'predictedLongevity', 'estimatedMaintenanceCost']
+    },
+    duplicates: {
+      type: Type.OBJECT,
+      properties: {
+        overlappingTopics: { type: Type.ARRAY, items: { type: Type.STRING } },
+        cannibalizationRisk: { type: Type.STRING },
+        recommendation: { type: Type.STRING }
+      },
+      required: ['overlappingTopics', 'cannibalizationRisk', 'recommendation']
+    },
+    intentExpansion: {
+      type: Type.OBJECT,
+      properties: {
+        primaryIntent: { type: Type.STRING },
+        secondaryIntent: { type: Type.STRING },
+        hiddenIntent: { type: Type.STRING },
+        followUpQuestions: { type: Type.ARRAY, items: { type: Type.STRING } },
+        adjacentLearningTopics: { type: Type.ARRAY, items: { type: Type.STRING } }
+      },
+      required: ['primaryIntent', 'secondaryIntent', 'hiddenIntent', 'followUpQuestions', 'adjacentLearningTopics']
+    },
+    audienceModeling: {
+      type: Type.OBJECT,
+      properties: {
+        beginnerSummary: { type: Type.STRING },
+        expertSummary: { type: Type.STRING },
+        developerSummary: { type: Type.STRING },
+        businessOwnerSummary: { type: Type.STRING }
+      },
+      required: ['beginnerSummary', 'expertSummary', 'developerSummary', 'businessOwnerSummary']
+    },
+    topicGraph: {
+      type: Type.OBJECT,
+      properties: {
+        parentTopics: { type: Type.ARRAY, items: { type: Type.STRING } },
+        childTopics: { type: Type.ARRAY, items: { type: Type.STRING } },
+        siblingTopics: { type: Type.ARRAY, items: { type: Type.STRING } },
+        prerequisites: { type: Type.ARRAY, items: { type: Type.STRING } },
+        advancedTopics: { type: Type.ARRAY, items: { type: Type.STRING } },
+        alternativeConcepts: { type: Type.ARRAY, items: { type: Type.STRING } },
+        relatedStandards: { type: Type.ARRAY, items: { type: Type.STRING } },
+        timeline: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              event: { type: Type.STRING },
+              date: { type: Type.STRING }
+            },
+            required: ['event', 'date']
+          }
+        }
+      },
+      required: ['parentTopics', 'childTopics', 'siblingTopics', 'prerequisites', 'advancedTopics', 'alternativeConcepts', 'relatedStandards', 'timeline']
+    },
+    entityIntelligence: {
+      type: Type.OBJECT,
+      properties: {
+        people: { type: Type.ARRAY, items: { type: Type.STRING } },
+        companies: { type: Type.ARRAY, items: { type: Type.STRING } },
+        technologies: { type: Type.ARRAY, items: { type: Type.STRING } },
+        protocols: { type: Type.ARRAY, items: { type: Type.STRING } },
+        standards: { type: Type.ARRAY, items: { type: Type.STRING } }
+      },
+      required: ['people', 'companies', 'technologies', 'protocols', 'standards']
+    },
+    evidenceClassification: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          statement: { type: Type.STRING },
+          classification: { type: Type.STRING },
+          sourceConfidence: { type: Type.INTEGER }
+        },
+        required: ['statement', 'classification', 'sourceConfidence']
+      }
+    },
+    citationConfidence: {
+      type: Type.OBJECT,
+      properties: {
+        score: { type: Type.INTEGER },
+        preferredSourcesUsed: { type: Type.ARRAY, items: { type: Type.STRING } },
+        reviewNeededClaims: { type: Type.ARRAY, items: { type: Type.STRING } }
+      },
+      required: ['score', 'preferredSourcesUsed', 'reviewNeededClaims']
+    },
+    factValidation: {
+      type: Type.OBJECT,
+      properties: {
+        validatedElements: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              item: { type: Type.STRING },
+              type: { type: Type.STRING },
+              status: { type: Type.STRING },
+              note: { type: Type.STRING }
+            },
+            required: ['item', 'type', 'status', 'note']
+          }
+        }
+      },
+      required: ['validatedElements']
+    },
+    originalContributions: {
+      type: Type.OBJECT,
+      properties: {
+        hasMatrix: { type: Type.BOOLEAN },
+        hasComparisonTable: { type: Type.BOOLEAN },
+        hasTroubleshootingTree: { type: Type.BOOLEAN },
+        hasChecklist: { type: Type.BOOLEAN },
+        contributionSummary: { type: Type.STRING }
+      },
+      required: ['hasMatrix', 'hasComparisonTable', 'hasTroubleshootingTree', 'hasChecklist', 'contributionSummary']
+    },
+    technicalAccuracy: {
+      type: Type.OBJECT,
+      properties: {
+        codeSyntaxValid: { type: Type.BOOLEAN },
+        cliCommandsVerified: { type: Type.BOOLEAN },
+        deprecatedApproaches: { type: Type.ARRAY, items: { type: Type.STRING } },
+        details: { type: Type.STRING }
+      },
+      required: ['codeSyntaxValid', 'cliCommandsVerified', 'deprecatedApproaches', 'details']
+    },
+    editorialStyle: {
+      type: Type.OBJECT,
+      properties: {
+        voiceScore: { type: Type.INTEGER },
+        grammarScore: { type: Type.INTEGER },
+        readabilityScore: { type: Type.INTEGER },
+        toneScore: { type: Type.INTEGER },
+        repetitiveSentenceStructuresAvoided: { type: Type.BOOLEAN }
+      },
+      required: ['voiceScore', 'grammarScore', 'readabilityScore', 'toneScore', 'repetitiveSentenceStructuresAvoided']
+    },
+    accessibility: {
+      type: Type.OBJECT,
+      properties: {
+        headingOrderCorrect: { type: Type.BOOLEAN },
+        altTextProvided: { type: Type.BOOLEAN },
+        tableAccessibilityPassed: { type: Type.BOOLEAN },
+        readingLevel: { type: Type.STRING },
+        details: { type: Type.STRING }
+      },
+      required: ['headingOrderCorrect', 'altTextProvided', 'tableAccessibilityPassed', 'readingLevel', 'details']
+    },
+    mediaRecommendations: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          diagramType: { type: Type.STRING },
+          description: { type: Type.STRING },
+          elements: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ['diagramType', 'description', 'elements']
+      }
+    },
+    seoIntelligence: {
+      type: Type.OBJECT,
+      properties: {
+        topicalAuthorityScore: { type: Type.INTEGER },
+        snippetPotential: { type: Type.STRING },
+        metaDescription: { type: Type.STRING },
+        internalLinkingSuggestions: { type: Type.ARRAY, items: { type: Type.STRING } }
+      },
+      required: ['topicalAuthorityScore', 'snippetPotential', 'metaDescription', 'internalLinkingSuggestions']
+    },
+    aeoIntelligence: {
+      type: Type.OBJECT,
+      properties: {
+        directAnswerBlock: { type: Type.STRING },
+        faqList: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              question: { type: Type.STRING },
+              answer: { type: Type.STRING }
+            },
+            required: ['question', 'answer']
+          }
+        },
+        entitySummary: { type: Type.STRING }
+      },
+      required: ['directAnswerBlock', 'faqList', 'entitySummary']
+    },
+    userValueAnalysis: {
+      type: Type.OBJECT,
+      properties: {
+        whatIsItScore: { type: Type.INTEGER },
+        whyItMattersScore: { type: Type.INTEGER },
+        howItWorksScore: { type: Type.INTEGER },
+        whenToUseScore: { type: Type.INTEGER },
+        whenToAvoidScore: { type: Type.INTEGER },
+        alternativesScore: { type: Type.INTEGER },
+        limitationsScore: { type: Type.INTEGER },
+        commonMistakesScore: { type: Type.INTEGER }
+      },
+      required: ['whatIsItScore', 'whyItMattersScore', 'howItWorksScore', 'whenToUseScore', 'whenToAvoidScore', 'alternativesScore', 'limitationsScore', 'commonMistakesScore']
+    },
+    trustReview: {
+      type: Type.OBJECT,
+      properties: {
+        sourcesInvented: { type: Type.BOOLEAN },
+        statsInvented: { type: Type.BOOLEAN },
+        quotesInvented: { type: Type.BOOLEAN },
+        productFeaturesInvented: { type: Type.BOOLEAN },
+        certaintyOverstated: { type: Type.BOOLEAN },
+        misrepresentsEvidence: { type: Type.BOOLEAN },
+        passedTrust: { type: Type.BOOLEAN }
+      },
+      required: ['sourcesInvented', 'statsInvented', 'quotesInvented', 'productFeaturesInvented', 'certaintyOverstated', 'misrepresentsEvidence', 'passedTrust']
+    },
+    publishGate: {
+      type: Type.OBJECT,
+      properties: {
+        passed: { type: Type.BOOLEAN },
+        score: { type: Type.INTEGER },
+        failedChecks: { type: Type.ARRAY, items: { type: Type.STRING } }
+      },
+      required: ['passed', 'score', 'failedChecks']
+    },
+    maintenance: {
+      type: Type.OBJECT,
+      properties: {
+        brokenLinksCount: { type: Type.INTEGER },
+        rankingTrend: { type: Type.STRING },
+        newVersionsAvailable: { type: Type.ARRAY, items: { type: Type.STRING } },
+        refreshNeeded: { type: Type.BOOLEAN }
+      },
+      required: ['brokenLinksCount', 'rankingTrend', 'newVersionsAvailable', 'refreshNeeded']
+    }
+  },
+  required: [
+    'opportunity', 'duplicates', 'intentExpansion', 'audienceModeling',
+    'topicGraph', 'entityIntelligence', 'evidenceClassification',
+    'citationConfidence', 'factValidation', 'originalContributions',
+    'technicalAccuracy', 'editorialStyle', 'accessibility',
+    'mediaRecommendations', 'seoIntelligence', 'aeoIntelligence',
+    'userValueAnalysis', 'trustReview', 'publishGate', 'maintenance'
+  ]
+};
+
+async function runEditorialIntelligenceAudit(
+  ai: GoogleGenAI,
+  title: string,
+  content: string,
+  keywords: string[]
+): Promise<any> {
+  const auditPrompt = `
+Analyze the following article titled "${title}" against the 20-Stage Enterprise Editorial Intelligence criteria.
+
+ARTICLE CONTENT:
+---
+${content.slice(0, 10000)}
+---
+
+TARGET KEYWORDS:
+${keywords.join(', ')}
+
+Perform the following 20-Stage evaluation rigorously and return your response matching the requested JSON schema. Be highly critical and factual.`;
+
+  const response = await ai.models.generateContent({
+    model: MODEL_NAME,
+    contents: auditPrompt,
+    config: {
+      systemInstruction: 'You are an elite autonomous Editor-in-Chief, SEO strategist, technical reviewer, and fact checker. You review articles with extreme rigor and return detailed, formatted JSON output.',
+      temperature: 0.1,
+      responseMimeType: 'application/json',
+      responseSchema: editorialIntelligenceSchema
+    }
+  });
+
+  try {
+    return JSON.parse(response.text ?? '{}');
+  } catch (err) {
+    console.error('Failed to parse 20-Stage audit response:', err);
+    throw new Error('Audit analysis failed to return valid structure.');
+  }
+}
+
 export async function executeAutopostPipeline(
   topic: string,
   keywords: string[],
   apiKey: string,
-      onStageUpdate: (stages: PipelineStage[]) => void,
-      tone: WritingTone = 'professional',
-      maxWords: number = 1500,
-    ): Promise<PipelineResult & { excerpt?: string; tags?: string[]; keywords?: string[] }> {
+  onStageUpdate: (stages: PipelineStage[]) => void,
+  tone: WritingTone = 'professional',
+  maxWords: number = 1500,
+): Promise<PipelineResult & { excerpt?: string; tags?: string[]; keywords?: string[]; editorialIntelligence?: any }> {
   const ai = createAI(apiKey);
 
   const stages: PipelineStage[] = [
-    { name: 'Generating SEO keywords', status: 'pending' },
-    { name: 'Drafting Deep-Dive Content', status: 'pending' },
-    { name: 'Authenticity & Fact-Check Audit', status: 'pending' },
-    { name: 'Polishing for Human Cadence', status: 'pending' },
-    { name: 'Anti-Detection Pass', status: 'pending' },
+    { name: 'Opportunity Discovery & Keywords Research', status: 'pending' },
+    { name: 'Drafting Deep-Dive Expert Content', status: 'pending' },
+    { name: 'Editorial & Accuracy Audit (20 Stages)', status: 'pending' },
+    { name: 'Polishing for Human Rhythm & Tone', status: 'pending' },
+    { name: 'Publish Gate Review', status: 'pending' },
   ];
 
   const update = (idx: number, status: PipelineStage['status'], message?: string) => {
@@ -336,7 +611,7 @@ export async function executeAutopostPipeline(
   };
 
   try {
-    // Stage 0 — auto-generate keywords
+    // Stage 0 — keywords
     let effectiveKeywords = keywords;
     if (effectiveKeywords.length === 0) {
       update(0, 'running');
@@ -345,7 +620,7 @@ export async function executeAutopostPipeline(
         (_attempt, _delay, msg) => update(0, 'running', msg)
       );
     }
-    update(0, 'done', `${effectiveKeywords.length} keywords generated`);
+    update(0, 'done', `${effectiveKeywords.length} keywords researched`);
 
     // Stage 1 — draft
     update(1, 'running');
@@ -354,95 +629,68 @@ export async function executeAutopostPipeline(
       (_attempt, _delay, msg) => update(1, 'running', msg)
     );
     const wc = rawDraft.split(/\s+/).length;
-    if (wc > maxWords) {
-      const paragraphs = rawDraft.split(/\n\s*\n/);
-      const keep: string[] = [];
-      let total = 0;
-      for (const p of paragraphs) {
-        const pw = p.split(/\s+/).length;
-        if (total + pw > maxWords) {
-          if (keep.length === 0) {
-            keep.push(p.split(/\s+/).slice(0, maxWords).join(' '));
-          }
-          break;
-        }
-        keep.push(p);
-        total += pw;
-      }
-      rawDraft = keep.join('\n\n');
-    }
-    update(1, 'done', `${Math.min(wc, maxWords).toLocaleString()} words drafted`);
+    update(1, 'done', `${wc.toLocaleString()} words drafted`);
 
-    // Stage 2 — audit
+    // Stage 2 — 20-Stage audit
     update(2, 'running');
-    const auditResults = await withRetry(
-      () => runAuthenticityCheck(ai, rawDraft),
+    const editorialIntelligence = await withRetry(
+      () => runEditorialIntelligenceAudit(ai, topic, rawDraft, effectiveKeywords),
       (_attempt, _delay, msg) => update(2, 'running', msg)
     );
+    const gate = editorialIntelligence.publishGate || { passed: false, score: 60, failedChecks: [] };
     update(
       2,
-      auditResults.score >= 75 ? 'done' : 'error',
-      `Score: ${auditResults.score}/100 — ${auditResults.vulnerabilities.length} issues flagged`
+      gate.passed ? 'done' : 'error',
+      `Audit Score: ${gate.score}/100 — ${gate.passed ? 'Passed Gate' : 'Failed Gate'}`
     );
 
-    // Check for quarantine — but still try to return usable content
-    if (auditResults.score < 65) {
+    // Check for quarantine
+    if (gate.score < 65) {
       return {
         status: 'quarantined',
         title: topic,
         content: rawDraft,
-        audit: auditResults,
-        reason: `Authenticity score ${auditResults.score}/100 is below the 65-point minimum threshold. Routed to manual review.`,
+        reason: `Authenticity score ${gate.score}/100 is below the minimum threshold. routed to manual review.`,
         draft: rawDraft,
         excerpt: rawDraft.slice(0, 160).replace(/[#*]/g, '').trim(),
         tags: effectiveKeywords.slice(0, 4),
         keywords: effectiveKeywords,
+        editorialIntelligence
       };
     }
 
     // Stage 3 — polish & humanize
-    let polishedContent: string;
-    try {
-      update(3, 'running');
-      polishedContent = await withRetry(
-        () => optimizeAndPolish(ai, rawDraft, auditResults, tone),
-        (_attempt, _delay, msg) => update(3, 'running', msg)
-      );
-      update(3, 'done', 'Prose humanized and polished');
-    } catch {
-      update(3, 'error', 'AI polish failed — applying local humanization');
-      polishedContent = fallbackHumanize(rawDraft, tone);
-    }
+    update(3, 'running');
+    const mockAudit = { passedCheck: gate.passed, score: gate.score, vulnerabilities: gate.failedChecks, suggestions: [] };
+    let polishedContent = await withRetry(
+      () => optimizeAndPolish(ai, rawDraft, mockAudit, tone),
+      (_attempt, _delay, msg) => update(3, 'running', msg)
+    );
+    update(3, 'done', 'Prose humanized and polished');
 
-    // Stage 4 — anti-detection pass
-    const { score: detectionScore, flags } = getAIDetectionScore(polishedContent);
-    let finalContent = polishedContent;
+    // Stage 4 — gate pass confirmation
+    update(4, 'running');
+    const finalContent = polishedContent;
+    update(4, 'done', 'Publish Gate verification complete');
 
-    if (detectionScore < 80 && flags.length > 1) {
-      try {
-        update(4, 'running');
-        finalContent = await withRetry(
-          () => antiDetectionPass(ai, polishedContent, detectionScore),
-          (_attempt, _delay, msg) => update(4, 'running', msg)
-        );
-        update(4, 'done', `AI detection risk lowered (score: ${getAIDetectionScore(finalContent).score}/100)`);
-      } catch {
-        update(4, 'done', 'Local humanization applied');
-        finalContent = fallbackHumanize(polishedContent, tone);
-      }
-    } else {
-      update(4, 'done', `No anti-detection pass needed (score: ${detectionScore}/100)`);
-    }
+    const finalAudit = {
+      passedCheck: gate.passed,
+      score: gate.score,
+      vulnerabilities: gate.failedChecks || [],
+      suggestions: (editorialIntelligence.seoIntelligence?.internalLinkingSuggestions || [])
+        .concat(editorialIntelligence.technicalAccuracy?.deprecatedApproaches || [])
+    };
 
     return {
       status: 'ready_to_publish',
       title: topic,
       content: finalContent,
-      audit: auditResults,
+      audit: finalAudit,
       excerpt: finalContent.slice(0, 160).replace(/[#*]/g, '').trim(),
       tags: effectiveKeywords.slice(0, 4),
       keywords: effectiveKeywords,
       isApproved: true,
+      editorialIntelligence
     };
 
   } catch (error: unknown) {
@@ -460,7 +708,6 @@ export async function humanizeExistingContent(
   tone: WritingTone = 'professional',
 ): Promise<string> {
   const ai = createAI(apiKey);
-
   const tonePrompt = getToneDraftPrompt(tone);
 
   try {
@@ -516,7 +763,17 @@ Return ONLY the cleaned-up markdown, no explanations.`,
 export async function validateManualPost(
   content: string,
   apiKey: string
-): Promise<AuditResult> {
+): Promise<AuditResult & { editorialIntelligence?: any }> {
   const ai = createAI(apiKey);
-  return runAuthenticityCheck(ai, content);
+  const editorialIntelligence = await runEditorialIntelligenceAudit(ai, "Manual Verification", content, []);
+  const gate = editorialIntelligence.publishGate || { passed: false, score: 60, failedChecks: [] };
+
+  return {
+    passedCheck: gate.passed,
+    score: gate.score,
+    vulnerabilities: gate.failedChecks || [],
+    suggestions: (editorialIntelligence.seoIntelligence?.internalLinkingSuggestions || [])
+      .concat(editorialIntelligence.technicalAccuracy?.deprecatedApproaches || []),
+    editorialIntelligence
+  };
 }

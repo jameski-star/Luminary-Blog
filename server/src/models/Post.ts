@@ -22,6 +22,7 @@ export interface IPost extends Document {
   auditScore?: number;
   wordCount: number;
   isApproved?: boolean;
+  editorialIntelligence?: any;
 }
 
 const postSchema = new Schema<IPost>({
@@ -50,6 +51,7 @@ const postSchema = new Schema<IPost>({
   auditScore: { type: Number },
   wordCount: { type: Number, default: 0 },
   isApproved: { type: Boolean, default: false },
+  editorialIntelligence: { type: Schema.Types.Mixed },
 });
 
 postSchema.index({ slug: 1 }, { unique: true });

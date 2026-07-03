@@ -6,6 +6,7 @@ import { api, isApiMode } from '../services/api';
 import type { PipelineStage, PipelineResult } from '../types';
 import { generateSlug, calcReadTime } from '../store/appStore';
 import { detectRogueContent } from '../utils/contentDetection';
+import EditorialIntelligenceReport from '../components/EditorialIntelligenceReport';
 
 import type { BlogPost, WritingTone } from '../types';
 import { TONE_LABELS } from '../types';
@@ -197,6 +198,7 @@ export default function AutoPostPage() {
       auditScore: result.audit?.score,
       wordCount: result.content.split(/\s+/).length,
       isApproved: goPublic,
+      editorialIntelligence: result.editorialIntelligence,
     };
 
     addPost(post);
@@ -235,6 +237,7 @@ export default function AutoPostPage() {
       likes: 0,
       auditScore: result.audit?.score,
       wordCount: result.content.split(/\s+/).length,
+      editorialIntelligence: result.editorialIntelligence,
     };
 
     addPost(post);
@@ -555,8 +558,10 @@ export default function AutoPostPage() {
               </div>
             )}
 
-            {/* Audit Results */}
-            {result.audit && (
+            {/* Audit Results / Editorial Intelligence Report */}
+            {result.editorialIntelligence ? (
+              <EditorialIntelligenceReport report={result.editorialIntelligence} />
+            ) : result.audit ? (
               <div className="rounded-xl md:rounded-2xl border border-border bg-surface overflow-hidden">
                 <button
                   onClick={() => setAuditOpen(!auditOpen)}
@@ -596,7 +601,7 @@ export default function AutoPostPage() {
                   </div>
                 )}
               </div>
-            )}
+            ) : null}
 
             {/* Outline */}
             {result.outline && (

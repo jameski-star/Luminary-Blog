@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { BlogPost } from '../types';
+import EditorialIntelligenceReport from '../components/EditorialIntelligenceReport';
 
 function renderMarkdown(content: string): string {
   const html = marked.parse(content) as string;
@@ -39,7 +40,24 @@ export default function PostPage() {
   const [apiPost, setApiPost] = useState<BlogPost | null>(null);
   const [loading, setLoading] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [showReport, setShowReport] = useState(false);
+  const [maintenanceLoading, setMaintenanceLoading] = useState(false);
   const articleRef = useRef<HTMLDivElement>(null);
+
+  const handleMaintenanceCheck = async () => {
+    if (!post || !isApiMode()) return;
+    setMaintenanceLoading(true);
+    try {
+      const res = await api.posts.maintenance(post.id);
+      if (res.post) {
+        setApiPost(res.post);
+      }
+    } catch (err) {
+      console.error('Maintenance audit error:', err);
+    } finally {
+      setMaintenanceLoading(false);
+    }
+  };
 
   const localPost = selectedPostId ? getPost(selectedPostId) : null;
   const post = apiPost || localPost;
@@ -314,6 +332,28 @@ export default function PostPage() {
           </div>
         </article>
       </div>
+
+      {post.editorialIntelligence && (
+        <div className="max-w-4xl mx-auto px-4 pb-12 md:pb-20">
+          <button
+            onClick={() => setShowReport(!showReport)}
+            className="w-full flex items-center justify-center gap-2 bg-accent/15 hover:bg-accent/25 text-accent py-3 rounded-xl border border-accent/20 font-semibold text-xs tracking-wider uppercase transition-all duration-200 shadow-sm min-h-11"
+          >
+            <Shield size={14} className={showReport ? 'fill-accent' : ''} />
+            {showReport ? 'Hide Editorial Intelligence Dashboard' : 'Verify Editorial Intelligence (20-Stage AI Audit)'}
+          </button>
+          
+          {showReport && (
+            <div className="mt-6 animate-fadeIn">
+              <EditorialIntelligenceReport 
+                report={post.editorialIntelligence} 
+                onRefreshMaintenance={handleMaintenanceCheck}
+                maintenanceLoading={maintenanceLoading}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Related Articles */}
       {relatedPosts.length > 0 && (

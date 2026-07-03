@@ -88,6 +88,9 @@ export const api = {
       const qs = status ? `?status=${status}` : '';
       return request<{ posts: import('../types').BlogPost[] }>(`/posts/my${qs}`);
     },
+    maintenance(id: string) {
+      return request<{ post: import('../types').BlogPost }>(`/posts/${id}/maintenance`, { method: 'POST' });
+    },
   },
 
   admin: {

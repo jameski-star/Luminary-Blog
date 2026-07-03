@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { auth } from '../middleware/auth.js';
 import { config } from '../config.js';
 import { executePipeline, validateContent, formatContent } from '../services/gemini.js';
+import { Post } from '../models/Post.js';
 
 const router = Router();
 
@@ -20,7 +21,21 @@ router.post('/pipeline', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Gemini API key not configured on the server. Set GEMINI_API_KEY in environment.' });
     }
 
-    const result = await executePipeline(topic, keywords || [], config.geminiApiKey, config.geminiApiKey2, config.geminiApiKey3);
+    const posts = await Post.find({ status: 'published' }).select('title slug tags').lean() as any;
+    const existingArticles = (posts || []).map((p: any) => ({
+      title: p.title,
+      slug: p.slug,
+      tags: p.tags || [],
+    }));
+
+    const result = await executePipeline(
+      topic,
+      keywords || [],
+      config.geminiApiKey,
+      config.geminiApiKey2,
+      config.geminiApiKey3,
+      existingArticles
+    );
     res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -40,7 +55,20 @@ router.post('/audit', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Gemini API key not configured on the server.' });
     }
 
-    const result = await validateContent(content, config.geminiApiKey, config.geminiApiKey2, config.geminiApiKey3);
+    const posts = await Post.find({ status: 'published' }).select('title slug tags').lean() as any;
+    const existingArticles = (posts || []).map((p: any) => ({
+      title: p.title,
+      slug: p.slug,
+      tags: p.tags || [],
+    }));
+
+    const result = await validateContent(
+      content,
+      config.geminiApiKey,
+      config.geminiApiKey2,
+      config.geminiApiKey3,
+      existingArticles
+    );
     res.json(result);
   } catch (err) {
     console.error('Gemini audit error:', err);

@@ -34,6 +34,7 @@ export interface BlogPost {
   wordCount: number;
   wordIndex?: Record<string, number[]>; // word -> array of paragraph indices
   isApproved?: boolean;
+  editorialIntelligence?: any;
 }
 
 export interface AuditResult {
@@ -53,6 +54,7 @@ export interface PipelineResult {
   draft?: string;
   isApproved?: boolean;
   keywords?: string[];
+  editorialIntelligence?: any;
 }
 
 export interface PipelineStage {

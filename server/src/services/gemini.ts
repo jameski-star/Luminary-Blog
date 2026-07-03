@@ -94,20 +94,27 @@ async function draftArticleContent(
 ): Promise<string> {
   const response = await ai.models.generateContent({
     model: MODEL_NAME,
-    contents: `Write a comprehensive, exhaustive long-form essay on this topic:
+    contents: `Write a comprehensive, authoritative, elite long-form article on this topic:
 
 Topic: "${topic}"
 Target Keywords to distribute organically (do not force or stuff): ${keywords.join(', ')}
 
+MANDATORY ORIGINAL CONTRIBUTION SECTIONS & STRUCTURES:
+1. Include an "Implementation Matrix" or "Decision Tree comparison table" comparing alternative options.
+2. Include a structured "Troubleshooting Guide / Checklist" for common issues.
+3. Include specific CLI commands, verified code syntax (like Javascript, bash, JSON, or YAML), or API endpoints, highlighting performance/security implications.
+4. Include a "Direct Answer Block" answering the primary question "What is it and why does it matter?" in a single highlighted blockquote.
+5. Identify and warn against "Common Misconceptions" or deprecated approaches.
+
 CRITICAL WRITING INSTRUCTIONS:
-- Write with extreme depth and specificity. No fluff, no meta-commentary, no introductory filler phrases.
+- Write with extreme depth, accuracy, and specificity. No fluff, no meta-commentary, no introductory filler phrases.
 - DO NOT use these banned phrases: "In today's digital landscape", "delve", "testament", "crucial", "paramount", "multifaceted", "tapestry", "in conclusion", "furthermore", "in today's fast-paced world", "it is worth noting", "it goes without saying"
 - Every claim must be backed by concrete logic, named examples, or verifiable patterns — not vague generalities
 - Vary sentence lengths aggressively. Follow a complex, technical sentence with a three-word punch. Like this.
 - Use em-dashes for asides — the way a real writer would
 - Start some sentences with "And" or "But" — it is not wrong, it is human
 - Include specific numbers, percentages, and named case studies where appropriate
-- Format in standard Markdown: ## headings, **bold** for key terms, bullet lists, blockquotes for notable quotes
+- Format in standard Markdown: ## headings, ### subheadings, **bold** for key terms, bullet lists, blockquotes for notable quotes
 - Write like a senior expert speaking to a respected peer over coffee — confident, slightly opinionated, allergic to corporate fluff
 - Minimum 1,500 words. Aim for 2,000-2,500 words for maximum depth.`,
     config: {
@@ -258,12 +265,339 @@ Requirements:
   }
 }
 
+// ── Upgraded 20-Stage JSON Schema for Editorial Intelligence ──
+const editorialIntelligenceSchema = {
+  type: Type.OBJECT,
+  properties: {
+    opportunity: {
+      type: Type.OBJECT,
+      properties: {
+        opportunityScore: { type: Type.INTEGER, description: 'Publishing opportunity value (1-100) based on trend/emerging interest' },
+        freshnessScore: { type: Type.INTEGER, description: 'Freshness of knowledge/news (1-100)' },
+        authorityFit: { type: Type.INTEGER, description: 'Topic fit with a premium technical blog (1-100)' },
+        searchIntent: { type: Type.STRING, description: 'Intent category: Informational, Navigational, Commercial, or Transactional' },
+        predictedLongevity: { type: Type.STRING, description: 'Lifecycle: Evergreen, Seasonal, Short-term (under 6 months), or Rapidly decaying' },
+        estimatedMaintenanceCost: { type: Type.STRING, description: 'Maintenance tier: Low (evergreen/static), Medium (periodic api/deps updates), High (frequent software/command changes)' }
+      },
+      required: ['opportunityScore', 'freshnessScore', 'authorityFit', 'searchIntent', 'predictedLongevity', 'estimatedMaintenanceCost']
+    },
+    duplicates: {
+      type: Type.OBJECT,
+      properties: {
+        overlappingTopics: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Existing article titles/slugs that cover similar ground' },
+        cannibalizationRisk: { type: Type.STRING, description: 'Risk of keyword/topic overlap: Low, Medium, or High' },
+        recommendation: { type: Type.STRING, description: 'Publishing recommendation, e.g. "Create new article" or "Merge with existing post X"' }
+      },
+      required: ['overlappingTopics', 'cannibalizationRisk', 'recommendation']
+    },
+    intentExpansion: {
+      type: Type.OBJECT,
+      properties: {
+        primaryIntent: { type: Type.STRING },
+        secondaryIntent: { type: Type.STRING },
+        hiddenIntent: { type: Type.STRING, description: 'Implicit background questions the user has but did not explicitly search' },
+        followUpQuestions: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Likely next queries user will search' },
+        adjacentLearningTopics: { type: Type.ARRAY, items: { type: Type.STRING } }
+      },
+      required: ['primaryIntent', 'secondaryIntent', 'hiddenIntent', 'followUpQuestions', 'adjacentLearningTopics']
+    },
+    audienceModeling: {
+      type: Type.OBJECT,
+      properties: {
+        beginnerSummary: { type: Type.STRING, description: 'How to explain this topic to a beginner in 2 sentences' },
+        expertSummary: { type: Type.STRING, description: 'Executive/advanced summary for experts' },
+        developerSummary: { type: Type.STRING, description: 'Actionable developer/engineer perspective' },
+        businessOwnerSummary: { type: Type.STRING, description: 'Strategic perspective for business owners' }
+      },
+      required: ['beginnerSummary', 'expertSummary', 'developerSummary', 'businessOwnerSummary']
+    },
+    topicGraph: {
+      type: Type.OBJECT,
+      properties: {
+        parentTopics: { type: Type.ARRAY, items: { type: Type.STRING } },
+        childTopics: { type: Type.ARRAY, items: { type: Type.STRING } },
+        siblingTopics: { type: Type.ARRAY, items: { type: Type.STRING } },
+        prerequisites: { type: Type.ARRAY, items: { type: Type.STRING } },
+        advancedTopics: { type: Type.ARRAY, items: { type: Type.STRING } },
+        alternativeConcepts: { type: Type.ARRAY, items: { type: Type.STRING } },
+        relatedStandards: { type: Type.ARRAY, items: { type: Type.STRING } },
+        timeline: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              event: { type: Type.STRING },
+              date: { type: Type.STRING }
+            },
+            required: ['event', 'date']
+          }
+        }
+      },
+      required: ['parentTopics', 'childTopics', 'siblingTopics', 'prerequisites', 'advancedTopics', 'alternativeConcepts', 'relatedStandards', 'timeline']
+    },
+    entityIntelligence: {
+      type: Type.OBJECT,
+      properties: {
+        people: { type: Type.ARRAY, items: { type: Type.STRING } },
+        companies: { type: Type.ARRAY, items: { type: Type.STRING } },
+        technologies: { type: Type.ARRAY, items: { type: Type.STRING } },
+        protocols: { type: Type.ARRAY, items: { type: Type.STRING } },
+        standards: { type: Type.ARRAY, items: { type: Type.STRING } }
+      },
+      required: ['people', 'companies', 'technologies', 'protocols', 'standards']
+    },
+    evidenceClassification: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          statement: { type: Type.STRING, description: 'A direct claim/quote from the text' },
+          classification: { type: Type.STRING, description: 'Verified fact, Official documentation, Industry consensus, Research finding, Opinion, Prediction, Historical fact, Example, or Hypothesis' },
+          sourceConfidence: { type: Type.INTEGER, description: 'Confidence of statement verification source (1-10)' }
+        },
+        required: ['statement', 'classification', 'sourceConfidence']
+      }
+    },
+    citationConfidence: {
+      type: Type.OBJECT,
+      properties: {
+        score: { type: Type.INTEGER, description: 'Overall citation quality (1-100)' },
+        preferredSourcesUsed: { type: Type.ARRAY, items: { type: Type.STRING } },
+        reviewNeededClaims: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Unverified or uncertain claims flag' }
+      },
+      required: ['score', 'preferredSourcesUsed', 'reviewNeededClaims']
+    },
+    factValidation: {
+      type: Type.OBJECT,
+      properties: {
+        validatedElements: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              item: { type: Type.STRING, description: 'Name, date, command, benchmark, pricing, or version' },
+              type: { type: Type.STRING, description: 'Category: Date, Version, Price, Command, URL, Unit, Statistics' },
+              status: { type: Type.STRING, description: 'Status: valid, warning, or unverified' },
+              note: { type: Type.STRING }
+            },
+            required: ['item', 'type', 'status', 'note']
+          }
+        }
+      },
+      required: ['validatedElements']
+    },
+    originalContributions: {
+      type: Type.OBJECT,
+      properties: {
+        hasMatrix: { type: Type.BOOLEAN },
+        hasComparisonTable: { type: Type.BOOLEAN },
+        hasTroubleshootingTree: { type: Type.BOOLEAN },
+        hasChecklist: { type: Type.BOOLEAN },
+        contributionSummary: { type: Type.STRING, description: 'What unique original resources/visuals does the text provide' }
+      },
+      required: ['hasMatrix', 'hasComparisonTable', 'hasTroubleshootingTree', 'hasChecklist', 'contributionSummary']
+    },
+    technicalAccuracy: {
+      type: Type.OBJECT,
+      properties: {
+        codeSyntaxValid: { type: Type.BOOLEAN },
+        cliCommandsVerified: { type: Type.BOOLEAN },
+        deprecatedApproaches: { type: Type.ARRAY, items: { type: Type.STRING } },
+        details: { type: Type.STRING }
+      },
+      required: ['codeSyntaxValid', 'cliCommandsVerified', 'deprecatedApproaches', 'details']
+    },
+    editorialStyle: {
+      type: Type.OBJECT,
+      properties: {
+        voiceScore: { type: Type.INTEGER },
+        grammarScore: { type: Type.INTEGER },
+        readabilityScore: { type: Type.INTEGER },
+        toneScore: { type: Type.INTEGER },
+        repetitiveSentenceStructuresAvoided: { type: Type.BOOLEAN }
+      },
+      required: ['voiceScore', 'grammarScore', 'readabilityScore', 'toneScore', 'repetitiveSentenceStructuresAvoided']
+    },
+    accessibility: {
+      type: Type.OBJECT,
+      properties: {
+        headingOrderCorrect: { type: Type.BOOLEAN },
+        altTextProvided: { type: Type.BOOLEAN },
+        tableAccessibilityPassed: { type: Type.BOOLEAN },
+        readingLevel: { type: Type.STRING },
+        details: { type: Type.STRING }
+      },
+      required: ['headingOrderCorrect', 'altTextProvided', 'tableAccessibilityPassed', 'readingLevel', 'details']
+    },
+    mediaRecommendations: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          diagramType: { type: Type.STRING, description: 'Flowchart, Architecture, Sequence, Decision Tree, etc.' },
+          description: { type: Type.STRING, description: 'Detailed instruction of what this visual should depict' },
+          elements: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ['diagramType', 'description', 'elements']
+      }
+    },
+    seoIntelligence: {
+      type: Type.OBJECT,
+      properties: {
+        topicalAuthorityScore: { type: Type.INTEGER },
+        snippetPotential: { type: Type.STRING },
+        metaDescription: { type: Type.STRING },
+        internalLinkingSuggestions: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'List of recommended internal articles to link to, with anchor text' }
+      },
+      required: ['topicalAuthorityScore', 'snippetPotential', 'metaDescription', 'internalLinkingSuggestions']
+    },
+    aeoIntelligence: {
+      type: Type.OBJECT,
+      properties: {
+        directAnswerBlock: { type: Type.STRING, description: 'A direct 1-sentence answer for Google Snippet/AEO' },
+        faqList: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              question: { type: Type.STRING },
+              answer: { type: Type.STRING }
+            },
+            required: ['question', 'answer']
+          }
+        },
+        entitySummary: { type: Type.STRING }
+      },
+      required: ['directAnswerBlock', 'faqList', 'entitySummary']
+    },
+    userValueAnalysis: {
+      type: Type.OBJECT,
+      properties: {
+        whatIsItScore: { type: Type.INTEGER },
+        whyItMattersScore: { type: Type.INTEGER },
+        howItWorksScore: { type: Type.INTEGER },
+        whenToUseScore: { type: Type.INTEGER },
+        whenToAvoidScore: { type: Type.INTEGER },
+        alternativesScore: { type: Type.INTEGER },
+        limitationsScore: { type: Type.INTEGER },
+        commonMistakesScore: { type: Type.INTEGER }
+      },
+      required: ['whatIsItScore', 'whyItMattersScore', 'howItWorksScore', 'whenToUseScore', 'whenToAvoidScore', 'alternativesScore', 'limitationsScore', 'commonMistakesScore']
+    },
+    trustReview: {
+      type: Type.OBJECT,
+      properties: {
+        sourcesInvented: { type: Type.BOOLEAN },
+        statsInvented: { type: Type.BOOLEAN },
+        quotesInvented: { type: Type.BOOLEAN },
+        productFeaturesInvented: { type: Type.BOOLEAN },
+        certaintyOverstated: { type: Type.BOOLEAN },
+        misrepresentsEvidence: { type: Type.BOOLEAN },
+        passedTrust: { type: Type.BOOLEAN, description: 'Must be true only if none of the indicators are flagged' }
+      },
+      required: ['sourcesInvented', 'statsInvented', 'quotesInvented', 'productFeaturesInvented', 'certaintyOverstated', 'misrepresentsEvidence', 'passedTrust']
+    },
+    publishGate: {
+      type: Type.OBJECT,
+      properties: {
+        passed: { type: Type.BOOLEAN },
+        score: { type: Type.INTEGER },
+        failedChecks: { type: Type.ARRAY, items: { type: Type.STRING } }
+      },
+      required: ['passed', 'score', 'failedChecks']
+    },
+    maintenance: {
+      type: Type.OBJECT,
+      properties: {
+        brokenLinksCount: { type: Type.INTEGER },
+        rankingTrend: { type: Type.STRING },
+        newVersionsAvailable: { type: Type.ARRAY, items: { type: Type.STRING } },
+        refreshNeeded: { type: Type.BOOLEAN }
+      },
+      required: ['brokenLinksCount', 'rankingTrend', 'newVersionsAvailable', 'refreshNeeded']
+    }
+  },
+  required: [
+    'opportunity', 'duplicates', 'intentExpansion', 'audienceModeling',
+    'topicGraph', 'entityIntelligence', 'evidenceClassification',
+    'citationConfidence', 'factValidation', 'originalContributions',
+    'technicalAccuracy', 'editorialStyle', 'accessibility',
+    'mediaRecommendations', 'seoIntelligence', 'aeoIntelligence',
+    'userValueAnalysis', 'trustReview', 'publishGate', 'maintenance'
+  ]
+};
+
+async function runEditorialIntelligenceAudit(
+  ai: GoogleGenAI,
+  title: string,
+  content: string,
+  keywords: string[],
+  existingArticles: { title: string; slug: string; tags: string[] }[] = []
+): Promise<any> {
+  const auditPrompt = `
+Analyze the following article titled "${title}" against the 20-Stage Enterprise Editorial Intelligence criteria.
+
+ARTICLE CONTENT:
+---
+${content.slice(0, 10000)}
+---
+
+EXISTING ARTICLES in database (use for Stage 2 Duplicate Detection, Stage 5 Topic Graph connection, and Stage 15 Internal Linking):
+${JSON.stringify(existingArticles.slice(0, 15))}
+
+TARGET KEYWORDS:
+${keywords.join(', ')}
+
+Perform the following 20-Stage evaluation rigorously:
+1. Knowledge Opportunity Discovery: Assess the topic's trendiness, freshness, and authority fit. Estimate maintenance cost based on technology decay rate.
+2. Duplicate Detection: Check if topic overlaps with existing articles. Assess cannibalization risk. Suggest merges if needed.
+3. Intent Expansion: Assess primary, secondary, and hidden user intent, follow-up queries, and learning topics.
+4. Audience Modeling: Generate adapted summaries of the content for Beginners, Experts, Developers, and Business Owners.
+5. Topic Graph Construction: Map parent, child, sibling topics, prerequisites, alternative concepts, and historical timeline events.
+6. Entity Intelligence: Identify and extract people, companies, technologies, protocols, and standards mentioned.
+7. Evidence Classification: Identify 4-7 key statements and classify them as fact, documentation, consensus, opinion, prediction, hypothesis, etc.
+8. Citation Confidence: Assign citation score, verify preferred sources used, flag claims needing manual review.
+9. Fact Validation: Audit dates, statistics, versions, prices, CLI commands, URLs, and code snippets for errors.
+10. Original Contribution: Verify if article includes unique values (decision matrices, troubleshooting trees, checklists, comparison tables).
+11. Technical Accuracy: Verify code syntax, CLI commands, configuration blocks, and flag deprecated methods/APIs.
+12. Editorial Style: Rate readability, grammar, tone, voice, and sentence variation.
+13. Accessibility Review: Check heading order, alt text availability, table structure, reading level, and descriptive captions.
+14. Media Intelligence: Suggest 2-3 specific diagrams/charts (e.g. Mermaid flowchart, database schema) explaining concepts.
+15. SEO Intelligence: Assess depth, heading quality, snippet potential, metadata, and suggest links to existing articles.
+16. AEO Intelligence: Draft a direct Google Answer box sentence, FAQ list, and entity summary blocks.
+17. User Value Analysis: Grade how well the article covers: What, Why, How, When, Alternatives, Limitations, Common Mistakes.
+18. Trust Review: Flag any fabricated stats, quotes, sources, or overstated certainty.
+19. Publish Gate: Gate is passed ONLY if trustReview.passedTrust is true, technicalAccuracy.codeSyntaxValid is true, and overall score is >= 70.
+20. Continuous Maintenance: Monitor for broken links, identify potentially outdated tool versions, and flag if refresh is needed.
+
+Return your response matching the requested JSON schema. Be highly critical and factual.`;
+
+  const response = await ai.models.generateContent({
+    model: MODEL_NAME,
+    contents: auditPrompt,
+    config: {
+      systemInstruction: 'You are an elite autonomous Editor-in-Chief, SEO strategist, technical reviewer, and fact checker. You review articles with extreme rigor and return detailed, formatted JSON output.',
+      temperature: 0.1,
+      responseMimeType: 'application/json',
+      responseSchema: editorialIntelligenceSchema
+    }
+  });
+
+  try {
+    return JSON.parse(response.text ?? '{}');
+  } catch (err) {
+    console.error('Failed to parse 20-Stage audit response:', err);
+    throw new Error('Audit analysis failed to return valid structure.');
+  }
+}
+
 export async function executePipeline(
   topic: string,
   keywords: string[],
   primaryKey: string,
   key2 = '',
-  key3 = ''
+  key3 = '',
+  existingArticles: { title: string; slug: string; tags: string[] }[] = []
 ): Promise<{
   status: 'ready_to_publish' | 'quarantined' | 'error';
   title: string;
@@ -274,6 +608,7 @@ export async function executePipeline(
   tags?: string[];
   keywords?: string[];
   isApproved?: boolean;
+  editorialIntelligence?: any;
 }> {
   const apiKeys = availableKeys(primaryKey, key2, key3);
 
@@ -289,28 +624,43 @@ export async function executePipeline(
       (k) => draftArticleContent(createAI(k), topic, effectiveKeywords),
       apiKeys
     );
-    const auditResults = await withRetry(
-      (k) => runAuthenticityCheck(createAI(k), rawDraft),
+
+    // Polish the drafted article to enhance readability and ensure human voice
+    const mockAudit = { suggestions: ['Enhance code examples and readability.'] };
+    const polishedContent = await withRetry(
+      (k) => optimizeAndPolish(createAI(k), rawDraft, mockAudit),
       apiKeys
     );
 
-    if (auditResults.score < 65) {
+    // Run the 20-Stage Editorial Intelligence Audit
+    const editorialIntelligence = await withRetry(
+      (k) => runEditorialIntelligenceAudit(createAI(k), topic, polishedContent, effectiveKeywords, existingArticles),
+      apiKeys
+    );
+
+    const gate = editorialIntelligence.publishGate || { passed: false, score: 60, failedChecks: ['Audit failed to run'] };
+
+    const auditResults = {
+      passedCheck: gate.passed,
+      score: gate.score,
+      vulnerabilities: gate.failedChecks || [],
+      suggestions: (editorialIntelligence.seoIntelligence?.internalLinkingSuggestions || [])
+        .concat(editorialIntelligence.technicalAccuracy?.deprecatedApproaches || [])
+    };
+
+    if (gate.score < 65 || !gate.passed) {
       return {
         status: 'quarantined',
         title: topic,
-        content: rawDraft,
+        content: polishedContent,
         audit: auditResults,
-        reason: `Authenticity score ${auditResults.score}/100 is below the 65-point minimum threshold. Routed to manual review.`,
-        excerpt: rawDraft.slice(0, 160).replace(/[#*]/g, '').trim(),
+        reason: `Publish Gate validation failed (Score: ${gate.score}/100). Failed criteria: ${(gate.failedChecks || []).join(', ')}`,
+        excerpt: polishedContent.slice(0, 160).replace(/[#*]/g, '').trim(),
         tags: effectiveKeywords.slice(0, 4),
         keywords: effectiveKeywords,
+        editorialIntelligence
       };
     }
-
-    const polishedContent = await withRetry(
-      (k) => optimizeAndPolish(createAI(k), rawDraft, auditResults),
-      apiKeys
-    );
 
     return {
       status: 'ready_to_publish',
@@ -321,6 +671,7 @@ export async function executePipeline(
       tags: effectiveKeywords.slice(0, 4),
       keywords: effectiveKeywords,
       isApproved: true,
+      editorialIntelligence
     };
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);
@@ -365,11 +716,25 @@ export async function validateContent(
   content: string,
   primaryKey: string,
   key2 = '',
-  key3 = ''
-): Promise<{ passedCheck: boolean; score: number; vulnerabilities: string[]; suggestions: string[] }> {
+  key3 = '',
+  existingArticles: any[] = []
+): Promise<{ passedCheck: boolean; score: number; vulnerabilities: string[]; suggestions: string[]; editorialIntelligence?: any }> {
   const apiKeys = availableKeys(primaryKey, key2, key3);
-  return withRetry(
-    (k) => runAuthenticityCheck(createAI(k), content),
+
+  // Run the 20-Stage Editorial Intelligence Audit on manual content
+  const editorialIntelligence = await withRetry(
+    (k) => runEditorialIntelligenceAudit(createAI(k), "Manual Article Validation", content, [], existingArticles),
     apiKeys
   );
+
+  const gate = editorialIntelligence.publishGate || { passed: false, score: 60, failedChecks: ['Audit failed to run'] };
+
+  return {
+    passedCheck: gate.passed,
+    score: gate.score,
+    vulnerabilities: gate.failedChecks || [],
+    suggestions: (editorialIntelligence.seoIntelligence?.internalLinkingSuggestions || [])
+      .concat(editorialIntelligence.technicalAccuracy?.deprecatedApproaches || []),
+    editorialIntelligence
+  };
 }

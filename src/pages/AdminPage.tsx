@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { BlogPost, User as UserType } from '../types';
+import EditorialIntelligenceReport from '../components/EditorialIntelligenceReport';
 
 type AdminTab = 'review' | 'pending' | 'posts' | 'users';
 
@@ -23,6 +24,24 @@ export default function AdminPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [promoteTarget, setPromoteTarget] = useState<UserType | null>(null);
   const { confirm, ConfirmDialog } = useConfirm();
+  const [selectedReviewPost, setSelectedReviewPost] = useState<BlogPost | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+
+  const handleAdminMaintenanceCheck = async () => {
+    if (!selectedReviewPost || !isApiMode()) return;
+    setAuditLoading(true);
+    try {
+      const res = await api.posts.maintenance(selectedReviewPost.id);
+      if (res.post) {
+        setSelectedReviewPost(res.post as BlogPost);
+        setAdminPosts(prev => prev.map(p => p.id === res.post.id ? (res.post as BlogPost) : p));
+      }
+    } catch (err) {
+      console.error('Admin maintenance check error:', err);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
 
   const refreshPosts = useCallback(() => {
     if (isApiMode()) {
@@ -277,6 +296,13 @@ export default function AdminPage() {
                       </td>
                       <td>
                         <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => setSelectedReviewPost(post)}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md bg-accent/15 text-accent border border-accent/25 hover:bg-accent/25 transition-all min-h-11"
+                          >
+                            <Shield size={12} />
+                            Audit
+                          </button>
                           <button
                                                         onClick={() => publishPost(post.id)}
                             className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all min-h-11"
@@ -676,6 +702,34 @@ export default function AdminPage() {
             Promote <strong className="text-primary">{promoteTarget?.name}</strong> ({promoteTarget?.email}) to administrator?
             They will gain full access to the admin panel.
           </p>
+        </Modal>
+
+        {/* Editorial Audit Modal */}
+        <Modal
+          open={!!selectedReviewPost}
+          onClose={() => setSelectedReviewPost(null)}
+          title={`Editorial Intelligence Audit — ${selectedReviewPost?.title}`}
+          size="large"
+        >
+          {selectedReviewPost && (
+            <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+              <div className="p-4 rounded-xl border border-border bg-surface text-xs leading-relaxed max-h-36 overflow-y-auto mb-2 font-mono whitespace-pre-wrap">
+                <strong className="text-primary block mb-1">Article Content Draft Preview:</strong>
+                {selectedReviewPost.content}
+              </div>
+              {selectedReviewPost.editorialIntelligence ? (
+                <EditorialIntelligenceReport 
+                  report={selectedReviewPost.editorialIntelligence} 
+                  onRefreshMaintenance={handleAdminMaintenanceCheck}
+                  maintenanceLoading={auditLoading}
+                />
+              ) : (
+                <div className="p-6 bg-raised rounded-2xl text-center text-xs text-secondary border border-border">
+                  No detailed 20-stage report available yet. Base authenticity score: {selectedReviewPost.auditScore}/100.
+                </div>
+              )}
+            </div>
+          )}
         </Modal>
         <ConfirmDialog />
       </div>

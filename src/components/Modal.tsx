@@ -7,15 +7,18 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   actions?: React.ReactNode;
+  size?: 'medium' | 'large';
 }
 
-export function Modal({ open, onClose, title, children, actions }: ModalProps) {
+export function Modal({ open, onClose, title, children, actions, size = 'medium' }: ModalProps) {
   if (!open) return null;
+
+  const sizeClass = size === 'large' ? 'max-w-4xl' : 'max-w-md';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md rounded-2xl border border-border bg-surface shadow-2xl">
+      <div className={`relative w-full ${sizeClass} rounded-2xl border border-border bg-surface shadow-2xl`}>
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border">
           <h2 className="text-lg font-semibold text-primary">{title}</h2>
           <button onClick={onClose} className="text-secondary hover:text-primary transition-colors p-1 rounded-lg hover:bg-raised">

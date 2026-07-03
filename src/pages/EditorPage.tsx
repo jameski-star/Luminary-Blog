@@ -121,6 +121,7 @@ export default function EditorPage() {
   const [formatting, setFormatting] = useState(false);
   const [humanizing, setHumanizing] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [showAuditModal, setShowAuditModal] = useState(false);
 
   const [activeFormats, setActiveFormats] = useState<{ bold: boolean; italic: boolean; h1: boolean; h2: boolean; h3: boolean }>({ bold: false, italic: false, h1: false, h2: false, h3: false });
 
@@ -496,6 +497,7 @@ export default function EditorPage() {
       auditScore: effectiveAudit?.score,
       wordCount,
       isApproved,
+      editorialIntelligence: (effectiveAudit as any)?.editorialIntelligence,
     };
 
     addPost(post);
@@ -1064,6 +1066,15 @@ export default function EditorPage() {
                     Passed authenticity check
                   </div>
                 )}
+                {(auditResult as any).editorialIntelligence && (
+                  <button
+                    onClick={() => setShowAuditModal(true)}
+                    className="mt-3 w-full flex items-center justify-center gap-1.5 bg-accent/15 hover:bg-accent/25 text-accent py-2 rounded-xl border border-accent/20 font-semibold text-[10px] md:text-xs tracking-wider uppercase transition-colors min-h-11"
+                  >
+                    <Shield size={12} />
+                    View 20-Stage Audit Details
+                  </button>
+                )}
               </div>
             )}
 
@@ -1187,6 +1198,19 @@ export default function EditorPage() {
           </div>
         </div>
       )}
+
+      <Modal
+        open={showAuditModal}
+        onClose={() => setShowAuditModal(false)}
+        title="Manual Content Editorial Intelligence Audit"
+        size="large"
+      >
+        {auditResult?.editorialIntelligence && (
+          <div className="max-h-[75vh] overflow-y-auto pr-1">
+            <EditorialIntelligenceReport report={auditResult.editorialIntelligence} />
+          </div>
+        )}
+      </Modal>
 
       <PromptDialog />
       <ConfirmDialog />
