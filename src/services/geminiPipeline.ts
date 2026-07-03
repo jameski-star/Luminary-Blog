@@ -117,10 +117,25 @@ async function withRetry<T>(
 }
 
 function cleanJsonResponse(text: string): string {
-  let cleaned = text.trim();
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```[a-zA-Z]*\n/, '').replace(/\n```$/, '').trim();
+  const cleaned = text.trim();
+  
+  const firstBrace = cleaned.indexOf('{');
+  const firstBracket = cleaned.indexOf('[');
+  let startIdx = -1;
+  let endIdx = -1;
+
+  if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+    startIdx = firstBrace;
+    endIdx = cleaned.lastIndexOf('}');
+  } else if (firstBracket !== -1) {
+    startIdx = firstBracket;
+    endIdx = cleaned.lastIndexOf(']');
   }
+
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    return cleaned.slice(startIdx, endIdx + 1);
+  }
+
   return cleaned;
 }
 
@@ -144,11 +159,16 @@ async function generateText(
     const model = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
     const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
 
+    let finalPrompt = prompt;
+    if (options.responseSchema) {
+      finalPrompt = `${prompt}\n\nIMPORTANT: You must return a JSON object that adheres strictly to this JSON Schema structure. Return ONLY valid JSON, do not include any markdown wrappers or introductory conversational filler:\n${JSON.stringify(options.responseSchema, null, 2)}`;
+    }
+
     const messages = [];
     if (options.systemInstruction) {
       messages.push({ role: 'system', content: options.systemInstruction });
     }
-    messages.push({ role: 'user', content: prompt });
+    messages.push({ role: 'user', content: finalPrompt });
 
     const response = await fetch(url, {
       method: 'POST',
