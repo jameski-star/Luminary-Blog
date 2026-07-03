@@ -138,7 +138,7 @@ async function generateText(
     }
 
     const accountId = config.cloudflareAccountId;
-    const model = '@cf/meta/llama-3.3-70b-instruct';
+    const model = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
     const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
 
     const messages = [];

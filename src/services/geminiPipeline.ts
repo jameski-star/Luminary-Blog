@@ -141,7 +141,7 @@ async function generateText(
     const parts = raw.split(':');
     const token = parts[0];
     const accountId = parts[1] || 'e3986e39a05965fb562e64afe3673efc';
-    const model = '@cf/meta/llama-3.3-70b-instruct';
+    const model = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
     const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
 
     const messages = [];
