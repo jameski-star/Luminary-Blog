@@ -3,6 +3,7 @@ import { auth } from '../middleware/auth.js';
 import { adminOnly } from '../middleware/adminOnly.js';
 import { Post } from '../models/Post.js';
 import { User } from '../models/User.js';
+import { aiMetrics } from '../services/gemini.js';
 
 const router = Router();
 
@@ -195,6 +196,16 @@ router.get('/users', async (_req: Request, res: Response) => {
     res.json({ users: result });
   } catch (err) {
     console.error('Admin list users error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// GET /api/admin/ai-metrics — fetch AI infrastructure health metrics
+router.get('/ai-metrics', async (_req: Request, res: Response) => {
+  try {
+    res.json(aiMetrics);
+  } catch (err) {
+    console.error('Admin fetch AI metrics error:', err);
     res.status(500).json({ error: 'Internal server error.' });
   }
 });

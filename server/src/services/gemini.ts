@@ -7,11 +7,12 @@ const MODEL_NAME = 'gemini-2.5-flash';
 export enum AIErrorType {
   RATE_LIMIT = 'RATE_LIMIT',
   QUOTA_EXHAUSTED = 'QUOTA_EXHAUSTED',
-  TEMPORARY_BUSY = 'TEMPORARY_BUSY',
-  AUTH_ERROR = 'AUTH_ERROR',
+  MODEL_BUSY = 'MODEL_BUSY',
   NETWORK_ERROR = 'NETWORK_ERROR',
-  INVALID_MODEL = 'INVALID_MODEL',
+  TIMEOUT = 'TIMEOUT',
+  AUTH_ERROR = 'AUTH_ERROR',
   INVALID_REQUEST = 'INVALID_REQUEST',
+  INVALID_MODEL = 'INVALID_MODEL',
   SERVER_ERROR = 'SERVER_ERROR',
   UNKNOWN = 'UNKNOWN',
 }
@@ -37,103 +38,127 @@ export class AIErrorClassifier {
     const msg = err instanceof Error ? (err.message || '') : String(err);
     const msgLower = msg.toLowerCase();
 
-    // 1. Network Errors
+    let status: number | undefined;
+    if (err && typeof err === 'object') {
+      if ('status' in err && typeof (err as any).status === 'number') {
+        status = (err as any).status;
+      } else if ('statusCode' in err && typeof (err as any).statusCode === 'number') {
+        status = (err as any).statusCode;
+      }
+    }
+
+    if (status === undefined) {
+      const match = msg.match(/(?:status|code|http)\s*[:=]?\s*(\d{3})/i);
+      if (match) {
+        status = parseInt(match[1], 10);
+      }
+    }
+
+    // 1. Quota Exhausted
+    if (
+      status === 429 && (
+        msgLower.includes('quota') ||
+        msgLower.includes('neuron') ||
+        msgLower.includes('4006') ||
+        msgLower.includes('exhausted') ||
+        msgLower.includes('allocation') ||
+        msgLower.includes('used up') ||
+        (msgLower.includes('limit exceeded') && !msgLower.includes('rate limit'))
+      )
+    ) {
+      return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Quota exhausted (429): ${msg}`, status, err);
+    }
+    if (
+      status === 400 && (
+        msgLower.includes('quota') ||
+        msgLower.includes('neuron') ||
+        msgLower.includes('4006') ||
+        msgLower.includes('exhausted')
+      )
+    ) {
+      return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Quota exhausted (400): ${msg}`, status, err);
+    }
+    if (
+      msgLower.includes('quota') ||
+      msgLower.includes('exhausted') ||
+      msgLower.includes('daily neuron') ||
+      msgLower.includes('allocation') ||
+      msgLower.includes('4006') ||
+      msgLower.includes('neuron quota') ||
+      msgLower.includes('user_limit')
+    ) {
+      return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Quota exhausted: ${msg}`, status, err);
+    }
+
+    // 2. Authentication Errors
+    if (
+      status === 401 ||
+      status === 403 ||
+      msgLower.includes('api key') ||
+      msgLower.includes('api_key') ||
+      msgLower.includes('unauthorized') ||
+      msgLower.includes('forbidden') ||
+      msgLower.includes('invalid credentials')
+    ) {
+      return new AIError(AIErrorType.AUTH_ERROR, `Auth error: ${msg}`, status, err);
+    }
+
+    // 3. Invalid Model
+    if (status === 404 && msgLower.includes('model')) {
+      return new AIError(AIErrorType.INVALID_MODEL, `Model missing: ${msg}`, status, err);
+    }
+    if (msgLower.includes('model not found') || msgLower.includes('invalid model') || msgLower.includes('unknown model')) {
+      return new AIError(AIErrorType.INVALID_MODEL, `Model missing: ${msg}`, status, err);
+    }
+
+    // 4. Rate Limit
+    if (status === 429 || msgLower.includes('rate limit') || msgLower.includes('rate_limit') || msgLower.includes('too many requests')) {
+      return new AIError(AIErrorType.RATE_LIMIT, `Rate limit: ${msg}`, status, err);
+    }
+
+    // 5. Model Busy
+    if (
+      status === 503 ||
+      msgLower.includes('model is busy') ||
+      msgLower.includes('model busy') ||
+      msgLower.includes('congestion') ||
+      msgLower.includes('overloaded') ||
+      msgLower.includes('please wait') ||
+      msgLower.includes('try again')
+    ) {
+      return new AIError(AIErrorType.MODEL_BUSY, `Model busy: ${msg}`, status, err);
+    }
+
+    // 6. Network Errors
     if (
       msgLower.includes('fetch failed') ||
       msgLower.includes('network error') ||
-      msgLower.includes('timeout') ||
-      msgLower.includes('deadline') ||
-      msgLower.includes('connection') ||
-      msgLower.includes('connect') ||
+      msgLower.includes('dns') ||
+      msgLower.includes('socket') ||
       msgLower.includes('econnrefused') ||
       msgLower.includes('econnreset') ||
-      msgLower.includes('dns') ||
-      msgLower.includes('socket')
+      msgLower.includes('connect') ||
+      msgLower.includes('connection')
     ) {
-      return new AIError(AIErrorType.NETWORK_ERROR, `Network connection issue: ${msg}`, undefined, err);
+      return new AIError(AIErrorType.NETWORK_ERROR, `Network error: ${msg}`, status, err);
     }
 
-    // 2. Cloudflare API specific failures
-    const cfMatch = msg.match(/Cloudflare AI failed \((\d+)\): (.*)/i);
-    if (cfMatch) {
-      const status = parseInt(cfMatch[1], 10);
-      const body = cfMatch[2];
-      const bodyLower = body.toLowerCase();
-
-      if (status === 401 || status === 403) {
-        return new AIError(AIErrorType.AUTH_ERROR, `Cloudflare authentication failed (${status}): ${body}`, status, err);
-      }
-      if (status === 429) {
-        if (bodyLower.includes('allocation') || bodyLower.includes('neuron') || bodyLower.includes('4006') || bodyLower.includes('quota') || bodyLower.includes('used up')) {
-          return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Cloudflare quota exhausted (429): ${body}`, status, err);
-        }
-        return new AIError(AIErrorType.RATE_LIMIT, `Cloudflare rate limit: ${body}`, status, err);
-      }
-      if (status >= 500) {
-        return new AIError(AIErrorType.SERVER_ERROR, `Cloudflare server error (${status}): ${body}`, status, err);
-      }
-      if (status === 400) {
-        if (bodyLower.includes('allocation') || bodyLower.includes('neuron') || bodyLower.includes('4006') || bodyLower.includes('quota') || bodyLower.includes('used up')) {
-          return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Cloudflare quota exhausted (400): ${body}`, status, err);
-        }
-        return new AIError(AIErrorType.INVALID_REQUEST, `Cloudflare bad request: ${body}`, status, err);
-      }
+    // 7. Timeouts
+    if (msgLower.includes('timeout') || msgLower.includes('deadline') || msgLower.includes('abort')) {
+      return new AIError(AIErrorType.TIMEOUT, `Timeout error: ${msg}`, status, err);
     }
 
-    // 3. Generic HTTP Status Code Match
-    const statusMatch = msg.match(/(?:status|code|http)\s*[:=]?\s*(\d{3})/i);
-    if (statusMatch) {
-      const status = parseInt(statusMatch[1], 10);
-      if (status === 401 || status === 403) {
-        return new AIError(AIErrorType.AUTH_ERROR, `Auth error (${status}): ${msg}`, status, err);
-      }
-      if (status === 429) {
-        if (msgLower.includes('quota') || msgLower.includes('exhausted') || msgLower.includes('limit') || msgLower.includes('allocation') || msgLower.includes('neuron') || msgLower.includes('4006')) {
-          return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Quota exhausted (${status}): ${msg}`, status, err);
-        }
-        return new AIError(AIErrorType.RATE_LIMIT, `Rate limit exceeded (${status}): ${msg}`, status, err);
-      }
-      if (status === 404) {
-        if (msgLower.includes('model')) {
-          return new AIError(AIErrorType.INVALID_MODEL, `Model not found (${status}): ${msg}`, status, err);
-        }
-        return new AIError(AIErrorType.INVALID_REQUEST, `Endpoint not found (${status}): ${msg}`, status, err);
-      }
-      if (status === 400) {
-        if (msgLower.includes('quota') || msgLower.includes('exhausted') || msgLower.includes('limit') || msgLower.includes('allocation') || msgLower.includes('neuron') || msgLower.includes('4006')) {
-          return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Quota exhausted (400): ${msg}`, status, err);
-        }
-        return new AIError(AIErrorType.INVALID_REQUEST, `Bad request (${status}): ${msg}`, status, err);
-      }
-      if (status >= 500) {
-        return new AIError(AIErrorType.SERVER_ERROR, `Server error (${status}): ${msg}`, status, err);
-      }
+    // 8. Invalid Request
+    if (status === 400 || msgLower.includes('safety') || msgLower.includes('blocked') || msgLower.includes('permission') || msgLower.includes('malformed')) {
+      return new AIError(AIErrorType.INVALID_REQUEST, `Invalid request: ${msg}`, status, err);
     }
 
-    // 4. String Content Fallbacks
-    if (msgLower.includes('api key') || msgLower.includes('api_key_invalid') || msgLower.includes('unauthorized') || msgLower.includes('forbidden') || msgLower.includes('invalid credentials')) {
-      return new AIError(AIErrorType.AUTH_ERROR, `Authentication failure: ${msg}`, undefined, err);
-    }
-    if (msgLower.includes('quota') || msgLower.includes('exhausted') || msgLower.includes('limit exceeded') || msgLower.includes('used up') || msgLower.includes('allocation') || msgLower.includes('4006') || msgLower.includes('user_limit')) {
-      return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Quota exhausted: ${msg}`, undefined, err);
-    }
-    if (msgLower.includes('rate limit') || msgLower.includes('rate_limit') || msgLower.includes('too many requests') || msgLower.includes('429')) {
-      return new AIError(AIErrorType.RATE_LIMIT, `Rate limit: ${msg}`, 429, err);
-    }
-    if (msgLower.includes('model is busy') || msgLower.includes('model busy') || msgLower.includes('congestion') || msgLower.includes('overloaded') || msgLower.includes('please wait') || msgLower.includes('try again')) {
-      return new AIError(AIErrorType.TEMPORARY_BUSY, `Model busy: ${msg}`, undefined, err);
-    }
-    if (msgLower.includes('safety') || msgLower.includes('blocked') || msgLower.includes('permission') || msgLower.includes('access') || msgLower.includes('malformed')) {
-      return new AIError(AIErrorType.INVALID_REQUEST, `Invalid request or safety block: ${msg}`, undefined, err);
-    }
-    if (msgLower.includes('model not found') || msgLower.includes('invalid model') || msgLower.includes('unknown model')) {
-      return new AIError(AIErrorType.INVALID_MODEL, `Model missing: ${msg}`, undefined, err);
-    }
-    if (msgLower.includes('500') || msgLower.includes('502') || msgLower.includes('503') || msgLower.includes('504') || msgLower.includes('unavailable') || msgLower.includes('internal error')) {
-      return new AIError(AIErrorType.SERVER_ERROR, `Server error: ${msg}`, undefined, err);
+    // 9. Server Error
+    if ((status && status >= 500) || msgLower.includes('internal error') || msgLower.includes('unavailable')) {
+      return new AIError(AIErrorType.SERVER_ERROR, `Server error: ${msg}`, status, err);
     }
 
-    return new AIError(AIErrorType.UNKNOWN, `Unknown AI error: ${msg}`, undefined, err);
+    return new AIError(AIErrorType.UNKNOWN, `Unknown AI error: ${msg}`, status, err);
   }
 }
 
@@ -141,17 +166,59 @@ export class AIErrorClassifier {
 export interface AIProviderInstance {
   id: string;
   name: string;
-  type: 'gemini' | 'openai' | 'claude' | 'openrouter' | 'cloudflare' | 'local';
+  type: 'gemini' | 'openai' | 'claude' | 'openrouter' | 'cloudflare' | 'nvidia';
   key: string;
   extraConfig?: {
     accountId?: string;
+    baseUrl?: string;
+    model?: string;
   };
   status: 'Healthy' | 'Busy' | 'Rate Limited' | 'Quota Exhausted' | 'Disabled' | 'Offline' | 'Temporary Failure' | 'Permanent Failure';
   cooldownUntil: number;
   failureCount: number;
-  circuitState: 'CLOSED' | 'OPEN' | 'HALF-OPEN';
+  successCount: number;
+  lastSuccessTime: number;
   lastFailureTime: number;
+  latency: number;
+  availabilityScore: number;
+  circuitState: 'CLOSED' | 'OPEN' | 'HALF-OPEN';
+  circuitTrips: number;
 }
+
+// ── Global Monitoring Metrics ──
+export interface AIMetrics {
+  providerUptime: Record<string, boolean>;
+  successRate: Record<string, number>;
+  failureRate: Record<string, number>;
+  totalRequests: Record<string, number>;
+  totalSuccesses: Record<string, number>;
+  totalFailures: Record<string, number>;
+  averageLatency: Record<string, number>;
+  fallbackFrequency: number;
+  totalTokensUsed: number;
+  averageArticleGenTime: number;
+  totalArticleGens: number;
+  averagePromptSize: number;
+  circuitBreakerEvents: { providerName: string; event: string; timestamp: string }[];
+  quotaUsage: Record<string, number>;
+}
+
+export const aiMetrics: AIMetrics = {
+  providerUptime: {},
+  successRate: {},
+  failureRate: {},
+  totalRequests: {},
+  totalSuccesses: {},
+  totalFailures: {},
+  averageLatency: {},
+  fallbackFrequency: 0,
+  totalTokensUsed: 0,
+  averageArticleGenTime: 0,
+  totalArticleGens: 0,
+  averagePromptSize: 0,
+  circuitBreakerEvents: [],
+  quotaUsage: {},
+};
 
 // ── Provider Registry and Health System ──
 export class AIProviderManager {
@@ -166,7 +233,8 @@ export class AIProviderManager {
     key2 = config.geminiApiKey2,
     key3 = config.geminiApiKey3,
     cloudflareToken = config.cloudflareApiToken,
-    cloudflareAccountId = config.cloudflareAccountId
+    cloudflareAccountId = config.cloudflareAccountId,
+    nvidiaKey = config.nvidiaApiKey
   ) {
     const newProviders: AIProviderInstance[] = [];
 
@@ -181,32 +249,37 @@ export class AIProviderManager {
       this.ensureProvider(newProviders, 'gemini-3', 'Gemini API (Key 3)', 'gemini', key3);
     }
 
-    // 2. OpenAI
+    // 2. Cloudflare
+    if (cloudflareToken) {
+      this.ensureProvider(newProviders, 'cloudflare', 'Cloudflare Workers AI', 'cloudflare', cloudflareToken, { accountId: cloudflareAccountId });
+    }
+
+    // 3. NVIDIA NIM
+    const activeNvidiaKey = nvidiaKey || config.nvidiaApiKey;
+    if (activeNvidiaKey) {
+      this.ensureProvider(newProviders, 'nvidia', 'NVIDIA NIM', 'nvidia', activeNvidiaKey, {
+        baseUrl: config.nvidiaBaseUrl,
+        model: config.nvidiaModel
+      });
+    }
+
+    // 4. OpenAI
     const openAiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
     if (openAiKey) {
       this.ensureProvider(newProviders, 'openai', 'OpenAI API', 'openai', openAiKey);
     }
 
-    // 3. Claude
+    // 5. Claude
     const claudeKey = config.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
     if (claudeKey) {
       this.ensureProvider(newProviders, 'claude', 'Anthropic Claude API', 'claude', claudeKey);
     }
 
-    // 4. OpenRouter
+    // 6. OpenRouter
     const openRouterKey = config.openRouterApiKey || process.env.OPENROUTER_API_KEY;
     if (openRouterKey) {
       this.ensureProvider(newProviders, 'openrouter', 'OpenRouter API', 'openrouter', openRouterKey);
     }
-
-    // 5. Cloudflare
-    if (cloudflareToken) {
-      this.ensureProvider(newProviders, 'cloudflare', 'Cloudflare Workers AI', 'cloudflare', cloudflareToken, { accountId: cloudflareAccountId });
-    }
-
-    // 6. Local Model
-    const localUrl = config.localModelUrl || process.env.LOCAL_MODEL_URL || 'http://localhost:11434';
-    this.ensureProvider(newProviders, 'local', 'Local Model (Ollama)', 'local', 'local-no-key', { accountId: localUrl });
 
     // Sync state
     for (const np of newProviders) {
@@ -215,8 +288,13 @@ export class AIProviderManager {
         np.status = existing.status;
         np.cooldownUntil = existing.cooldownUntil;
         np.failureCount = existing.failureCount;
-        np.circuitState = existing.circuitState;
+        np.successCount = existing.successCount;
+        np.lastSuccessTime = existing.lastSuccessTime;
         np.lastFailureTime = existing.lastFailureTime;
+        np.latency = existing.latency;
+        np.availabilityScore = existing.availabilityScore;
+        np.circuitState = existing.circuitState;
+        np.circuitTrips = existing.circuitTrips;
       }
     }
 
@@ -240,8 +318,13 @@ export class AIProviderManager {
       status: 'Healthy',
       cooldownUntil: 0,
       failureCount: 0,
+      successCount: 0,
+      lastSuccessTime: 0,
+      lastFailureTime: 0,
+      latency: 0,
+      availabilityScore: 1.0,
       circuitState: 'CLOSED',
-      lastFailureTime: 0
+      circuitTrips: 0
     });
   }
 
@@ -260,13 +343,21 @@ export class AIProviderManager {
       }
     }
 
-    // Fallback priority: Gemini -> OpenAI -> Claude -> OpenRouter -> Cloudflare -> Local
-    const priorityOrder: AIProviderInstance['type'][] = ['gemini', 'openai', 'claude', 'openrouter', 'cloudflare', 'local'];
+    const priorityMap: Record<string, number> = {
+      'gemini-1': 1,
+      'gemini-2': 2,
+      'gemini-3': 3,
+      'cloudflare': 4,
+      'nvidia': 5,
+      'openai': 6,
+      'claude': 7,
+      'openrouter': 8
+    };
 
     const sorted = [...this.providers].sort((a, b) => {
-      const indexA = priorityOrder.indexOf(a.type);
-      const indexB = priorityOrder.indexOf(b.type);
-      return indexA - indexB;
+      const pA = priorityMap[a.id] || 99;
+      const pB = priorityMap[b.id] || 99;
+      return pA - pB;
     });
 
     return sorted.filter(p => {
@@ -283,6 +374,7 @@ export class AIProviderManager {
   public markFailure(provider: AIProviderInstance, error: AIError) {
     const now = Date.now();
     provider.lastFailureTime = now;
+    provider.availabilityScore = Math.max(0.0, provider.availabilityScore - 0.2);
 
     switch (error.type) {
       case AIErrorType.AUTH_ERROR:
@@ -290,6 +382,7 @@ export class AIProviderManager {
         provider.circuitState = 'OPEN';
         provider.cooldownUntil = now + 24 * 60 * 60 * 1000; // 24h
         console.warn(`[AI-HEALTH] Provider ${provider.name} set to Permanent Failure (Auth Error).`);
+        aiMetrics.circuitBreakerEvents.push({ providerName: provider.name, event: 'TRIPPED_AUTH', timestamp: new Date().toISOString() });
         break;
 
       case AIErrorType.QUOTA_EXHAUSTED:
@@ -297,6 +390,7 @@ export class AIProviderManager {
         provider.circuitState = 'OPEN';
         provider.cooldownUntil = now + 60 * 60 * 1000; // 1 hour cooldown
         console.warn(`[AI-HEALTH] Provider ${provider.name} set to Quota Exhausted. Cooldown for 1h.`);
+        aiMetrics.circuitBreakerEvents.push({ providerName: provider.name, event: 'TRIPPED_QUOTA', timestamp: new Date().toISOString() });
         break;
 
       case AIErrorType.RATE_LIMIT:
@@ -305,7 +399,7 @@ export class AIProviderManager {
         console.warn(`[AI-HEALTH] Provider ${provider.name} rate limited. Cooldown for 30s.`);
         break;
 
-      case AIErrorType.TEMPORARY_BUSY:
+      case AIErrorType.MODEL_BUSY:
         provider.status = 'Busy';
         provider.cooldownUntil = now + 15 * 1000; // 15s
         console.warn(`[AI-HEALTH] Provider ${provider.name} is busy. Cooldown for 15s.`);
@@ -322,8 +416,11 @@ export class AIProviderManager {
         if (provider.failureCount >= 3) {
           provider.circuitState = 'OPEN';
           provider.status = 'Offline';
-          provider.cooldownUntil = now + 60 * 1000; // 60s
-          console.error(`[AI-HEALTH] Provider ${provider.name} failed 3+ times. Circuit OPEN. Marked Offline.`);
+          provider.circuitTrips++;
+          const cooldownDuration = 30 * 1000 * Math.pow(2, Math.min(provider.circuitTrips - 1, 6)); // Exponential cooldown
+          provider.cooldownUntil = now + cooldownDuration;
+          console.error(`[AI-HEALTH] Provider ${provider.name} failed 3+ times. Circuit OPEN. Marked Offline. Cooldown for ${cooldownDuration / 1000}s.`);
+          aiMetrics.circuitBreakerEvents.push({ providerName: provider.name, event: `OPEN_COOLDOWN_${cooldownDuration / 1000}S`, timestamp: new Date().toISOString() });
         } else {
           provider.cooldownUntil = now + 5 * 1000; // 5s wait
         }
@@ -334,28 +431,118 @@ export class AIProviderManager {
   public markSuccess(provider: AIProviderInstance) {
     provider.status = 'Healthy';
     provider.failureCount = 0;
-    provider.circuitState = 'CLOSED';
     provider.cooldownUntil = 0;
+    provider.availabilityScore = Math.min(1.0, provider.availabilityScore + 0.1);
+    
+    if (provider.circuitState === 'HALF-OPEN') {
+      console.log(`[AI-HEALTH] Provider ${provider.name} probe succeeded. Circuit CLOSED.`);
+      provider.circuitTrips = 0;
+      aiMetrics.circuitBreakerEvents.push({ providerName: provider.name, event: 'CLOSED', timestamp: new Date().toISOString() });
+    }
+    provider.circuitState = 'CLOSED';
+  }
+
+  public getProviders(): AIProviderInstance[] {
+    return this.providers;
   }
 }
 
 export const providerManager = new AIProviderManager();
 
-function isRetryable(err: AIError): boolean {
-  return (
-    err.type === AIErrorType.RATE_LIMIT ||
-    err.type === AIErrorType.TEMPORARY_BUSY ||
-    err.type === AIErrorType.SERVER_ERROR ||
-    err.type === AIErrorType.NETWORK_ERROR
-  );
+// ── Token Counting Management ──
+export function estimateTokens(text: string): number {
+  if (!text) return 0;
+  const charEstimate = Math.ceil(text.length / 3.5);
+  const wordEstimate = Math.ceil(text.trim().split(/\s+/).length * 1.3);
+  return Math.max(charEstimate, wordEstimate);
 }
 
-function createAI(apiKey: string) {
-  return new GoogleGenAI({ apiKey });
+export function getContextLimit(provider: AIProviderInstance): number {
+  switch (provider.type) {
+    case 'gemini':
+      return 1048576; // 1M+ tokens
+    case 'openai':
+      return 128000;
+    case 'claude':
+      return 200000;
+    case 'openrouter':
+      return 1048576;
+    case 'cloudflare':
+      return 24000; // Constrained Cloudflare context limit
+    case 'nvidia':
+      return 32768; // NVIDIA NIM llama context limit
+    default:
+      return 8192;
+  }
+}
+
+export function compressAndTrimPrompt(
+  prompt: string,
+  systemInstruction: string,
+  provider: AIProviderInstance
+): { prompt: string; systemInstruction: string } {
+  const modelLimit = getContextLimit(provider);
+  const expectedResponse = 4000;
+  const sysTokens = estimateTokens(systemInstruction);
+  
+  let currentPrompt = prompt;
+  let currentSys = systemInstruction;
+  let total = estimateTokens(currentPrompt) + sysTokens + expectedResponse;
+  
+  if (total <= modelLimit) {
+    return { prompt: currentPrompt, systemInstruction: currentSys };
+  }
+  
+  console.warn(`[AI-TOKEN] Prompt tokens (${total}) exceed limit (${modelLimit}) for provider ${provider.name}. Compressing...`);
+
+  // 1. Summarize/trim existing articles list if present
+  if (currentPrompt.includes('EXISTING ARTICLES in database')) {
+    currentPrompt = currentPrompt.replace(
+      /EXISTING ARTICLES in database[\s\S]*?(?=TARGET KEYWORDS|Perform the|$)/i,
+      `EXISTING ARTICLES in database: (Truncated due to context limits to fit ${provider.name})\n`
+    );
+    total = estimateTokens(currentPrompt) + sysTokens + expectedResponse;
+    if (total <= modelLimit) return { prompt: currentPrompt, systemInstruction: currentSys };
+  }
+
+  // 2. Trim dynamic content blocks
+  const articleContentMarkers = [
+    { start: 'ARTICLE CONTENT:', end: '---' },
+    { start: 'ORIGINAL DRAFT:', end: '---' },
+    { start: 'DOCUMENT:', end: 'Return ONLY' }
+  ];
+
+  for (const marker of articleContentMarkers) {
+    const startIdx = currentPrompt.indexOf(marker.start);
+    if (startIdx !== -1) {
+      const rest = currentPrompt.slice(startIdx + marker.start.length);
+      const endIdx = rest.indexOf(marker.end);
+      if (endIdx !== -1) {
+        const contentBlock = rest.slice(0, endIdx).trim();
+        // Truncate content block to fit context limit
+        const truncatedBlock = contentBlock.slice(0, 6000) + '\n... [TRUNCATED DUE TO MODEL CONTEXT LIMITS] ...\n';
+        currentPrompt = currentPrompt.replace(contentBlock, truncatedBlock);
+        
+        total = estimateTokens(currentPrompt) + sysTokens + expectedResponse;
+        if (total <= modelLimit) return { prompt: currentPrompt, systemInstruction: currentSys };
+      }
+    }
+  }
+
+  // 3. Absolute fallback: hard truncate prompt to fit
+  if (total > modelLimit) {
+    const allowedChars = Math.floor((modelLimit - sysTokens - expectedResponse) * 3.5);
+    if (allowedChars > 100) {
+      console.warn(`[AI-TOKEN] Performing hard truncation to ${allowedChars} characters.`);
+      currentPrompt = currentPrompt.slice(0, allowedChars) + '\n... [TRUNCATED]';
+    }
+  }
+
+  return { prompt: currentPrompt, systemInstruction: currentSys };
 }
 
 // ── Unified API Request Executor ──
-async function executeProviderRequest(
+export async function executeProviderRequest(
   provider: AIProviderInstance,
   prompt: string,
   options: {
@@ -372,7 +559,7 @@ async function executeProviderRequest(
   try {
     switch (provider.type) {
       case 'gemini': {
-        const ai = createAI(provider.key);
+        const ai = new GoogleGenAI({ apiKey: provider.key });
         const requestPromise = ai.models.generateContent({
           model: MODEL_NAME,
           contents: prompt,
@@ -537,44 +724,107 @@ async function executeProviderRequest(
         return resJson.result?.response || '';
       }
 
-      case 'local': {
-        const baseUrl = provider.extraConfig?.accountId || 'http://localhost:11434';
+      case 'nvidia': {
+        let finalPrompt = prompt;
+        if (options.responseSchema) {
+          finalPrompt = `${prompt}\n\nIMPORTANT: You must return a JSON object that adheres strictly to this JSON Schema structure:\n${JSON.stringify(options.responseSchema, null, 2)}`;
+        }
         const messages = [];
         if (options.systemInstruction) {
           messages.push({ role: 'system', content: options.systemInstruction });
         }
-        messages.push({ role: 'user', content: prompt });
+        messages.push({ role: 'user', content: finalPrompt });
 
-        const response = await fetch(`${baseUrl}/api/chat`, {
+        const response = await fetch(`${provider.extraConfig?.baseUrl || config.nvidiaBaseUrl}/chat/completions`, {
           method: 'POST',
           headers: {
+            'Authorization': `Bearer ${provider.key}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            model: 'llama3',
+            model: provider.extraConfig?.model || config.nvidiaModel,
             messages,
-            options: {
-              temperature: options.temperature ?? 0.7
-            },
-            stream: false
+            temperature: options.temperature ?? 0.7,
+            max_tokens: 4096
           }),
           signal: controller.signal
         });
 
         if (!response.ok) {
           const text = await response.text();
-          throw new Error(`Local model API failed (status ${response.status}): ${text}`);
+          throw new Error(`NVIDIA NIM API failed (status ${response.status}): ${text}`);
         }
 
         const data = await response.json() as any;
-        return data.message?.content || '';
+        return data.choices?.[0]?.message?.content || '';
       }
 
       default:
-        throw new Error(`Unsupported provider type: ${provider.type}`);
+        throw new Error(`Unsupported provider type: ${(provider as any).type}`);
     }
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+
+// ── Resilient Retry Policy & Backoff Execution ──
+async function executeWithProviderRetry(
+  provider: AIProviderInstance,
+  prompt: string,
+  options: {
+    systemInstruction?: string;
+    temperature?: number;
+    responseMimeType?: string;
+    responseSchema?: any;
+  }
+): Promise<string> {
+  let attempt = 0;
+  
+  while (true) {
+    const startTime = Date.now();
+    try {
+      const result = await executeProviderRequest(provider, prompt, options);
+      const latency = Date.now() - startTime;
+      
+      // Success updating
+      provider.successCount++;
+      provider.lastSuccessTime = Date.now();
+      provider.latency = provider.latency === 0 ? latency : Math.round(provider.latency * 0.7 + latency * 0.3);
+      providerManager.markSuccess(provider);
+      return result;
+    } catch (err: unknown) {
+      attempt++;
+      const latency = Date.now() - startTime;
+      provider.latency = provider.latency === 0 ? latency : Math.round(provider.latency * 0.7 + latency * 0.3);
+      
+      const aiError = AIErrorClassifier.classify(err);
+      
+      let shouldRetry = false;
+      let backoffMs = 1000;
+
+      // Classifications matching: MODEL_BUSY, SERVER_ERROR, NETWORK_ERROR, TIMEOUT, UNKNOWN
+      if (aiError.type === AIErrorType.MODEL_BUSY) {
+        shouldRetry = attempt < 3;
+        backoffMs = 1000 * Math.pow(2, attempt - 1); // Exponential backoff (1s, 2s)
+      } else if (aiError.type === AIErrorType.SERVER_ERROR) {
+        shouldRetry = attempt < 3;
+        backoffMs = 1000 * Math.pow(2, attempt - 1);
+      } else if (aiError.type === AIErrorType.NETWORK_ERROR || aiError.type === AIErrorType.TIMEOUT) {
+        shouldRetry = attempt < 2;
+        backoffMs = 500 * Math.pow(2, attempt - 1);
+      } else if (aiError.type === AIErrorType.UNKNOWN) {
+        shouldRetry = attempt < 2;
+        backoffMs = 1000;
+      }
+
+      if (shouldRetry) {
+        console.warn(`[AI-RETRY] Provider ${provider.name} transient error ${aiError.type}. Retrying (${attempt}) in ${backoffMs}ms...`);
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+        continue;
+      }
+
+      throw aiError;
+    }
   }
 }
 
@@ -591,6 +841,9 @@ export async function generateTextWithFallback(
   const maxAttempts = 3;
   let lastError: any = new Error('No AI providers available');
 
+  const estimatedInputTokens = estimateTokens(prompt) + estimateTokens(options.systemInstruction || '');
+  aiMetrics.averagePromptSize = aiMetrics.averagePromptSize === 0 ? estimatedInputTokens : Math.round(aiMetrics.averagePromptSize * 0.8 + estimatedInputTokens * 0.2);
+
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const healthyProviders = providerManager.getHealthyProviders();
     if (healthyProviders.length === 0) {
@@ -599,43 +852,68 @@ export async function generateTextWithFallback(
     }
 
     for (const provider of healthyProviders) {
-      console.log(`[AI-PROVIDER] Attempting request on provider: ${provider.name} (Attempt ${attempt + 1})`);
+      console.log(`[AI-PROVIDER] Attempting request on provider: ${provider.name} (Global Attempt ${attempt + 1})`);
+      
+      aiMetrics.totalRequests[provider.id] = (aiMetrics.totalRequests[provider.id] || 0) + 1;
+      
+      const { prompt: finalPrompt, systemInstruction: finalSys } = compressAndTrimPrompt(prompt, options.systemInstruction || '', provider);
 
       try {
-        const text = await executeProviderRequest(provider, prompt, options);
-        providerManager.markSuccess(provider);
+        const text = await executeWithProviderRetry(provider, finalPrompt, {
+          ...options,
+          systemInstruction: finalSys
+        });
+        
+        aiMetrics.totalSuccesses[provider.id] = (aiMetrics.totalSuccesses[provider.id] || 0) + 1;
+        aiMetrics.totalTokensUsed += estimateTokens(finalPrompt) + estimateTokens(finalSys) + estimateTokens(text);
+        aiMetrics.providerUptime[provider.id] = true;
+        
+        const total = aiMetrics.totalRequests[provider.id];
+        aiMetrics.successRate[provider.id] = Math.round((aiMetrics.totalSuccesses[provider.id] / total) * 100);
+        
         return text;
       } catch (err: unknown) {
-        const aiError = AIErrorClassifier.classify(err);
+        const aiError = err instanceof AIError ? err : AIErrorClassifier.classify(err);
         providerManager.markFailure(provider, aiError);
-        lastError = aiError;
+        
+        aiMetrics.totalFailures[provider.id] = (aiMetrics.totalFailures[provider.id] || 0) + 1;
+        const total = aiMetrics.totalRequests[provider.id];
+        aiMetrics.failureRate[provider.id] = Math.round((aiMetrics.totalFailures[provider.id] / total) * 100);
+        aiMetrics.providerUptime[provider.id] = false;
+        
+        if (attempt > 0 || healthyProviders.indexOf(provider) > 0) {
+          aiMetrics.fallbackFrequency++;
+        }
 
-        // Structured Logs
-        console.log(`[AI-LOG] Provider: ${provider.name} | Status: ${provider.status} | Retry: ${isRetryable(aiError) ? 'Yes' : 'No'} | Fallback: Yes | Reason: ${aiError.message}`);
+        // Structured Log
+        console.log(JSON.stringify({
+          level: 'error',
+          message: 'AI Provider request failed',
+          provider: provider.name,
+          model: provider.type === 'gemini' ? MODEL_NAME : (provider.extraConfig?.model || 'unknown'),
+          status: provider.status,
+          latency: provider.latency,
+          errorType: aiError.type,
+          failureReason: aiError.message,
+          httpStatus: aiError.status,
+          circuitState: provider.circuitState,
+          timestamp: new Date().toISOString()
+        }));
 
-        if (aiError.type === AIErrorType.INVALID_MODEL || aiError.type === AIErrorType.INVALID_REQUEST) {
-          // Immediately propagate client/schema errors
+        if (aiError.type === AIErrorType.INVALID_REQUEST || aiError.type === AIErrorType.INVALID_MODEL) {
           throw aiError;
         }
 
-        // Switch to the next provider immediately
         continue;
       }
     }
 
-    // Wait and back off before next global retry loop
     const waitDelay = 1000 * Math.pow(2, attempt);
     console.warn(`[AI-PROVIDER] All providers failed in attempt ${attempt + 1}. Backing off for ${waitDelay}ms…`);
     await new Promise(resolve => setTimeout(resolve, waitDelay));
   }
 
   throw lastError;
-}
-
-function maskKey(key: string): string {
-  if (!key) return 'EMPTY_KEY';
-  if (key.length <= 12) return '***...***';
-  return `${key.slice(0, 8)}...${key.slice(-4)}`;
 }
 
 function cleanJsonResponse(text: string): string {
@@ -670,7 +948,6 @@ async function generateText(
     responseSchema?: any;
   }
 ): Promise<string> {
-  // Retain signature for compatibility but route through healthy fallback providers
   if (key && key !== 'CLOUDFLARE_FALLBACK' && !key.startsWith('cf-')) {
     providerManager.refreshProviders(key);
   } else if (key === 'CLOUDFLARE_FALLBACK' || key.startsWith('cf-')) {
@@ -680,11 +957,79 @@ async function generateText(
   return generateTextWithFallback(prompt, options);
 }
 
+// ── Chunked Step-by-Step Long-Form Generation ──
+export async function draftArticleChunked(
+  key: string,
+  topic: string,
+  keywords: string[]
+): Promise<string> {
+  console.log(`[AI-CHUNKER] Executing chunked article generation for topic: "${topic}"`);
+
+  // 1. Outline
+  const outlinePrompt = `Generate a detailed structural outline for a blog post about: "${topic}". 
+Include: Introduction, Section 1, Section 2, Section 3, FAQs.
+Return the outline as a simple markdown list of headings. Do not write any other filler.`;
+  const outline = await generateText(key, outlinePrompt, { temperature: 0.5 });
+
+  // 2. Introduction
+  const introPrompt = `Write a deep-dive, engaging Introduction section for the article "${topic}" based on this outline:\n${outline}\n\nRequirements:
+- Make it authoritative and concise.
+- Distribute some keywords naturally: ${keywords.slice(0, 3).join(', ')}`;
+  const intro = await generateText(key, introPrompt, { temperature: 0.7 });
+
+  // 3. Section 1
+  const s1Prompt = `Write Section 1 of the article "${topic}" based on this outline:\n${outline}\n\nContext of what was written so far (Introduction):\n${intro}\n\nRequirements:
+- Add high technical depth and detail.
+- Include verified CLI commands or code snippets if relevant.
+- Do not repeat introduction points.`;
+  const section1 = await generateText(key, s1Prompt, { temperature: 0.7 });
+
+  // 4. Section 2
+  const s2Prompt = `Write Section 2 of the article "${topic}" based on this outline:\n${outline}\n\nContext of what was written so far:\n${section1.slice(-2000)}\n\nRequirements:
+- Include an Implementation Matrix / Decision Table comparing options.
+- Focus on practical troubleshooting tips.`;
+  const section2 = await generateText(key, s2Prompt, { temperature: 0.7 });
+
+  // 5. Section 3
+  const s3Prompt = `Write Section 3 (Conclusion / Future Outlook) of the article "${topic}" based on this outline:\n${outline}\n\nContext of what was written so far:\n${section2.slice(-2000)}\n\nRequirements:
+- Address common misconceptions.`;
+  const section3 = await generateText(key, s3Prompt, { temperature: 0.7 });
+
+  // 6. FAQs
+  const faqPrompt = `Generate a structured FAQ section for the article "${topic}" based on the outline:\n${outline}\n\nReturn 3-4 highly relevant developer FAQs.`;
+  const faqs = await generateText(key, faqPrompt, { temperature: 0.6 });
+
+  return `
+# ${topic}
+
+${intro}
+
+${section1}
+
+${section2}
+
+${section3}
+
+## FAQs
+${faqs}
+`.trim();
+}
+
 async function draftArticleContent(
   key: string,
   topic: string,
   keywords: string[]
 ): Promise<string> {
+  const healthyProviders = providerManager.getHealthyProviders();
+  if (healthyProviders.length > 0) {
+    const primary = healthyProviders[0];
+    const limit = getContextLimit(primary);
+    // If the provider has a tight context budget, automatically generate step-by-step
+    if (limit <= 40000) {
+      return draftArticleChunked(key, topic, keywords);
+    }
+  }
+
   return generateText(
     key,
     `Write a comprehensive, authoritative, elite long-form article on this topic:
@@ -813,7 +1158,7 @@ REVISION MANDATE:
   );
 }
 
-function availableKeys(primaryKey: string, key2: string, key3: string, cloudflareToken = ''): string[] {
+export function availableKeys(primaryKey: string, key2: string, key3: string, cloudflareToken = ''): string[] {
   const keys = [primaryKey];
   if (key2) keys.push(key2);
   if (key3) keys.push(key3);
@@ -1203,7 +1548,7 @@ export async function executePipeline(
   isApproved?: boolean;
   editorialIntelligence?: any;
 }> {
-  // Sync the provider manager with the latest API keys
+  const startTime = Date.now();
   providerManager.refreshProviders(primaryKey, key2, key3, cloudflareToken);
 
   try {
@@ -1213,11 +1558,11 @@ export async function executePipeline(
     }
     const rawDraft = await draftArticleContent(primaryKey, topic, effectiveKeywords);
 
-    // Polish the drafted article to enhance readability and ensure human voice
+    // Polish drafted article
     const mockAudit = { suggestions: ['Enhance code examples and readability.'] };
     const polishedContent = await optimizeAndPolish(primaryKey, rawDraft, mockAudit);
 
-    // Run the 20-Stage Editorial Intelligence Audit
+    // 20-Stage Editorial Intelligence Audit
     const editorialIntelligence = await runEditorialIntelligenceAudit(primaryKey, topic, polishedContent, effectiveKeywords, existingArticles);
 
     const gate = editorialIntelligence.publishGate || { passed: false, score: 60, failedChecks: ['Audit failed to run'] };
@@ -1229,6 +1574,10 @@ export async function executePipeline(
       suggestions: (editorialIntelligence.seoIntelligence?.internalLinkingSuggestions || [])
         .concat(editorialIntelligence.technicalAccuracy?.deprecatedApproaches || [])
     };
+
+    const duration = (Date.now() - startTime) / 1000;
+    aiMetrics.totalArticleGens++;
+    aiMetrics.averageArticleGenTime = aiMetrics.averageArticleGenTime === 0 ? duration : Math.round(aiMetrics.averageArticleGenTime * 0.8 + duration * 0.2);
 
     if (gate.score < 65 || !gate.passed) {
       return {
@@ -1299,7 +1648,6 @@ export async function validateContent(
 ): Promise<{ passedCheck: boolean; score: number; vulnerabilities: string[]; suggestions: string[]; editorialIntelligence?: any }> {
   providerManager.refreshProviders(primaryKey, key2, key3, cloudflareToken);
 
-  // Run the 20-Stage Editorial Intelligence Audit on manual content
   const editorialIntelligence = await runEditorialIntelligenceAudit(primaryKey, "Manual Article Validation", content, [], existingArticles);
 
   const gate = editorialIntelligence.publishGate || { passed: false, score: 60, failedChecks: ['Audit failed to run'] };

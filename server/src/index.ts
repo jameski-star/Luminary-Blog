@@ -215,18 +215,22 @@ app.listen(config.port, () => {
 
 // ── Self-keepalive (prevents Render free-tier spin-down) ──
 function startKeepalive() {
-  const url = config.appUrl.replace(/\/+$/, '');
   const interval = 10 * 60 * 1000; // 10 minutes
-  console.log(`Keepalive started — pinging ${url} every 10 min`);
-  setInterval(async () => {
-    try {
-      const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(10000) });
-      if (!res.ok) throw new Error(`status ${res.status}`);
-      console.log(`Keepalive ping OK (${new Date().toISOString()})`);
-    } catch (err) {
-      console.warn(`Keepalive ping failed:`, (err as Error).message);
-    }
-  }, interval);
+  try {
+    const healthUrl = new URL('/api/health', config.appUrl).toString();
+    console.log(`Keepalive started — pinging ${healthUrl} every 10 min`);
+    setInterval(async () => {
+      try {
+        const res = await fetch(healthUrl, { signal: AbortSignal.timeout(10000) });
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        console.log(`Keepalive ping OK (${new Date().toISOString()})`);
+      } catch (err) {
+        console.warn(`Keepalive ping failed:`, (err as Error).message);
+      }
+    }, interval);
+  } catch (urlErr) {
+    console.error(`Keepalive start failed due to invalid appUrl:`, (urlErr as Error).message);
+  }
 }
 
 // ── Initialize services ──
@@ -234,6 +238,14 @@ async function start() {
   try {
     await mongoose.connect(config.mongoUri);
     console.log('Connected to MongoDB');
+
+    try {
+      await User.syncIndexes();
+      await Post.syncIndexes();
+      console.log('Database indexes synchronized successfully');
+    } catch (indexErr) {
+      console.warn('Index synchronization warning (safe to ignore on first run):', (indexErr as Error).message);
+    }
 
     await seed();
     await migrateApprovedPosts();
@@ -260,11 +272,11 @@ async function start() {
         const appUrl = baseUrl(req);
         const posts = await Post.find({ status: 'published' }).sort({ publishedAt: -1 }).lean();
         let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
-        xml += `  <url><loc>${appUrl}/</loc><priority>1.0</priority></url>\n`;
-        xml += `  <url><loc>${appUrl}/blog</loc><priority>0.8</priority></url>\n`;
+        xml += `  <url><loc>${new URL('/', appUrl).toString()}</loc><priority>1.0</priority></url>\n`;
+        xml += `  <url><loc>${new URL('/blog', appUrl).toString()}</loc><priority>0.8</priority></url>\n`;
         for (const post of posts) {
           const mod = (post as any).modifiedAt || (post as any).publishedAt;
-          xml += `  <url><loc>${appUrl}/blog/${(post as any).slug}</loc>`;
+          xml += `  <url><loc>${new URL(`/blog/${(post as any).slug}`, appUrl).toString()}</loc>`;
           if (mod) xml += `<lastmod>${new Date(mod).toISOString()}</lastmod>`;
           xml += `<priority>0.6</priority></url>\n`;
         }
@@ -309,8 +321,8 @@ async function start() {
 
       let ogTitle = 'Luminary — Premium AI-Powered Blog';
       let ogDesc = 'A premium blogging platform where every article passes a 3-stage AI authenticity pipeline. No filler. No fluff.';
-      let ogImage = `${appUrl}/hero-bg.jpg`;
-      let ogUrl = `${appUrl}${req.path}`;
+      let ogImage = new URL('/hero-bg.jpg', appUrl).toString();
+      let ogUrl = new URL(req.path, appUrl).toString();
       let ogType = 'website';
       let extraMeta = '';
       let contentHtml = '';
@@ -323,7 +335,7 @@ async function start() {
             ogTitle = `${post.title} — Luminary`;
             ogDesc = post.excerpt;
             if (post.coverImage) ogImage = post.coverImage;
-            ogUrl = `${appUrl}/blog/${slug}`;
+            ogUrl = new URL(`/blog/${slug}`, appUrl).toString();
             ogType = 'article';
             if (post.tags?.length) {
               extraMeta = post.tags.map((t: string) => `<meta property="article:tag" content="${sanitize(t)}" />`).join('\n    ');
