@@ -5,8 +5,8 @@ import { Modal, useConfirm } from '../components/Modal';
 import { getStoredUsers } from '../store/appStore';
 import { api, isApiMode } from '../services/api';
 import {
-  Shield, Users, FileText, Eye, Heart,
-  Trash2, Send, Clock, Ban, User as UserIcon,
+  Shield, Users, FileText, Eye,
+  Trash2, Send, Ban, User as UserIcon,
   Crown, CheckCircle, XCircle, AlertTriangle, TrendingUp
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -67,7 +67,6 @@ export default function AdminPage() {
   const totalInReview = posts.filter(p => p.status === 'review' || p.status === 'quarantined').length;
   const totalPending = posts.filter(p => p.status === 'published' && p.isApproved !== true).length;
   const totalViews = posts.reduce((s, p) => s + p.views, 0);
-  const totalLikes = posts.reduce((s, p) => s + p.likes, 0);
   const totalUsers = users.length;
 
   const reviewPosts = posts
@@ -616,7 +615,7 @@ export default function AdminPage() {
                         )}
                       </td>
                       <td className="tabular-nums text-secondary text-xs">
-                        {posts.filter(p => p.authorId === u.id).length}
+                        {u.postsCount}
                       </td>
                       <td className="text-secondary text-xs tabular-nums">
                         {formatDistanceToNow(new Date(u.joinedAt), { addSuffix: true })}

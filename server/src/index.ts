@@ -390,7 +390,7 @@ async function start() {
 }
 
 // ── Auto-promote specific user to admin on every startup ──
-const ADMIN_EMAILS = ['jchacha405@gmail.com'];
+const ADMIN_EMAILS = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(',').map(e => e.trim().toLowerCase()) : [];
 
 async function ensureAdmin() {
   for (const email of ADMIN_EMAILS) {

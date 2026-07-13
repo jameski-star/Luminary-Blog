@@ -1,4 +1,4 @@
-const BASE = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || '';
+const BASE = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_URL) || '';
 
 let token: string | null = localStorage.getItem('luminary_token');
 

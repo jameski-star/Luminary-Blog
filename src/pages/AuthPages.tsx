@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import SEO from '../components/SEO';
 import { signUp, signIn } from '../store/appStore';
 import { api, isApiMode, setApiToken } from '../services/api';
-import { Eye, EyeOff, AlertTriangle, CheckCircle, ArrowLeft, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, AlertTriangle, CheckCircle, ArrowLeft } from 'lucide-react';
 import { friendlyError } from '../utils/errors';
 
 export function LoginPage() {

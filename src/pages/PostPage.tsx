@@ -4,8 +4,8 @@ import { useApp } from '../context/AppContext';
 import SEO, { BlogPostingSchema } from '../components/SEO';
 import { api, isApiMode } from '../services/api';
 import {
-  ArrowLeft, Clock, Eye, Heart, Share2, Tag, Shield,
-  Check, BookOpen, ChevronRight
+  ArrowLeft, Clock, Eye, Heart, Share2, Shield,
+  Check, BookOpen
 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { BlogPost } from '../types';
@@ -33,7 +33,7 @@ function estimateWordCount(html: string): number {
 }
 
 export default function PostPage() {
-  const { selectedPostId, getPost, incrementViews, likePost, setCurrentPage, posts } = useApp();
+  const { selectedPostId, setSelectedPostId, getPost, incrementViews, likePost, setCurrentPage, posts } = useApp();
   const [copied, setCopied] = useState(false);
   const [liked, setLiked] = useState(false);
   const [htmlContent, setHtmlContent] = useState('');

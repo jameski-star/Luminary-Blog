@@ -3,12 +3,12 @@ import { useApp } from '../context/AppContext';
 import SEO from '../components/SEO';
 import { api, isApiMode } from '../services/api';
 import { getStoredUsers, saveUsers, setCurrentUser } from '../store/appStore';
-import { User, Save, CheckCircle, Shield, Crown, Camera } from 'lucide-react';
+import { User, Save, CheckCircle, Crown, Camera } from 'lucide-react';
 import { useConfirm } from '../components/Modal';
 
 export default function ProfilePage() {
   const { user, setUser, setCurrentPage } = useApp();
-  const { confirm, ConfirmDialog } = useConfirm();
+  const { ConfirmDialog } = useConfirm();
   const fileRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(user?.name || '');
   const [bio, setBio] = useState(user?.bio || '');

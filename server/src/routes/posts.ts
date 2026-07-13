@@ -152,8 +152,8 @@ router.post('/', auth, async (req: Request, res: Response) => {
       authorId: user._id,
       authorName: user.name,
       authorAvatar: user.avatar,
-      status: status || 'draft',
-      isApproved: status === 'published' ? (isApproved ?? true) : false,
+      status: req.user!.role === 'admin' ? (status || 'draft') : (status === 'published' ? 'review' : (status || 'draft')),
+      isApproved: req.user!.role === 'admin' ? (status === 'published' ? (isApproved ?? true) : false) : false,
       auditScore,
       ...(publishedAt ? { publishedAt: new Date(publishedAt) } : {}),
       readTime,
@@ -184,15 +184,30 @@ router.put('/:id', auth, async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'You can only edit your own posts.' });
     }
 
-    const allowed = ['title', 'content', 'excerpt', 'tags', 'keywords', 'coverImage', 'status', 'isApproved', 'auditScore', 'publishedAt', 'editorialIntelligence'] as const;
+    const isAdmin = req.user!.role === 'admin';
+    const allowed = ['title', 'content', 'excerpt', 'tags', 'keywords', 'coverImage'] as string[];
+    if (isAdmin) {
+      allowed.push('status', 'isApproved', 'auditScore', 'publishedAt', 'editorialIntelligence');
+    }
+
     for (const field of allowed) {
       if (req.body[field] !== undefined) {
         (post as unknown as Record<string, unknown>)[field] = req.body[field];
       }
     }
 
-    if (req.body.status === 'published' && req.body.isApproved === undefined) {
-      post.isApproved = true;
+    if (!isAdmin) {
+      if (req.body.status === 'published') {
+        post.status = 'review';
+        post.isApproved = false;
+      } else if (req.body.status === 'draft') {
+        post.status = 'draft';
+        post.isApproved = false;
+      }
+    } else {
+      if (req.body.status === 'published' && req.body.isApproved === undefined) {
+        post.isApproved = true;
+      }
     }
 
     if (req.body.content) {
@@ -249,16 +264,24 @@ router.post('/:id/like', auth, async (req: Request, res: Response) => {
     const userId = req.user!.userId;
     const alreadyLiked = post.likedBy.some(id => String(id) === userId);
 
+    let updatedPost;
     if (alreadyLiked) {
-      post.likedBy = post.likedBy.filter(id => String(id) !== userId);
-      post.likes = Math.max(0, post.likes - 1);
+      updatedPost = await Post.findByIdAndUpdate(
+        req.params.id,
+        { $pull: { likedBy: userId }, $inc: { likes: -1 } },
+        { new: true }
+      );
     } else {
-      post.likedBy.push(userId as unknown as typeof post.likedBy[0]);
-      post.likes += 1;
+      updatedPost = await Post.findByIdAndUpdate(
+        req.params.id,
+        { $addToSet: { likedBy: userId }, $inc: { likes: 1 } },
+        { new: true }
+      );
     }
-
-    await post.save();
-    res.json({ likes: post.likes, liked: !alreadyLiked });
+    if (!updatedPost) {
+      return res.status(404).json({ error: 'Post not found.' });
+    }
+    res.json({ likes: updatedPost.likes, liked: !alreadyLiked });
   } catch (err) {
     console.error('Like post error:', err);
     res.status(500).json({ error: 'Internal server error.' });
@@ -276,14 +299,25 @@ router.post('/:id/maintenance', auth, async (req: Request, res: Response) => {
     const { validateContent } = await import('../services/gemini.js');
     const { config } = await import('../config.js');
 
-    const posts = await Post.find({ status: 'published', _id: { $ne: post._id } }).select('title slug tags').lean() as any;
+    const posts = await Post.find({ status: 'published', _id: { $ne: post._id } })
+      .select('title slug tags')
+      .sort({ publishedAt: -1 })
+      .limit(15)
+      .lean() as any;
     const existingArticles = (posts || []).map((p: any) => ({
       title: p.title,
       slug: p.slug,
       tags: p.tags || []
     }));
 
-    const auditResult = await validateContent(post.content, config.geminiApiKey, config.geminiApiKey2, config.geminiApiKey3, existingArticles);
+    const auditResult = await validateContent(
+      post.content,
+      config.geminiApiKey,
+      config.geminiApiKey2,
+      config.geminiApiKey3,
+      config.cloudflareApiToken,
+      existingArticles
+    );
 
     if (auditResult.editorialIntelligence) {
       post.editorialIntelligence = auditResult.editorialIntelligence;

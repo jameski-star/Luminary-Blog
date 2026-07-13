@@ -135,7 +135,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Search effect with debounce
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
@@ -174,6 +174,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       setSearchResults(results);
     }, 300);
+
+    return () => clearTimeout(searchTimer.current);
   }, [searchQuery, posts]);
 
   const setUser = useCallback((u: User | null) => {
@@ -202,9 +204,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       wordCount: post.content.split(/\s+/).length,
     };
     if (isApiMode()) {
+      setPosts(prev => [enriched, ...prev]);
       api.posts.create(post).then(res => {
-        setPosts(prev => prev.map(p => p.id === enriched.id ? (res.post as BlogPost) : p));
-      }).catch(console.error);
+        const serverPost = res.post as BlogPost;
+        setPosts(prev => prev.map(p => p.id === enriched.id ? serverPost : p));
+        setSelectedPostId(currentId => currentId === enriched.id ? serverPost.id : currentId);
+      }).catch(err => {
+        console.error(err);
+        setPosts(prev => prev.filter(p => p.id !== enriched.id));
+      });
     } else {
       setPosts(prev => {
         const next = [enriched, ...prev];
@@ -212,7 +220,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
     }
-  }, []);
+  }, [setSelectedPostId]);
 
   const updatePost = useCallback((id: string, updates: Partial<BlogPost>) => {
     if (isApiMode()) {

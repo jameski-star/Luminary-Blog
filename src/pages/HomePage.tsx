@@ -1,11 +1,11 @@
 import { useApp } from '../context/AppContext';
 import SEO, { OrganizationSchema } from '../components/SEO';
-import { ArrowRight, Clock, Eye, Heart, TrendingUp, Shield, Zap } from 'lucide-react';
+import { ArrowRight, Clock, Eye, TrendingUp, Shield, Zap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { BlogPost } from '../types';
 
 export default function HomePage() {
-  const { posts, setCurrentPage, setSelectedPostId, likePost, geminiKey, setCurrentPage: navTo } = useApp();
+  const { posts, setCurrentPage, setSelectedPostId, geminiKey, setCurrentPage: navTo } = useApp();
 
   const published = posts.filter(p => p.status === 'published' && p.isApproved !== false);
   const featured = published[0];
@@ -157,7 +157,7 @@ export default function HomePage() {
             </div>
 
             <div className="divide-y divide-border">
-              {recent.map((post, i) => (
+              {recent.map((post) => (
                 <button
                   key={post.id}
                   onClick={() => openPost(post)}

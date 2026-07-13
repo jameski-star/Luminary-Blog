@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import SEO, { CollectionPageSchema } from '../components/SEO';
-import { Clock, Eye, Heart, Search, TrendingUp, Shield, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Clock, Eye, Heart, Search, Shield, ArrowLeft, ArrowRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { BlogPost } from '../types';
 

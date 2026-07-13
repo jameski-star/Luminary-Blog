@@ -2,8 +2,7 @@ import { useState } from 'react';
 import {
   TrendingUp, AlertTriangle, CheckCircle, Compass, Users, Network,
   Database, Shield, AlertCircle, FileCheck, CheckSquare, Code,
-  BookOpen, Eye, HelpCircle, Activity, ArrowRight, ExternalLink,
-  ChevronDown, ChevronUp, Sparkles, Scale, Info
+  BookOpen, HelpCircle, Activity, Sparkles, Scale
 } from 'lucide-react';
 
 interface EditorialIntelligenceReportProps {
@@ -20,7 +19,6 @@ export default function EditorialIntelligenceReport({
   maintenanceLoading = false
 }: EditorialIntelligenceReportProps) {
   const [activeTab, setActiveTab] = useState<TabType>('gate');
-  const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   if (!report) {
     return (
@@ -52,10 +50,6 @@ export default function EditorialIntelligenceReport({
     publishGate = {},
     maintenance = {}
   } = report;
-
-  const toggleSection = (sec: string) => {
-    setExpandedSection(prev => (prev === sec ? null : sec));
-  };
 
   const getScoreColor = (score: number) => {
     if (score >= 90) return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';

@@ -174,7 +174,7 @@ export function injectHumanVariation(text: string): string {
   return result.join('\n\n');
 }
 
-export function humanizeForSEO(text: string, tone: WritingTone = 'professional'): string {
+export function humanizeForSEO(text: string, _tone: WritingTone = 'professional'): string {
   let result = stripAIPatterns(text);
   result = injectHumanVariation(result);
   return result;

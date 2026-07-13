@@ -13,12 +13,13 @@ import type { PostTemplate } from '../utils/templates';
 import type { BlogPost, AuditResult, WritingTone } from '../types';
 import { TONE_LABELS } from '../types';
 import SeoInsights from '../components/SeoInsights';
+import EditorialIntelligenceReport from '../components/EditorialIntelligenceReport';
 import {
   Save, Send, Eye, EyeOff, Plus, X, Shield,
-  AlertTriangle, CheckCircle, Info, ArrowLeft,
+  AlertTriangle, CheckCircle, ArrowLeft,
   Bold, Italic, Link2, Heading1, Heading2, Heading3, Image, Upload,
   Quote, List, ListOrdered, LayoutTemplate, TrendingUp, MessageSquare, Feather,
-  Palette, Type
+  Palette
 } from 'lucide-react';
 
 function FormatButton({ icon, label, onClick, active, onPointerDown }: { icon: React.ReactNode; label: string; onClick: () => void; active?: boolean; onPointerDown?: () => void }) {
@@ -102,7 +103,7 @@ function htmlToMarkdown(html: string): string {
 export default function EditorPage() {
   const { user, geminiKey, addPost, setCurrentPage, setSelectedPostId } = useApp();
   const { prompt, PromptDialog } = usePrompt();
-  const { confirm, ConfirmDialog } = useConfirm();
+  const { ConfirmDialog } = useConfirm();
 
   const [title, setTitle] = useState('');
   const [excerpt, setExcerpt] = useState('');
@@ -115,7 +116,7 @@ export default function EditorPage() {
   const [writingTone, setWritingTone] = useState<WritingTone>('professional');
 
   const [validating, setValidating] = useState(false);
-  const [auditResult, setAuditResult] = useState<AuditResult | null>(null);
+  const [auditResult, setAuditResult] = useState<(AuditResult & { editorialIntelligence?: any }) | null>(null);
   const [validationError, setValidationError] = useState('');
   const [rogueWarning, setRogueWarning] = useState<string | null>(null);
   const [formatting, setFormatting] = useState(false);
@@ -334,29 +335,7 @@ export default function EditorPage() {
     if (t && !tags.includes(t) && tags.length < 6) { setTags([...tags, t]); setTagInput(''); }
   };
 
-  const runValidation = async () => {
-    if (!isApiMode() && !geminiKey) {
-      setAuditResult({ passedCheck: false, score: 70, vulnerabilities: [], suggestions: [] });
-      return;
-    }
-    const md = getContentMarkdown();
-    if (md.split(/\s+/).length < 100) {
-      setAuditResult({ passedCheck: false, score: 75, vulnerabilities: ['Article too short for full audit.'], suggestions: ['Write at least 100 words.'] });
-      return;
-    }
-    setValidating(true);
-    setValidationError('');
-    try {
-      const result = isApiMode()
-        ? await api.gemini.audit({ content: md })
-        : await validateManualPost(md, geminiKey);
-      setAuditResult(result);
-    } catch (err: unknown) {
-      setAuditResult({ passedCheck: false, score: 70, vulnerabilities: [friendlyError(err)], suggestions: ['Manual review recommended.'] });
-    } finally {
-      setValidating(false);
-    }
-  };
+
 
   const runFormat = async () => {
     const md = getContentMarkdown();
@@ -450,9 +429,11 @@ export default function EditorPage() {
       const md = content;
       const hasAi = isApiMode() || !!geminiKey;
       if (hasAi) {
-        const result = isApiMode()
-          ? await api.gemini.format({ content: md })
-          : { content: await formatManualContent(md, geminiKey) };
+        if (isApiMode()) {
+          await api.gemini.format({ content: md });
+        } else {
+          await formatManualContent(md, geminiKey);
+        }
         // Format successful, but we don't overwrite editor content here
         // to avoid disrupting user's current edits
       }
@@ -709,11 +690,11 @@ export default function EditorPage() {
                 const text = e.clipboardData.getData('text/plain');
                 if (html) {
                   const md = htmlToMarkdown(html);
-                  const clean = marked.parse(md);
+                  const clean = marked.parse(md, { async: false }) as string;
                   document.execCommand('insertHTML', false, clean);
                 } else if (text) {
                   if (/[*#[\]`>_-]/.test(text)) {
-                    const rendered = marked.parse(text);
+                    const rendered = marked.parse(text, { async: false }) as string;
                     document.execCommand('insertHTML', false, rendered);
                   } else {
                     document.execCommand('insertText', false, text);

@@ -21,7 +21,11 @@ router.post('/pipeline', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Gemini API key not configured on the server. Set GEMINI_API_KEY in environment.' });
     }
 
-    const posts = await Post.find({ status: 'published' }).select('title slug tags').lean() as any;
+    const posts = await Post.find({ status: 'published' })
+      .select('title slug tags')
+      .sort({ publishedAt: -1 })
+      .limit(15)
+      .lean() as any;
     const existingArticles = (posts || []).map((p: any) => ({
       title: p.title,
       slug: p.slug,
@@ -56,7 +60,11 @@ router.post('/audit', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Gemini API key not configured on the server.' });
     }
 
-    const posts = await Post.find({ status: 'published' }).select('title slug tags').lean() as any;
+    const posts = await Post.find({ status: 'published' })
+      .select('title slug tags')
+      .sort({ publishedAt: -1 })
+      .limit(15)
+      .lean() as any;
     const existingArticles = (posts || []).map((p: any) => ({
       title: p.title,
       slug: p.slug,
