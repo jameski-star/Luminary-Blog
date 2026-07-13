@@ -15,11 +15,21 @@ function getErrorMessage(err: unknown): string {
 
 export function isQuotaError(err: unknown): boolean {
   const msgLower = getErrorMessage(err).toLowerCase();
-  return msgLower.includes('quota') || msgLower.includes('please wait') || msgLower.includes('retry after') || msgLower.includes('resource_exhausted') || msgLower.includes('exhausted');
+  return msgLower.includes('quota') || 
+         msgLower.includes('please wait') || 
+         msgLower.includes('retry after') || 
+         msgLower.includes('resource_exhausted') || 
+         msgLower.includes('exhausted') ||
+         msgLower.includes('neuron') ||
+         msgLower.includes('allocation') ||
+         msgLower.includes('4006') ||
+         msgLower.includes('used up');
 }
 
 export function isCongestionError(err: unknown): boolean {
   const msgLower = getErrorMessage(err).toLowerCase();
+  // Quota/exhausted errors should not be treated as congestion/busy
+  if (isQuotaError(err)) return false;
   return msgLower.includes('429') || msgLower.includes('too many requests') || msgLower.includes('resource exhausted')
     || msgLower.includes('rate_limit') || msgLower.includes('congestion') || msgLower.includes('overloaded')
     || msgLower.includes('unavailable') || msgLower.includes('quota') || msgLower.includes('limit')

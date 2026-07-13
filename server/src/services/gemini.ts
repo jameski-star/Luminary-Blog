@@ -2,28 +2,634 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { config } from '../config.js';
 
 const MODEL_NAME = 'gemini-2.5-flash';
-const MAX_RETRIES = 5;
-const INITIAL_RETRY_DELAY = 2000;
 
-let keyIndex = 0;
-const keyLastUsed: number[] = [];
-
-function isQuotaError(err: unknown): boolean {
-  const msg = err instanceof Error ? (err.message || '') : String(err);
-  const msgLower = msg.toLowerCase();
-  return msgLower.includes('quota') || msgLower.includes('please wait') || msgLower.includes('retry after');
+// ── AI Error Classification System ──
+export enum AIErrorType {
+  RATE_LIMIT = 'RATE_LIMIT',
+  QUOTA_EXHAUSTED = 'QUOTA_EXHAUSTED',
+  TEMPORARY_BUSY = 'TEMPORARY_BUSY',
+  AUTH_ERROR = 'AUTH_ERROR',
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  INVALID_MODEL = 'INVALID_MODEL',
+  INVALID_REQUEST = 'INVALID_REQUEST',
+  SERVER_ERROR = 'SERVER_ERROR',
+  UNKNOWN = 'UNKNOWN',
 }
 
-function isTransientError(err: unknown): boolean {
-  const msg = err instanceof Error ? (err.message || '') : String(err);
-  const msgLower = msg.toLowerCase();
-  return msgLower.includes('429') || msgLower.includes('too many requests') || msgLower.includes('resource exhausted')
-    || msgLower.includes('rate_limit') || msgLower.includes('congestion') || msgLower.includes('overloaded')
-    || msgLower.includes('unavailable') || msgLower.includes('quota') || msgLower.includes('limit')
-    || msgLower.includes('try again') || msgLower.includes('please wait') || msgLower.includes('retry after')
-    || msgLower.includes('deadline') || msgLower.includes('timeout') || msgLower.includes('500')
-    || msgLower.includes('502') || msgLower.includes('503') || msgLower.includes('service unavailable')
-    || msgLower.includes('internal server') || msgLower.includes('connection');
+export class AIError extends Error {
+  type: AIErrorType;
+  status?: number;
+  originalError?: any;
+
+  constructor(type: AIErrorType, message: string, status?: number, originalError?: any) {
+    super(message);
+    this.name = 'AIError';
+    this.type = type;
+    this.status = status;
+    this.originalError = originalError;
+  }
+}
+
+export class AIErrorClassifier {
+  static classify(err: unknown): AIError {
+    if (err instanceof AIError) return err;
+
+    const msg = err instanceof Error ? (err.message || '') : String(err);
+    const msgLower = msg.toLowerCase();
+
+    // 1. Network Errors
+    if (
+      msgLower.includes('fetch failed') ||
+      msgLower.includes('network error') ||
+      msgLower.includes('timeout') ||
+      msgLower.includes('deadline') ||
+      msgLower.includes('connection') ||
+      msgLower.includes('connect') ||
+      msgLower.includes('econnrefused') ||
+      msgLower.includes('econnreset') ||
+      msgLower.includes('dns') ||
+      msgLower.includes('socket')
+    ) {
+      return new AIError(AIErrorType.NETWORK_ERROR, `Network connection issue: ${msg}`, undefined, err);
+    }
+
+    // 2. Cloudflare API specific failures
+    const cfMatch = msg.match(/Cloudflare AI failed \((\d+)\): (.*)/i);
+    if (cfMatch) {
+      const status = parseInt(cfMatch[1], 10);
+      const body = cfMatch[2];
+      const bodyLower = body.toLowerCase();
+
+      if (status === 401 || status === 403) {
+        return new AIError(AIErrorType.AUTH_ERROR, `Cloudflare authentication failed (${status}): ${body}`, status, err);
+      }
+      if (status === 429) {
+        if (bodyLower.includes('allocation') || bodyLower.includes('neuron') || bodyLower.includes('4006') || bodyLower.includes('quota') || bodyLower.includes('used up')) {
+          return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Cloudflare quota exhausted (429): ${body}`, status, err);
+        }
+        return new AIError(AIErrorType.RATE_LIMIT, `Cloudflare rate limit: ${body}`, status, err);
+      }
+      if (status >= 500) {
+        return new AIError(AIErrorType.SERVER_ERROR, `Cloudflare server error (${status}): ${body}`, status, err);
+      }
+      if (status === 400) {
+        if (bodyLower.includes('allocation') || bodyLower.includes('neuron') || bodyLower.includes('4006') || bodyLower.includes('quota') || bodyLower.includes('used up')) {
+          return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Cloudflare quota exhausted (400): ${body}`, status, err);
+        }
+        return new AIError(AIErrorType.INVALID_REQUEST, `Cloudflare bad request: ${body}`, status, err);
+      }
+    }
+
+    // 3. Generic HTTP Status Code Match
+    const statusMatch = msg.match(/(?:status|code|http)\s*[:=]?\s*(\d{3})/i);
+    if (statusMatch) {
+      const status = parseInt(statusMatch[1], 10);
+      if (status === 401 || status === 403) {
+        return new AIError(AIErrorType.AUTH_ERROR, `Auth error (${status}): ${msg}`, status, err);
+      }
+      if (status === 429) {
+        if (msgLower.includes('quota') || msgLower.includes('exhausted') || msgLower.includes('limit') || msgLower.includes('allocation') || msgLower.includes('neuron') || msgLower.includes('4006')) {
+          return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Quota exhausted (${status}): ${msg}`, status, err);
+        }
+        return new AIError(AIErrorType.RATE_LIMIT, `Rate limit exceeded (${status}): ${msg}`, status, err);
+      }
+      if (status === 404) {
+        if (msgLower.includes('model')) {
+          return new AIError(AIErrorType.INVALID_MODEL, `Model not found (${status}): ${msg}`, status, err);
+        }
+        return new AIError(AIErrorType.INVALID_REQUEST, `Endpoint not found (${status}): ${msg}`, status, err);
+      }
+      if (status === 400) {
+        if (msgLower.includes('quota') || msgLower.includes('exhausted') || msgLower.includes('limit') || msgLower.includes('allocation') || msgLower.includes('neuron') || msgLower.includes('4006')) {
+          return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Quota exhausted (400): ${msg}`, status, err);
+        }
+        return new AIError(AIErrorType.INVALID_REQUEST, `Bad request (${status}): ${msg}`, status, err);
+      }
+      if (status >= 500) {
+        return new AIError(AIErrorType.SERVER_ERROR, `Server error (${status}): ${msg}`, status, err);
+      }
+    }
+
+    // 4. String Content Fallbacks
+    if (msgLower.includes('api key') || msgLower.includes('api_key_invalid') || msgLower.includes('unauthorized') || msgLower.includes('forbidden') || msgLower.includes('invalid credentials')) {
+      return new AIError(AIErrorType.AUTH_ERROR, `Authentication failure: ${msg}`, undefined, err);
+    }
+    if (msgLower.includes('quota') || msgLower.includes('exhausted') || msgLower.includes('limit exceeded') || msgLower.includes('used up') || msgLower.includes('allocation') || msgLower.includes('4006') || msgLower.includes('user_limit')) {
+      return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Quota exhausted: ${msg}`, undefined, err);
+    }
+    if (msgLower.includes('rate limit') || msgLower.includes('rate_limit') || msgLower.includes('too many requests') || msgLower.includes('429')) {
+      return new AIError(AIErrorType.RATE_LIMIT, `Rate limit: ${msg}`, 429, err);
+    }
+    if (msgLower.includes('model is busy') || msgLower.includes('model busy') || msgLower.includes('congestion') || msgLower.includes('overloaded') || msgLower.includes('please wait') || msgLower.includes('try again')) {
+      return new AIError(AIErrorType.TEMPORARY_BUSY, `Model busy: ${msg}`, undefined, err);
+    }
+    if (msgLower.includes('safety') || msgLower.includes('blocked') || msgLower.includes('permission') || msgLower.includes('access') || msgLower.includes('malformed')) {
+      return new AIError(AIErrorType.INVALID_REQUEST, `Invalid request or safety block: ${msg}`, undefined, err);
+    }
+    if (msgLower.includes('model not found') || msgLower.includes('invalid model') || msgLower.includes('unknown model')) {
+      return new AIError(AIErrorType.INVALID_MODEL, `Model missing: ${msg}`, undefined, err);
+    }
+    if (msgLower.includes('500') || msgLower.includes('502') || msgLower.includes('503') || msgLower.includes('504') || msgLower.includes('unavailable') || msgLower.includes('internal error')) {
+      return new AIError(AIErrorType.SERVER_ERROR, `Server error: ${msg}`, undefined, err);
+    }
+
+    return new AIError(AIErrorType.UNKNOWN, `Unknown AI error: ${msg}`, undefined, err);
+  }
+}
+
+// ── AI Provider Interface ──
+export interface AIProviderInstance {
+  id: string;
+  name: string;
+  type: 'gemini' | 'openai' | 'claude' | 'openrouter' | 'cloudflare' | 'local';
+  key: string;
+  extraConfig?: {
+    accountId?: string;
+  };
+  status: 'Healthy' | 'Busy' | 'Rate Limited' | 'Quota Exhausted' | 'Disabled' | 'Offline' | 'Temporary Failure' | 'Permanent Failure';
+  cooldownUntil: number;
+  failureCount: number;
+  circuitState: 'CLOSED' | 'OPEN' | 'HALF-OPEN';
+  lastFailureTime: number;
+}
+
+// ── Provider Registry and Health System ──
+export class AIProviderManager {
+  private providers: AIProviderInstance[] = [];
+
+  constructor() {
+    this.refreshProviders();
+  }
+
+  public refreshProviders(
+    primaryKey = config.geminiApiKey,
+    key2 = config.geminiApiKey2,
+    key3 = config.geminiApiKey3,
+    cloudflareToken = config.cloudflareApiToken,
+    cloudflareAccountId = config.cloudflareAccountId
+  ) {
+    const newProviders: AIProviderInstance[] = [];
+
+    // 1. Gemini keys
+    if (primaryKey) {
+      this.ensureProvider(newProviders, 'gemini-1', 'Gemini API (Key 1)', 'gemini', primaryKey);
+    }
+    if (key2) {
+      this.ensureProvider(newProviders, 'gemini-2', 'Gemini API (Key 2)', 'gemini', key2);
+    }
+    if (key3) {
+      this.ensureProvider(newProviders, 'gemini-3', 'Gemini API (Key 3)', 'gemini', key3);
+    }
+
+    // 2. OpenAI
+    const openAiKey = config.openaiApiKey || process.env.OPENAI_API_KEY;
+    if (openAiKey) {
+      this.ensureProvider(newProviders, 'openai', 'OpenAI API', 'openai', openAiKey);
+    }
+
+    // 3. Claude
+    const claudeKey = config.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
+    if (claudeKey) {
+      this.ensureProvider(newProviders, 'claude', 'Anthropic Claude API', 'claude', claudeKey);
+    }
+
+    // 4. OpenRouter
+    const openRouterKey = config.openRouterApiKey || process.env.OPENROUTER_API_KEY;
+    if (openRouterKey) {
+      this.ensureProvider(newProviders, 'openrouter', 'OpenRouter API', 'openrouter', openRouterKey);
+    }
+
+    // 5. Cloudflare
+    if (cloudflareToken) {
+      this.ensureProvider(newProviders, 'cloudflare', 'Cloudflare Workers AI', 'cloudflare', cloudflareToken, { accountId: cloudflareAccountId });
+    }
+
+    // 6. Local Model
+    const localUrl = config.localModelUrl || process.env.LOCAL_MODEL_URL || 'http://localhost:11434';
+    this.ensureProvider(newProviders, 'local', 'Local Model (Ollama)', 'local', 'local-no-key', { accountId: localUrl });
+
+    // Sync state
+    for (const np of newProviders) {
+      const existing = this.providers.find(p => p.id === np.id && p.key === np.key);
+      if (existing) {
+        np.status = existing.status;
+        np.cooldownUntil = existing.cooldownUntil;
+        np.failureCount = existing.failureCount;
+        np.circuitState = existing.circuitState;
+        np.lastFailureTime = existing.lastFailureTime;
+      }
+    }
+
+    this.providers = newProviders;
+  }
+
+  private ensureProvider(
+    list: AIProviderInstance[],
+    id: string,
+    name: string,
+    type: AIProviderInstance['type'],
+    key: string,
+    extraConfig?: any
+  ) {
+    list.push({
+      id,
+      name,
+      type,
+      key,
+      extraConfig,
+      status: 'Healthy',
+      cooldownUntil: 0,
+      failureCount: 0,
+      circuitState: 'CLOSED',
+      lastFailureTime: 0
+    });
+  }
+
+  public getHealthyProviders(): AIProviderInstance[] {
+    const now = Date.now();
+
+    for (const p of this.providers) {
+      if (p.status !== 'Healthy' && p.status !== 'Disabled' && p.status !== 'Permanent Failure') {
+        if (now >= p.cooldownUntil) {
+          console.log(`[AI-HEALTH] Cooldown expired for provider: ${p.name}. Resetting status to Healthy.`);
+          p.status = 'Healthy';
+          if (p.circuitState === 'OPEN') {
+            p.circuitState = 'HALF-OPEN';
+          }
+        }
+      }
+    }
+
+    // Fallback priority: Gemini -> OpenAI -> Claude -> OpenRouter -> Cloudflare -> Local
+    const priorityOrder: AIProviderInstance['type'][] = ['gemini', 'openai', 'claude', 'openrouter', 'cloudflare', 'local'];
+
+    const sorted = [...this.providers].sort((a, b) => {
+      const indexA = priorityOrder.indexOf(a.type);
+      const indexB = priorityOrder.indexOf(b.type);
+      return indexA - indexB;
+    });
+
+    return sorted.filter(p => {
+      if (p.status === 'Disabled' || p.status === 'Permanent Failure' || p.status === 'Quota Exhausted') {
+        return false;
+      }
+      if (p.circuitState === 'OPEN') {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  public markFailure(provider: AIProviderInstance, error: AIError) {
+    const now = Date.now();
+    provider.lastFailureTime = now;
+
+    switch (error.type) {
+      case AIErrorType.AUTH_ERROR:
+        provider.status = 'Permanent Failure';
+        provider.circuitState = 'OPEN';
+        provider.cooldownUntil = now + 24 * 60 * 60 * 1000; // 24h
+        console.warn(`[AI-HEALTH] Provider ${provider.name} set to Permanent Failure (Auth Error).`);
+        break;
+
+      case AIErrorType.QUOTA_EXHAUSTED:
+        provider.status = 'Quota Exhausted';
+        provider.circuitState = 'OPEN';
+        provider.cooldownUntil = now + 60 * 60 * 1000; // 1 hour cooldown
+        console.warn(`[AI-HEALTH] Provider ${provider.name} set to Quota Exhausted. Cooldown for 1h.`);
+        break;
+
+      case AIErrorType.RATE_LIMIT:
+        provider.status = 'Rate Limited';
+        provider.cooldownUntil = now + 30 * 1000; // 30s
+        console.warn(`[AI-HEALTH] Provider ${provider.name} rate limited. Cooldown for 30s.`);
+        break;
+
+      case AIErrorType.TEMPORARY_BUSY:
+        provider.status = 'Busy';
+        provider.cooldownUntil = now + 15 * 1000; // 15s
+        console.warn(`[AI-HEALTH] Provider ${provider.name} is busy. Cooldown for 15s.`);
+        break;
+
+      case AIErrorType.INVALID_MODEL:
+      case AIErrorType.INVALID_REQUEST:
+        // request specific, no provider penalty
+        break;
+
+      default: // NETWORK_ERROR, SERVER_ERROR, UNKNOWN
+        provider.failureCount++;
+        provider.status = 'Temporary Failure';
+        if (provider.failureCount >= 3) {
+          provider.circuitState = 'OPEN';
+          provider.status = 'Offline';
+          provider.cooldownUntil = now + 60 * 1000; // 60s
+          console.error(`[AI-HEALTH] Provider ${provider.name} failed 3+ times. Circuit OPEN. Marked Offline.`);
+        } else {
+          provider.cooldownUntil = now + 5 * 1000; // 5s wait
+        }
+        break;
+    }
+  }
+
+  public markSuccess(provider: AIProviderInstance) {
+    provider.status = 'Healthy';
+    provider.failureCount = 0;
+    provider.circuitState = 'CLOSED';
+    provider.cooldownUntil = 0;
+  }
+}
+
+export const providerManager = new AIProviderManager();
+
+function isRetryable(err: AIError): boolean {
+  return (
+    err.type === AIErrorType.RATE_LIMIT ||
+    err.type === AIErrorType.TEMPORARY_BUSY ||
+    err.type === AIErrorType.SERVER_ERROR ||
+    err.type === AIErrorType.NETWORK_ERROR
+  );
+}
+
+function createAI(apiKey: string) {
+  return new GoogleGenAI({ apiKey });
+}
+
+// ── Unified API Request Executor ──
+async function executeProviderRequest(
+  provider: AIProviderInstance,
+  prompt: string,
+  options: {
+    systemInstruction?: string;
+    temperature?: number;
+    responseMimeType?: string;
+    responseSchema?: any;
+  }
+): Promise<string> {
+  const timeoutMs = 60000; // 60s timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    switch (provider.type) {
+      case 'gemini': {
+        const ai = createAI(provider.key);
+        const requestPromise = ai.models.generateContent({
+          model: MODEL_NAME,
+          contents: prompt,
+          config: {
+            systemInstruction: options.systemInstruction,
+            temperature: options.temperature,
+            responseMimeType: options.responseMimeType,
+            responseSchema: options.responseSchema
+          }
+        });
+
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          controller.signal.addEventListener('abort', () => reject(new Error('Gemini API call timed out')));
+        });
+
+        const response = await Promise.race([requestPromise, timeoutPromise]);
+        return response.text ?? '';
+      }
+
+      case 'openai': {
+        let finalPrompt = prompt;
+        if (options.responseSchema) {
+          finalPrompt = `${prompt}\n\nIMPORTANT: You must return a JSON object that adheres strictly to this JSON Schema structure:\n${JSON.stringify(options.responseSchema, null, 2)}`;
+        }
+        const messages = [];
+        if (options.systemInstruction) {
+          messages.push({ role: 'system', content: options.systemInstruction });
+        }
+        messages.push({ role: 'user', content: finalPrompt });
+
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${provider.key}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages,
+            temperature: options.temperature ?? 0.7,
+            response_format: options.responseMimeType === 'application/json' ? { type: 'json_object' } : undefined
+          }),
+          signal: controller.signal
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`OpenAI API failed (status ${response.status}): ${text}`);
+        }
+
+        const data = await response.json() as any;
+        return data.choices?.[0]?.message?.content || '';
+      }
+
+      case 'claude': {
+        let finalPrompt = prompt;
+        if (options.responseSchema) {
+          finalPrompt = `${prompt}\n\nIMPORTANT: You must return a JSON object that adheres strictly to this JSON Schema structure:\n${JSON.stringify(options.responseSchema, null, 2)}`;
+        }
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': provider.key,
+            'anthropic-version': '2023-06-01',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'claude-3-5-haiku-20241022',
+            max_tokens: 4000,
+            system: options.systemInstruction,
+            messages: [{ role: 'user', content: finalPrompt }],
+            temperature: options.temperature ?? 0.7
+          }),
+          signal: controller.signal
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`Claude API failed (status ${response.status}): ${text}`);
+        }
+
+        const data = await response.json() as any;
+        return data.content?.[0]?.text || '';
+      }
+
+      case 'openrouter': {
+        let finalPrompt = prompt;
+        if (options.responseSchema) {
+          finalPrompt = `${prompt}\n\nIMPORTANT: You must return a JSON object that adheres strictly to this JSON Schema structure:\n${JSON.stringify(options.responseSchema, null, 2)}`;
+        }
+        const messages = [];
+        if (options.systemInstruction) {
+          messages.push({ role: 'system', content: options.systemInstruction });
+        }
+        messages.push({ role: 'user', content: finalPrompt });
+
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${provider.key}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://luminary.blog',
+            'X-Title': 'Luminary'
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash',
+            messages,
+            temperature: options.temperature ?? 0.7
+          }),
+          signal: controller.signal
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`OpenRouter API failed (status ${response.status}): ${text}`);
+        }
+
+        const data = await response.json() as any;
+        return data.choices?.[0]?.message?.content || '';
+      }
+
+      case 'cloudflare': {
+        const token = provider.key;
+        const accountId = provider.extraConfig?.accountId || config.cloudflareAccountId;
+        const model = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+        const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
+
+        let finalPrompt = prompt;
+        if (options.responseSchema) {
+          finalPrompt = `${prompt}\n\nIMPORTANT: You must return a JSON object that adheres strictly to this JSON Schema structure. Return ONLY valid JSON, do not include any markdown wrappers or introductory conversational filler:\n${JSON.stringify(options.responseSchema, null, 2)}`;
+        }
+
+        const messages = [];
+        if (options.systemInstruction) {
+          messages.push({ role: 'system', content: options.systemInstruction });
+        }
+        messages.push({ role: 'user', content: finalPrompt });
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            messages,
+            temperature: options.temperature ?? 0.6
+          }),
+          signal: controller.signal
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Cloudflare AI failed (${response.status}): ${errorText}`);
+        }
+
+        const resJson = await response.json() as any;
+        if (!resJson.success) {
+          throw new Error(`Cloudflare AI returned success=false: ${JSON.stringify(resJson.errors)}`);
+        }
+
+        return resJson.result?.response || '';
+      }
+
+      case 'local': {
+        const baseUrl = provider.extraConfig?.accountId || 'http://localhost:11434';
+        const messages = [];
+        if (options.systemInstruction) {
+          messages.push({ role: 'system', content: options.systemInstruction });
+        }
+        messages.push({ role: 'user', content: prompt });
+
+        const response = await fetch(`${baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'llama3',
+            messages,
+            options: {
+              temperature: options.temperature ?? 0.7
+            },
+            stream: false
+          }),
+          signal: controller.signal
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`Local model API failed (status ${response.status}): ${text}`);
+        }
+
+        const data = await response.json() as any;
+        return data.message?.content || '';
+      }
+
+      default:
+        throw new Error(`Unsupported provider type: ${provider.type}`);
+    }
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// ── Resilient Fallback Request Orchestrator ──
+export async function generateTextWithFallback(
+  prompt: string,
+  options: {
+    systemInstruction?: string;
+    temperature?: number;
+    responseMimeType?: string;
+    responseSchema?: any;
+  } = {}
+): Promise<string> {
+  const maxAttempts = 3;
+  let lastError: any = new Error('No AI providers available');
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const healthyProviders = providerManager.getHealthyProviders();
+    if (healthyProviders.length === 0) {
+      console.error('[AI-PROVIDER] No healthy AI providers available in registry.');
+      throw new Error('All AI providers are currently exhausted or unavailable.');
+    }
+
+    for (const provider of healthyProviders) {
+      console.log(`[AI-PROVIDER] Attempting request on provider: ${provider.name} (Attempt ${attempt + 1})`);
+
+      try {
+        const text = await executeProviderRequest(provider, prompt, options);
+        providerManager.markSuccess(provider);
+        return text;
+      } catch (err: unknown) {
+        const aiError = AIErrorClassifier.classify(err);
+        providerManager.markFailure(provider, aiError);
+        lastError = aiError;
+
+        // Structured Logs
+        console.log(`[AI-LOG] Provider: ${provider.name} | Status: ${provider.status} | Retry: ${isRetryable(aiError) ? 'Yes' : 'No'} | Fallback: Yes | Reason: ${aiError.message}`);
+
+        if (aiError.type === AIErrorType.INVALID_MODEL || aiError.type === AIErrorType.INVALID_REQUEST) {
+          // Immediately propagate client/schema errors
+          throw aiError;
+        }
+
+        // Switch to the next provider immediately
+        continue;
+      }
+    }
+
+    // Wait and back off before next global retry loop
+    const waitDelay = 1000 * Math.pow(2, attempt);
+    console.warn(`[AI-PROVIDER] All providers failed in attempt ${attempt + 1}. Backing off for ${waitDelay}ms…`);
+    await new Promise(resolve => setTimeout(resolve, waitDelay));
+  }
+
+  throw lastError;
 }
 
 function maskKey(key: string): string {
@@ -32,88 +638,8 @@ function maskKey(key: string): string {
   return `${key.slice(0, 8)}...${key.slice(-4)}`;
 }
 
-async function withRetry<T>(fn: (key: string) => Promise<T>, apiKeys: string[]): Promise<T> {
-  const maxAttempts = 1000;
-  const MIN_KEY_INTERVAL = 2000;
-  let lastError: unknown;
-  const keysTriedInThisRequest = new Set<number>();
-
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const keyIdx = keyIndex % apiKeys.length;
-    const key = apiKeys[keyIdx];
-
-    // Enforce minimum cooldown only if we are retrying a key we already tried in this request
-    const now = Date.now();
-    const lastTs = keyLastUsed[keyIdx] ?? 0;
-    const elapsed = now - lastTs;
-    if (elapsed < MIN_KEY_INTERVAL && keysTriedInThisRequest.has(keyIdx)) {
-      const wait = MIN_KEY_INTERVAL - elapsed;
-      console.log(`[GEMINI] Key ${keyIdx + 1} used ${(elapsed / 1000).toFixed(0)}s ago — waiting ${(wait / 1000).toFixed(0)}s before reuse (attempt ${attempt + 1})`);
-      await new Promise(resolve => setTimeout(resolve, wait));
-    }
-
-    keysTriedInThisRequest.add(keyIdx);
-    keyLastUsed[keyIdx] = Date.now();
-
-    try {
-      return await fn(key);
-    } catch (err) {
-      lastError = err;
-      const msg = err instanceof Error ? (err.message || '') : String(err);
-      const msgLower = msg.toLowerCase();
-      const isQuota = isQuotaError(err);
-      const isTransient = isTransientError(err);
-      const masked = maskKey(key);
-
-      // Non-recoverable errors for a single key (e.g. invalid API key) should rotate if other keys are available
-      if (msgLower.includes('api key') || msgLower.includes('not found') || msgLower.includes('safety')
-          || msgLower.includes('permission') || msgLower.includes('access')) {
-        if (apiKeys.length > 1 && attempt < maxAttempts - 1) {
-          console.warn(`[GEMINI] Key ${keyIdx + 1} (${masked}) encountered non-recoverable error. Rotating to next key. Error:`, err);
-          keyIndex = (keyIndex + 1) % apiKeys.length;
-          continue;
-        }
-        throw err;
-      }
-
-      let delay = 15000;
-
-      if (isQuota) {
-        if (keysTriedInThisRequest.size >= apiKeys.length) {
-          // All keys in the pool are exhausted
-          delay = 30000;
-          console.log(`[GEMINI] All ${apiKeys.length} keys in the pool are exhausted (last failed: Key ${keyIdx + 1} [${masked}]) — sleeping for 30s before retrying. Error details:`, msg);
-          keyIndex = (keyIndex + 1) % apiKeys.length;
-          keysTriedInThisRequest.clear();
-        } else {
-          // Untried keys remain in pool
-          console.log(`[GEMINI] Quota exceeded on Key ${keyIdx + 1} (${masked}) — moving to the next key. Error details:`, msg);
-          keyIndex = (keyIndex + 1) % apiKeys.length;
-          delay = 1000; // Small delay before trying next key
-        }
-      } else if (isTransient) {
-        // Model is busy: retry after 15s using same key
-        console.log(`[GEMINI] Model is busy on Key ${keyIdx + 1} (${masked}) — retrying after 15s. Error details:`, msg);
-        delay = 15000;
-      } else {
-        // Other errors: retry after 15s using same key
-        console.log(`[GEMINI] Error on Key ${keyIdx + 1} (${masked}) — retrying after 15s. Error:`, err);
-        delay = 15000;
-      }
-
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-  throw lastError;
-}
-
-function createAI(apiKey: string) {
-  return new GoogleGenAI({ apiKey });
-}
-
 function cleanJsonResponse(text: string): string {
   const cleaned = text.trim();
-  
   const firstBrace = cleaned.indexOf('{');
   const firstBracket = cleaned.indexOf('[');
   let startIdx = -1;
@@ -144,67 +670,14 @@ async function generateText(
     responseSchema?: any;
   }
 ): Promise<string> {
-  const isCloudflare = key === 'CLOUDFLARE_FALLBACK' || key.startsWith('cf-');
-
-  if (isCloudflare) {
-    const token = key === 'CLOUDFLARE_FALLBACK' ? config.cloudflareApiToken : key.replace(/^cf-/, '');
-    if (!token) {
-      throw new Error('Cloudflare API Token not configured.');
-    }
-
-    const accountId = config.cloudflareAccountId;
-    const model = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
-    const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`;
-
-    let finalPrompt = prompt;
-    if (options.responseSchema) {
-      finalPrompt = `${prompt}\n\nIMPORTANT: You must return a JSON object that adheres strictly to this JSON Schema structure. Return ONLY valid JSON, do not include any markdown wrappers or introductory conversational filler:\n${JSON.stringify(options.responseSchema, null, 2)}`;
-    }
-
-    const messages = [];
-    if (options.systemInstruction) {
-      messages.push({ role: 'system', content: options.systemInstruction });
-    }
-    messages.push({ role: 'user', content: finalPrompt });
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        messages,
-        temperature: options.temperature ?? 0.6
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Cloudflare AI failed (${response.status}): ${errorText}`);
-    }
-
-    const resJson = await response.json() as any;
-    if (!resJson.success) {
-      throw new Error(`Cloudflare AI returned success=false: ${JSON.stringify(resJson.errors)}`);
-    }
-
-    const text = resJson.result?.response || '';
-    return text;
-  } else {
-    const ai = createAI(key);
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        systemInstruction: options.systemInstruction,
-        temperature: options.temperature,
-        responseMimeType: options.responseMimeType,
-        responseSchema: options.responseSchema
-      }
-    });
-    return response.text ?? '';
+  // Retain signature for compatibility but route through healthy fallback providers
+  if (key && key !== 'CLOUDFLARE_FALLBACK' && !key.startsWith('cf-')) {
+    providerManager.refreshProviders(key);
+  } else if (key === 'CLOUDFLARE_FALLBACK' || key.startsWith('cf-')) {
+    const cfToken = key === 'CLOUDFLARE_FALLBACK' ? config.cloudflareApiToken : key.replace(/^cf-/, '');
+    providerManager.refreshProviders(undefined, undefined, undefined, cfToken);
   }
+  return generateTextWithFallback(prompt, options);
 }
 
 async function draftArticleContent(
@@ -730,33 +1203,22 @@ export async function executePipeline(
   isApproved?: boolean;
   editorialIntelligence?: any;
 }> {
-  const apiKeys = availableKeys(primaryKey, key2, key3, cloudflareToken);
+  // Sync the provider manager with the latest API keys
+  providerManager.refreshProviders(primaryKey, key2, key3, cloudflareToken);
 
   try {
     let effectiveKeywords = keywords;
     if (effectiveKeywords.length === 0) {
-      effectiveKeywords = await withRetry(
-        (k) => generateSEOKeywords(k, topic),
-        apiKeys
-      );
+      effectiveKeywords = await generateSEOKeywords(primaryKey, topic);
     }
-    const rawDraft = await withRetry(
-      (k) => draftArticleContent(k, topic, effectiveKeywords),
-      apiKeys
-    );
+    const rawDraft = await draftArticleContent(primaryKey, topic, effectiveKeywords);
 
     // Polish the drafted article to enhance readability and ensure human voice
     const mockAudit = { suggestions: ['Enhance code examples and readability.'] };
-    const polishedContent = await withRetry(
-      (k) => optimizeAndPolish(k, rawDraft, mockAudit),
-      apiKeys
-    );
+    const polishedContent = await optimizeAndPolish(primaryKey, rawDraft, mockAudit);
 
     // Run the 20-Stage Editorial Intelligence Audit
-    const editorialIntelligence = await withRetry(
-      (k) => runEditorialIntelligenceAudit(k, topic, polishedContent, effectiveKeywords, existingArticles),
-      apiKeys
-    );
+    const editorialIntelligence = await runEditorialIntelligenceAudit(primaryKey, topic, polishedContent, effectiveKeywords, existingArticles);
 
     const gate = editorialIntelligence.publishGate || { passed: false, score: 60, failedChecks: ['Audit failed to run'] };
 
@@ -811,24 +1273,19 @@ export async function formatContent(
   key3 = '',
   cloudflareToken = ''
 ): Promise<string> {
-  const apiKeys = availableKeys(primaryKey, key2, key3, cloudflareToken);
-  return withRetry(
-    (k) => {
-      return generateText(
-        k,
-        `Clean up and enhance the formatting of this document. Fix inconsistent heading levels, organize loose paragraphs under appropriate headings, normalize list formatting, fix broken markdown, and improve overall readability. Preserve ALL original content and meaning — do not rewrite or summarize. Only fix structure and formatting.
+  providerManager.refreshProviders(primaryKey, key2, key3, cloudflareToken);
+  return generateText(
+    primaryKey,
+    `Clean up and enhance the formatting of this document. Fix inconsistent heading levels, organize loose paragraphs under appropriate headings, normalize list formatting, fix broken markdown, and improve overall readability. Preserve ALL original content and meaning — do not rewrite or summarize. Only fix structure and formatting.
 
 DOCUMENT:
 ${content.slice(0, 12000)}
 
 Return ONLY the cleaned-up markdown, no explanations.`,
-        {
-          systemInstruction: 'You are a professional document formatter. You fix structure and formatting without changing a single word of the original content. Never rewrite, summarize, or add new content.',
-          temperature: 0.15,
-        }
-      );
-    },
-    apiKeys
+    {
+      systemInstruction: 'You are a professional document formatter. You fix structure and formatting without changing a single word of the original content. Never rewrite, summarize, or add new content.',
+      temperature: 0.15,
+    }
   );
 }
 
@@ -840,13 +1297,10 @@ export async function validateContent(
   cloudflareToken = '',
   existingArticles: any[] = []
 ): Promise<{ passedCheck: boolean; score: number; vulnerabilities: string[]; suggestions: string[]; editorialIntelligence?: any }> {
-  const apiKeys = availableKeys(primaryKey, key2, key3, cloudflareToken);
+  providerManager.refreshProviders(primaryKey, key2, key3, cloudflareToken);
 
   // Run the 20-Stage Editorial Intelligence Audit on manual content
-  const editorialIntelligence = await withRetry(
-    (k) => runEditorialIntelligenceAudit(k, "Manual Article Validation", content, [], existingArticles),
-    apiKeys
-  );
+  const editorialIntelligence = await runEditorialIntelligenceAudit(primaryKey, "Manual Article Validation", content, [], existingArticles);
 
   const gate = editorialIntelligence.publishGate || { passed: false, score: 60, failedChecks: ['Audit failed to run'] };
 

@@ -41,7 +41,7 @@ userSchema.set('toJSON', {
   }
 });
 
-userSchema.index({ email: 1 }, { unique: true });
+// Email is indexed uniquely on the field definition above
 
 export function generateVerificationToken(): { raw: string; hash: string } {
   const raw = crypto.randomBytes(32).toString('hex');

@@ -5,26 +5,270 @@ import { stripAIPatterns, getToneDraftPrompt, injectHumanVariation } from '../ut
 
 const MODEL_NAME = 'gemini-2.5-flash';
 
-function isTransientError(err: unknown): boolean {
-  const msg = err instanceof Error ? (err.message || '') : String(err);
-  const msgLower = msg.toLowerCase();
-  return msgLower.includes('429') || msgLower.includes('too many requests') || msgLower.includes('resource exhausted')
-    || msgLower.includes('rate_limit') || msgLower.includes('congestion') || msgLower.includes('overloaded')
-    || msgLower.includes('unavailable') || msgLower.includes('quota') || msgLower.includes('limit')
-    || msgLower.includes('try again') || msgLower.includes('please wait') || msgLower.includes('retry after')
-    || msgLower.includes('deadline') || msgLower.includes('timeout') || msgLower.includes('500')
-    || msgLower.includes('502') || msgLower.includes('503') || msgLower.includes('service unavailable')
-    || msgLower.includes('internal server') || msgLower.includes('connection');
+// ── Client-Side AI Error Classification ──
+export enum AIErrorType {
+  RATE_LIMIT = 'RATE_LIMIT',
+  QUOTA_EXHAUSTED = 'QUOTA_EXHAUSTED',
+  TEMPORARY_BUSY = 'TEMPORARY_BUSY',
+  AUTH_ERROR = 'AUTH_ERROR',
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  INVALID_MODEL = 'INVALID_MODEL',
+  INVALID_REQUEST = 'INVALID_REQUEST',
+  SERVER_ERROR = 'SERVER_ERROR',
+  UNKNOWN = 'UNKNOWN',
 }
 
-function isQuotaError(err: unknown): boolean {
-  const msg = err instanceof Error ? (err.message || '') : String(err);
-  const msgLower = msg.toLowerCase();
-  return msgLower.includes('quota') || msgLower.includes('please wait') || msgLower.includes('retry after');
+export class AIError extends Error {
+  type: AIErrorType;
+  status?: number;
+  originalError?: any;
+
+  constructor(type: AIErrorType, message: string, status?: number, originalError?: any) {
+    super(message);
+    this.name = 'AIError';
+    this.type = type;
+    this.status = status;
+    this.originalError = originalError;
+  }
 }
 
-let keyIndex = 0;
-const keyLastUsed: number[] = [];
+export class AIErrorClassifier {
+  static classify(err: unknown): AIError {
+    if (err instanceof AIError) return err;
+
+    const msg = err instanceof Error ? (err.message || '') : String(err);
+    const msgLower = msg.toLowerCase();
+
+    if (
+      msgLower.includes('fetch failed') ||
+      msgLower.includes('network error') ||
+      msgLower.includes('timeout') ||
+      msgLower.includes('deadline') ||
+      msgLower.includes('connection') ||
+      msgLower.includes('connect') ||
+      msgLower.includes('econnrefused') ||
+      msgLower.includes('econnreset') ||
+      msgLower.includes('dns') ||
+      msgLower.includes('socket')
+    ) {
+      return new AIError(AIErrorType.NETWORK_ERROR, `Network connection issue: ${msg}`, undefined, err);
+    }
+
+    const cfMatch = msg.match(/Cloudflare AI failed \((\d+)\): (.*)/i);
+    if (cfMatch) {
+      const status = parseInt(cfMatch[1], 10);
+      const body = cfMatch[2];
+      const bodyLower = body.toLowerCase();
+
+      if (status === 401 || status === 403) {
+        return new AIError(AIErrorType.AUTH_ERROR, `Cloudflare authentication failed (${status}): ${body}`, status, err);
+      }
+      if (status === 429) {
+        if (bodyLower.includes('allocation') || bodyLower.includes('neuron') || bodyLower.includes('4006') || bodyLower.includes('quota') || bodyLower.includes('used up')) {
+          return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Cloudflare quota exhausted (429): ${body}`, status, err);
+        }
+        return new AIError(AIErrorType.RATE_LIMIT, `Cloudflare rate limit: ${body}`, status, err);
+      }
+      if (status >= 500) {
+        return new AIError(AIErrorType.SERVER_ERROR, `Cloudflare server error (${status}): ${body}`, status, err);
+      }
+      if (status === 400) {
+        if (bodyLower.includes('allocation') || bodyLower.includes('neuron') || bodyLower.includes('4006') || bodyLower.includes('quota') || bodyLower.includes('used up')) {
+          return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Cloudflare quota exhausted (400): ${body}`, status, err);
+        }
+        return new AIError(AIErrorType.INVALID_REQUEST, `Cloudflare bad request: ${body}`, status, err);
+      }
+    }
+
+    const statusMatch = msg.match(/(?:status|code|http)\s*[:=]?\s*(\d{3})/i);
+    if (statusMatch) {
+      const status = parseInt(statusMatch[1], 10);
+      if (status === 401 || status === 403) {
+        return new AIError(AIErrorType.AUTH_ERROR, `Auth error (${status}): ${msg}`, status, err);
+      }
+      if (status === 429) {
+        if (msgLower.includes('quota') || msgLower.includes('exhausted') || msgLower.includes('limit') || msgLower.includes('allocation') || msgLower.includes('neuron') || msgLower.includes('4006')) {
+          return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Quota exhausted (${status}): ${msg}`, status, err);
+        }
+        return new AIError(AIErrorType.RATE_LIMIT, `Rate limit exceeded (${status}): ${msg}`, status, err);
+      }
+      if (status === 404) {
+        if (msgLower.includes('model')) {
+          return new AIError(AIErrorType.INVALID_MODEL, `Model not found (${status}): ${msg}`, status, err);
+        }
+        return new AIError(AIErrorType.INVALID_REQUEST, `Endpoint not found (${status}): ${msg}`, status, err);
+      }
+      if (status === 400) {
+        if (msgLower.includes('quota') || msgLower.includes('exhausted') || msgLower.includes('limit') || msgLower.includes('allocation') || msgLower.includes('neuron') || msgLower.includes('4006')) {
+          return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Quota exhausted (400): ${msg}`, status, err);
+        }
+        return new AIError(AIErrorType.INVALID_REQUEST, `Bad request (${status}): ${msg}`, status, err);
+      }
+      if (status >= 500) {
+        return new AIError(AIErrorType.SERVER_ERROR, `Server error (${status}): ${msg}`, status, err);
+      }
+    }
+
+    if (msgLower.includes('api key') || msgLower.includes('api_key_invalid') || msgLower.includes('unauthorized') || msgLower.includes('forbidden') || msgLower.includes('invalid credentials')) {
+      return new AIError(AIErrorType.AUTH_ERROR, `Authentication failure: ${msg}`, undefined, err);
+    }
+    if (msgLower.includes('quota') || msgLower.includes('exhausted') || msgLower.includes('limit exceeded') || msgLower.includes('used up') || msgLower.includes('allocation') || msgLower.includes('4006') || msgLower.includes('user_limit')) {
+      return new AIError(AIErrorType.QUOTA_EXHAUSTED, `Quota exhausted: ${msg}`, undefined, err);
+    }
+    if (msgLower.includes('rate limit') || msgLower.includes('rate_limit') || msgLower.includes('too many requests') || msgLower.includes('429')) {
+      return new AIError(AIErrorType.RATE_LIMIT, `Rate limit: ${msg}`, 429, err);
+    }
+    if (msgLower.includes('model is busy') || msgLower.includes('model busy') || msgLower.includes('congestion') || msgLower.includes('overloaded') || msgLower.includes('please wait') || msgLower.includes('try again')) {
+      return new AIError(AIErrorType.TEMPORARY_BUSY, `Model busy: ${msg}`, undefined, err);
+    }
+    if (msgLower.includes('safety') || msgLower.includes('blocked') || msgLower.includes('permission') || msgLower.includes('access') || msgLower.includes('malformed')) {
+      return new AIError(AIErrorType.INVALID_REQUEST, `Invalid request or safety block: ${msg}`, undefined, err);
+    }
+    if (msgLower.includes('model not found') || msgLower.includes('invalid model') || msgLower.includes('unknown model')) {
+      return new AIError(AIErrorType.INVALID_MODEL, `Model missing: ${msg}`, undefined, err);
+    }
+    if (msgLower.includes('500') || msgLower.includes('502') || msgLower.includes('503') || msgLower.includes('504') || msgLower.includes('unavailable') || msgLower.includes('internal error')) {
+      return new AIError(AIErrorType.SERVER_ERROR, `Server error: ${msg}`, undefined, err);
+    }
+
+    return new AIError(AIErrorType.UNKNOWN, `Unknown AI error: ${msg}`, undefined, err);
+  }
+}
+
+export interface AIProviderInstance {
+  id: string;
+  name: string;
+  type: 'gemini' | 'cloudflare';
+  key: string;
+  status: 'Healthy' | 'Busy' | 'Rate Limited' | 'Quota Exhausted' | 'Disabled' | 'Offline' | 'Temporary Failure' | 'Permanent Failure';
+  cooldownUntil: number;
+  failureCount: number;
+  circuitState: 'CLOSED' | 'OPEN' | 'HALF-OPEN';
+  lastFailureTime: number;
+}
+
+export class AIProviderManager {
+  private providers: AIProviderInstance[] = [];
+
+  public refreshProviders(apiKeys: string[]) {
+    const newProviders: AIProviderInstance[] = [];
+    for (let i = 0; i < apiKeys.length; i++) {
+      const key = apiKeys[i];
+      const isCloudflare = key.startsWith('cf-');
+      const id = isCloudflare ? `cloudflare-${i}` : `gemini-${i}`;
+      const name = isCloudflare ? `Cloudflare AI (Key ${i + 1})` : `Gemini API (Key ${i + 1})`;
+
+      newProviders.push({
+        id,
+        name,
+        type: isCloudflare ? 'cloudflare' : 'gemini',
+        key,
+        status: 'Healthy',
+        cooldownUntil: 0,
+        failureCount: 0,
+        circuitState: 'CLOSED',
+        lastFailureTime: 0
+      });
+    }
+
+    for (const np of newProviders) {
+      const existing = this.providers.find(p => p.key === np.key);
+      if (existing) {
+        np.status = existing.status;
+        np.cooldownUntil = existing.cooldownUntil;
+        np.failureCount = existing.failureCount;
+        np.circuitState = existing.circuitState;
+        np.lastFailureTime = existing.lastFailureTime;
+      }
+    }
+    this.providers = newProviders;
+  }
+
+  public getHealthyProviders(): AIProviderInstance[] {
+    const now = Date.now();
+    for (const p of this.providers) {
+      if (p.status !== 'Healthy' && p.status !== 'Disabled' && p.status !== 'Permanent Failure') {
+        if (now >= p.cooldownUntil) {
+          console.log(`[AI-HEALTH] Cooldown expired for client provider: ${p.name}. Resetting status to Healthy.`);
+          p.status = 'Healthy';
+          if (p.circuitState === 'OPEN') {
+            p.circuitState = 'HALF-OPEN';
+          }
+        }
+      }
+    }
+
+    const sorted = [...this.providers].sort((a, b) => {
+      const order = { gemini: 0, cloudflare: 1 };
+      return order[a.type] - order[b.type];
+    });
+
+    return sorted.filter(p => {
+      if (p.status === 'Disabled' || p.status === 'Permanent Failure' || p.status === 'Quota Exhausted') {
+        return false;
+      }
+      if (p.circuitState === 'OPEN') {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  public markFailure(provider: AIProviderInstance, error: AIError) {
+    const now = Date.now();
+    provider.lastFailureTime = now;
+
+    switch (error.type) {
+      case AIErrorType.AUTH_ERROR:
+        provider.status = 'Permanent Failure';
+        provider.circuitState = 'OPEN';
+        provider.cooldownUntil = now + 24 * 60 * 60 * 1000;
+        break;
+      case AIErrorType.QUOTA_EXHAUSTED:
+        provider.status = 'Quota Exhausted';
+        provider.circuitState = 'OPEN';
+        provider.cooldownUntil = now + 60 * 60 * 1000;
+        break;
+      case AIErrorType.RATE_LIMIT:
+        provider.status = 'Rate Limited';
+        provider.cooldownUntil = now + 30 * 1000;
+        break;
+      case AIErrorType.TEMPORARY_BUSY:
+        provider.status = 'Busy';
+        provider.cooldownUntil = now + 15 * 1000;
+        break;
+      default:
+        provider.failureCount++;
+        provider.status = 'Temporary Failure';
+        if (provider.failureCount >= 3) {
+          provider.circuitState = 'OPEN';
+          provider.status = 'Offline';
+          provider.cooldownUntil = now + 60 * 1000;
+        } else {
+          provider.cooldownUntil = now + 5 * 1000;
+        }
+        break;
+    }
+  }
+
+  public markSuccess(provider: AIProviderInstance) {
+    provider.status = 'Healthy';
+    provider.failureCount = 0;
+    provider.circuitState = 'CLOSED';
+    provider.cooldownUntil = 0;
+  }
+}
+
+const clientProviderManager = new AIProviderManager();
+
+function isRetryable(err: AIError): boolean {
+  return (
+    err.type === AIErrorType.RATE_LIMIT ||
+    err.type === AIErrorType.TEMPORARY_BUSY ||
+    err.type === AIErrorType.SERVER_ERROR ||
+    err.type === AIErrorType.NETWORK_ERROR
+  );
+}
 
 function maskKey(key: string): string {
   if (!key) return 'EMPTY_KEY';
@@ -37,82 +281,44 @@ async function withRetry<T>(
   apiKeys: string[],
   onRetry?: (attempt: number, delay: number, message: string) => void
 ): Promise<T> {
-  const maxAttempts = 1000;
-  const MIN_KEY_INTERVAL = 2000;
-  let lastError: unknown;
-  const keysTriedInThisRequest = new Set<number>();
+  clientProviderManager.refreshProviders(apiKeys);
+  const maxAttempts = 3;
+  let lastError: any = new Error('No AI keys available');
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const keyIdx = keyIndex % apiKeys.length;
-    const key = apiKeys[keyIdx];
-
-    const now = Date.now();
-    const lastTs = keyLastUsed[keyIdx] ?? 0;
-    const elapsed = now - lastTs;
-    if (elapsed < MIN_KEY_INTERVAL && keysTriedInThisRequest.has(keyIdx)) {
-      const wait = MIN_KEY_INTERVAL - elapsed;
-      onRetry?.(attempt + 1, Math.round(wait), `Key cooldown — waiting ${(wait / 1000).toFixed(0)}s before retry…`);
-      await new Promise(resolve => setTimeout(resolve, wait));
+    const healthyProviders = clientProviderManager.getHealthyProviders();
+    if (healthyProviders.length === 0) {
+      throw new Error('All configured AI API keys are currently exhausted or unavailable.');
     }
-    keysTriedInThisRequest.add(keyIdx);
-    keyLastUsed[keyIdx] = Date.now();
 
-    try {
-      return await fn(key);
-    } catch (err) {
-      lastError = err;
-      const msg = err instanceof Error ? (err.message || '') : String(err);
-      const msgLower = msg.toLowerCase();
-      const isQuota = isQuotaError(err);
-      const isTransient = isTransientError(err);
-      const masked = maskKey(key);
+    for (const provider of healthyProviders) {
+      try {
+        const result = await fn(provider.key);
+        clientProviderManager.markSuccess(provider);
+        return result;
+      } catch (err: unknown) {
+        const aiError = AIErrorClassifier.classify(err);
+        clientProviderManager.markFailure(provider, aiError);
+        lastError = aiError;
 
-      // Non-recoverable errors for a single key should rotate if other keys are available
-      if (msgLower.includes('api key') || msgLower.includes('not found') || msgLower.includes('safety')
-          || msgLower.includes('permission') || msgLower.includes('access')) {
-        if (apiKeys.length > 1 && attempt < maxAttempts - 1) {
-          console.warn(`[GEMINI] Key ${keyIdx + 1} (${masked}) encountered non-recoverable error. Rotating to next key. Error:`, err);
-          onRetry?.(attempt + 1, 1000, `Key ${keyIdx + 1} (${masked}) failed: invalid or restricted. Rotating key…`);
-          keyIndex = (keyIndex + 1) % apiKeys.length;
-          continue;
+        const isRetry = isRetryable(aiError);
+        const retryMessage = `Key ${provider.name} failed (${aiError.type}). Status: ${provider.status}. ${isRetry ? 'Retrying fallback…' : 'Skipping key…'}`;
+
+        onRetry?.(attempt + 1, isRetry ? 5000 : 1000, retryMessage);
+
+        if (aiError.type === AIErrorType.INVALID_MODEL || aiError.type === AIErrorType.INVALID_REQUEST) {
+          throw aiError;
         }
-        throw err;
+
+        continue;
       }
-
-      let delay = 15000;
-      let message: string;
-
-      if (isQuota) {
-        if (keysTriedInThisRequest.size >= apiKeys.length) {
-          // All keys in the pool are exhausted
-          delay = 30000;
-          keyIndex = (keyIndex + 1) % apiKeys.length;
-          keysTriedInThisRequest.clear();
-          console.log(`[GEMINI] All ${apiKeys.length} keys in the pool are exhausted (last failed: Key ${keyIdx + 1} [${masked}]) — sleeping 30s. Error details:`, msg);
-          message = `All ${apiKeys.length} keys in the pool are exhausted — sleeping for 30s before retrying…`;
-        } else {
-          // Untried keys remain in pool
-          keyIndex = (keyIndex + 1) % apiKeys.length;
-          delay = 1000; // Small delay before trying next key
-          console.log(`[GEMINI] Quota exceeded on Key ${keyIdx + 1} (${masked}) — moving to Key ${(keyIndex % apiKeys.length) + 1}. Error details:`, msg);
-          message = `Quota exceeded on key ${keyIdx + 1} (${masked}) — moving to key ${(keyIndex % apiKeys.length) + 1}…`;
-        }
-      } else if (isTransient) {
-        // Model is busy: retry after 15s using same key
-        delay = 15000;
-        console.log(`[GEMINI] Model is busy on Key ${keyIdx + 1} (${masked}) — retrying after 15s. Error details:`, msg);
-        message = `Model busy on key ${keyIdx + 1} (${masked}) — retrying after 15s…`;
-      } else {
-        // Other errors: retry after 15s using same key
-        delay = 15000;
-        console.log(`[GEMINI] Error on Key ${keyIdx + 1} (${masked}) — retrying after 15s. Error:`, err);
-        message = `Error on key ${keyIdx + 1} (${masked}) — retrying after 15s…`;
-      }
-
-      onRetry?.(attempt + 1, Math.round(delay), message);
-      await new Promise(resolve => setTimeout(resolve, delay));
     }
+
+    const waitDelay = 1000 * Math.pow(2, attempt);
+    onRetry?.(attempt + 1, waitDelay, `All keys failed in attempt ${attempt + 1}. Backing off for ${(waitDelay / 1000).toFixed(0)}s…`);
+    await new Promise(resolve => setTimeout(resolve, waitDelay));
   }
+
   throw lastError;
 }
 

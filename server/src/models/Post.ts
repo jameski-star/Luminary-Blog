@@ -54,7 +54,6 @@ const postSchema = new Schema<IPost>({
   editorialIntelligence: { type: Schema.Types.Mixed },
 });
 
-postSchema.index({ slug: 1 }, { unique: true });
 postSchema.index({ status: 1, isApproved: 1, publishedAt: -1 });
 postSchema.index({ authorId: 1, status: 1 });
 postSchema.index({ title: 'text', excerpt: 'text', content: 'text', tags: 'text', keywords: 'text' });
